@@ -15,8 +15,8 @@
   },
   "devDependencies": {
     "@halo-dev/ui-plugin-bundler-kit": "^2.21.2",
-    "@rsbuild/core": "^1.6.3",
-    "@rsbuild/plugin-vue": "^1.2.0",
+    "@rsbuild/core": "^2.0.3",
+    "@rsbuild/plugin-vue": "^1.2.7",
     "@types/node": "^20.19.24",
     "@vue/tsconfig": "^0.7.0",
     "typescript": "~5.8.3",
