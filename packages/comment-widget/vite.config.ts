@@ -3,9 +3,6 @@ import { defineConfig, type Plugin } from 'vite';
 import dts from 'vite-plugin-dts';
 
 export default defineConfig({
-  experimental: {
-    enableNativePlugin: true,
-  },
   plugins: [
     dts() as Plugin,
     UnoCSS({
