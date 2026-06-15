@@ -1,7 +1,7 @@
 apiVersion: v1alpha1
 kind: Setting
 metadata:
-  name: plugin-comment-widget-settings
+  name: plugin-comment-next-settings
 spec:
   forms:
     - group: basic
@@ -141,6 +141,170 @@ spec:
             - label: "匿名&无头像用户"
               value: "noAvatarUser"
           value: "anonymousUser"
+    - group: badge
+      label: 徽章设置
+      formSchema:
+        - $formkit: checkbox
+          label: 启用首评徽章
+          name: enableFirstCommentBadge
+          id: enableFirstCommentBadge
+          key: enableFirstCommentBadge
+          value: true
+          help: 开启后，评论列表中的第一条评论会自动展示首评徽章。
+        - $formkit: group
+          label: 首评徽章
+          name: firstCommentBadge
+          value:
+            label: 首评
+            icon: medal
+            title: 本文第一位评论者
+          children:
+            - $formkit: text
+              label: 显示文案
+              name: label
+              value: 首评
+            - $formkit: text
+              label: 图标名称
+              name: icon
+              value: medal
+              help: 使用评论组件内置图标名称，留空则只显示文字。
+            - $formkit: text
+              label: 提示文案
+              name: title
+              value: 本文第一位评论者
+        - $formkit: group
+          label: 管理员徽章
+          name: adminBadge
+          value:
+            label: 站长
+            icon: shield
+            title: 站点管理员
+          children:
+            - $formkit: text
+              label: 显示文案
+              name: label
+              value: 站长
+            - $formkit: text
+              label: 图标名称
+              name: icon
+              value: shield
+            - $formkit: text
+              label: 提示文案
+              name: title
+              value: 站点管理员
+        - $formkit: array
+          label: 管理员身份匹配
+          name: adminIdentifiers
+          value: []
+          addLabel: 添加管理员身份
+          itemLabels:
+            - type: text
+              label: $value.username
+            - type: text
+              label: $value.email
+            - type: text
+              label: $value.displayName
+          children:
+            - $formkit: text
+              label: 用户名
+              name: username
+              help: 已登录用户可按 Halo 用户名匹配。
+            - $formkit: email
+              label: 邮箱
+              name: email
+              help: 匿名评论者可按邮箱匹配。
+            - $formkit: text
+              label: 昵称
+              name: displayName
+              help: 不建议只依赖昵称，昵称可被普通评论者填写。
+        - $formkit: array
+          label: 活跃等级徽章
+          name: levelRules
+          value: []
+          addLabel: 添加等级徽章
+          itemLabels:
+            - type: text
+              label: $value.label
+            - type: text
+              label: "≥"
+            - type: text
+              label: $value.minComments
+            - type: text
+              label: "条"
+          children:
+            - $formkit: text
+              label: 规则 ID
+              name: id
+              value: ""
+              placeholder: level-regular
+              validation: required
+            - $formkit: text
+              label: 显示文案
+              name: label
+              value: ""
+              placeholder: 常驻
+              validation: required
+            - $formkit: number
+              label: 最少活跃评论数
+              name: minComments
+              value: 10
+              min: 1
+              validation: required
+            - $formkit: text
+              label: 图标名称
+              name: icon
+              value: sparkle
+            - $formkit: text
+              label: 提示文案
+              name: title
+              value: ""
+              placeholder: 累计评论达到 10 条
+        - $formkit: array
+          label: 专属用户徽章
+          name: customRules
+          value: []
+          addLabel: 添加专属徽章
+          itemLabels:
+            - type: text
+              label: $value.label
+            - type: text
+              label: $value.match.username
+            - type: text
+              label: $value.match.email
+          children:
+            - $formkit: text
+              label: 规则 ID
+              name: id
+              value: ""
+              placeholder: special-builder
+              validation: required
+            - $formkit: text
+              label: 显示文案
+              name: label
+              value: ""
+              placeholder: 共建者
+              validation: required
+            - $formkit: text
+              label: 图标名称
+              name: icon
+              value: star
+            - $formkit: text
+              label: 提示文案
+              name: title
+              value: ""
+            - $formkit: group
+              label: 匹配条件
+              name: match
+              children:
+                - $formkit: text
+                  label: 用户名
+                  name: username
+                - $formkit: email
+                  label: 邮箱
+                  name: email
+                - $formkit: text
+                  label: 昵称
+                  name: displayName
     - group: editor
       label: 编辑器
       formSchema:

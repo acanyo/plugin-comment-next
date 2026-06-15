@@ -67,7 +67,7 @@ application-local.yml
 application-local.yaml
 application-local.properties
 
-/packages/*/node_modules/
+/packages-lit/*/node_modules/
 node_modules
 /workplace/
 /src/main/resources/static/

@@ -1,20 +1,18 @@
 {
+  "name": "plugin-comment-next",
   "license": "GPL-3.0",
   "author": {
-    "name": "Halo",
-    "url": "https://github.com/halo-dev"
+    "name": "Handsome",
+    "url": "https://www.xhhao.com"
   },
-  "contributors": [
-    {
-      "name": "Ryan Wang",
-      "email": "i@ryanc.cc",
-      "url": "https://github.com/ruibaby"
-    }
-  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/acanyo/plugin-comment-next.git"
+  },
   "scripts": {
     "build": "pnpm -r run build",
     "check": "biome check --write",
-    "example:dev": "pnpm -C packages/example dev",
+    "example:dev": "pnpm -C packages/comment-next dev",
     "prepare": "husky",
     "publish": "pnpm -r publish --access public --no-git-checks"
   },
@@ -25,11 +23,11 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.4",
-    "@types/node": "^24.12.4",
+    "@types/node": "^25.9.3",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.6",
-    "typescript": "~5.3.3",
-    "vite": "^8.0.10",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
     "vite-plugin-dts": "^4.5.4"
   },
   "packageManager": "pnpm@10.20.0",

@@ -1,18 +1,18 @@
 apiVersion: v1alpha1
 kind: Role
 metadata:
-  name: comment-widget-public-apis
+  name: comment-next-public-apis
   labels:
     halo.run/role-template: "true"
     halo.run/hidden: "true"
     rbac.authorization.halo.run/aggregate-to-anonymous: "true"
   annotations:
-    rbac.authorization.halo.run/module: "Comment Widget"
-    rbac.authorization.halo.run/display-name: "Comment Widget Public APIs"
+    rbac.authorization.halo.run/module: "评论组件 Next"
+    rbac.authorization.halo.run/display-name: "评论组件 Next 公开接口"
 rules:
-  - apiGroups: [ "api.commentwidget.halo.run" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "captcha/generate" ]
     verbs: [ "get" ]
-  - apiGroups: [ "api.commentwidget.halo.run" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "config" ]
     verbs: [ "list" ]
