@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xhhao.comment.utils.JsonUtils;
+import com.xhhao.comment.widget.ai.HaloAiFoundationAvailability;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -50,9 +51,13 @@ public class ConfigEndpoint implements CustomEndpoint {
 
     private static final String ALLOW_ANONYMOUS = "allowAnonymous";
 
+    private static final String FOUNDATION_AVAILABLE = "foundationAvailable";
+
     private final ReactiveExtensionClient client;
 
     private final PluginContext context;
+
+    private final HaloAiFoundationAvailability haloAiFoundationAvailability;
 
     private final ObjectMapper objectMapper = JsonUtils.createObjectMapper();
 
@@ -70,6 +75,7 @@ public class ConfigEndpoint implements CustomEndpoint {
             .defaultIfEmpty(objectMapper.createObjectNode())
             .map(this::removeSensitiveFields)
             .map(this::applyAiDefaults)
+            .flatMap(this::appendAiFoundationAvailability)
             .flatMap(this::appendSystemAdminIdentifiers)
             .flatMap(rootNode -> ServerResponse.ok().bodyValue(rootNode));
     }
@@ -92,6 +98,15 @@ public class ConfigEndpoint implements CustomEndpoint {
         });
 
         return rootNode;
+    }
+
+    private Mono<ObjectNode> appendAiFoundationAvailability(ObjectNode rootNode) {
+        return haloAiFoundationAvailability.isEnabled()
+            .map(available -> {
+                aiNode(rootNode).put(FOUNDATION_AVAILABLE, available);
+                return rootNode;
+            })
+            .onErrorReturn(rootNode);
     }
 
     private ObjectNode removeSensitiveFields(ObjectNode rootNode) {

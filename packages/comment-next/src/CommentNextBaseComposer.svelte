@@ -627,6 +627,10 @@ function resolveAiWritingEnabled(): boolean {
     return false;
   }
 
+  if (!aiConfig.foundationAvailable) {
+    return false;
+  }
+
   return isLoggedIn || Boolean(aiConfig.allowAnonymous);
 }
 

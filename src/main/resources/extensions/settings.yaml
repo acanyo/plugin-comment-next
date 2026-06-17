@@ -248,12 +248,12 @@ spec:
           key: aiEnabled
           value: false
           help: 需要安装并启用 Halo AI Foundation 后前台才会显示 AI 入口；未安装时普通评论功能不受影响。模型和供应商密钥在 AI Foundation 中配置，本插件只调用已启用的语言模型。
-        - $formkit: text
+        - $formkit: aiModelSelector
           if: "$get(aiEnabled).value === true"
           name: languageModelName
-          label: 语言模型名称
-          placeholder: 留空使用 AI Foundation 默认语言模型
-          help: 这里暂时不校验 AI Foundation 插件安装状态；留空时使用 AI Foundation 配置的默认语言模型。
+          label: 语言模型
+          placeholder: 留空使用默认语言模型
+          help: 选择 AI Foundation 中已启用的语言模型；留空时使用 AI Foundation 配置的默认语言模型。
         - $formkit: checkbox
           if: "$get(aiEnabled).value === true"
           label: 允许未登录用户使用 AI

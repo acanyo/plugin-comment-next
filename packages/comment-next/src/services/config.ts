@@ -33,6 +33,7 @@ export interface CommentNextAiConfig {
   enabled?: boolean;
   allowAnonymous?: boolean;
   maxInputLength?: number;
+  foundationAvailable?: boolean;
 }
 
 export type CommentNextImageUploadProvider =
