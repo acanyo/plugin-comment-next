@@ -1,5 +1,5 @@
 import { axiosInstance } from '@halo-dev/api-client';
-import type { ResourceMetadata } from './metadata';
+import type { ResourceMetadata } from './metadata.ts';
 
 export const EMOTE_GROUPS_ENDPOINT =
   '/apis/api.commentnext.xhhao.com/v1alpha1/emotegroups';

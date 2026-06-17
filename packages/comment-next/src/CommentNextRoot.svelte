@@ -1,5 +1,6 @@
 <script lang="ts">
 import { onMount } from 'svelte';
+import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
 import CommentNextBox from './CommentNextBox.svelte';
 import CommentNextCommentList from './CommentNextCommentList.svelte';
 import { normalizeCommentNextEmotePacks } from './emotes/normalize';
@@ -28,11 +29,17 @@ const {
   inlineSuggestion = false,
   selectionTools = false,
   placeholder = '写下你的评论...',
+  editorOnly = false,
+  allowImages = true,
+  showAccountFields = true,
+  showFooter = true,
+  showSubmitArea = true,
   showComments = true,
   demoData = false,
   pageSize = 20,
   replySize = 10,
   withReplies = true,
+  onEditorChange = () => {},
 }: {
   baseUrl?: string;
   group?: string;
@@ -49,16 +56,28 @@ const {
   inlineSuggestion?: boolean;
   selectionTools?: boolean;
   placeholder?: string;
+  editorOnly?: boolean;
+  allowImages?: boolean;
+  showAccountFields?: boolean;
+  showFooter?: boolean;
+  showSubmitArea?: boolean;
   showComments?: boolean;
   demoData?: boolean;
   pageSize?: number;
   replySize?: number;
   withReplies?: boolean;
+  onEditorChange?: (html: string) => void;
 } = $props();
+
+type CommentNextComposerRef = {
+  focus: () => void;
+  reset: () => void;
+};
 
 let pluginConfig = $state<CommentNextPluginConfig | undefined>();
 let globalInfo = $state<CommentNextGlobalInfo | undefined>();
 let rawEmotePacks = $state<CommentNextRawEmotePacks>({});
+let editorComposerRef = $state<CommentNextComposerRef | undefined>();
 let configLoaded = $state(false);
 let configFailed = $state(false);
 let globalInfoLoaded = $state(false);
@@ -71,6 +90,8 @@ const globalInfoReady = $derived(
 const configReady = $derived(pluginConfigReady && globalInfoReady);
 const basicConfig = $derived(pluginConfig?.basic);
 const securityConfig = $derived(pluginConfig?.security);
+const aiConfig = $derived(pluginConfig?.ai);
+const uploadConfig = $derived(pluginConfig?.upload);
 const editorConfig = $derived(pluginConfig?.editor);
 const badgeConfig = $derived(pluginConfig?.badge);
 const resolvedAllowAnonymous = $derived(
@@ -112,6 +133,41 @@ onMount(() => {
   }
 
   let cancelled = false;
+
+  if (editorOnly) {
+    globalInfoLoaded = true;
+
+    fetchPluginConfig(baseUrl)
+      .then((config) => {
+        if (!cancelled) {
+          pluginConfig = config;
+          configLoaded = true;
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+        if (!cancelled) {
+          configFailed = true;
+        }
+      });
+
+    fetchEmotePacks(baseUrl)
+      .then((emotes) => {
+        if (!cancelled) {
+          rawEmotePacks = emotes;
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+        if (!cancelled) {
+          rawEmotePacks = {};
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }
 
   fetchPluginConfig(baseUrl)
     .then((config) => {
@@ -171,30 +227,45 @@ function resolvePositiveNumber(
 
   return normalizedValue;
 }
+
+export function focus() {
+  editorComposerRef?.focus();
+}
+
+export function reset() {
+  editorComposerRef?.reset();
+}
 </script>
 
-<div class="comment-next-root grid w-full gap-4">
-  <CommentNextBox
+{#if editorOnly}
+  <CommentNextBaseComposer
+    bind:this={editorComposerRef}
     {baseUrl}
-    {group}
-    {kind}
-    {version}
-    {name}
     {loggedIn}
-    allowAnonymous={resolvedAllowAnonymous}
-    showCaptcha={resolvedShowCaptcha}
-    enablePrivate={resolvedEnablePrivate}
-    loading={loading || !configReady}
+    {allowImages}
+    {showAccountFields}
+    {showFooter}
+    {showSubmitArea}
+    allowAnonymous={false}
+    showCaptcha={false}
+    enablePrivate={false}
+    loading={loading}
     {submitting}
     {commandMenuOpen}
     {inlineSuggestion}
     {selectionTools}
     placeholder={resolvedPlaceholder}
+    {aiConfig}
+    {uploadConfig}
     emotePacks={resolvedEmotePacks}
+    variant="reply"
+    compact
+    targetReady={true}
+    onChange={onEditorChange}
   />
-
-  {#if showComments && configReady}
-    <CommentNextCommentList
+{:else}
+  <div class="comment-next-root grid w-full gap-4">
+    <CommentNextBox
       {baseUrl}
       {group}
       {kind}
@@ -203,16 +274,41 @@ function resolvePositiveNumber(
       {loggedIn}
       allowAnonymous={resolvedAllowAnonymous}
       showCaptcha={resolvedShowCaptcha}
-      {demoData}
-      pageSize={resolvedPageSize}
-      replySize={resolvedReplySize}
-      withReplies={resolvedWithReplies}
-      showCommenterDevice={resolvedShowCommenterDevice}
-      {badgeConfig}
+      enablePrivate={resolvedEnablePrivate}
+      loading={loading || !configReady}
+      {submitting}
+      {commandMenuOpen}
+      {inlineSuggestion}
+      {selectionTools}
+      placeholder={resolvedPlaceholder}
+      {aiConfig}
+      {uploadConfig}
       emotePacks={resolvedEmotePacks}
     />
-  {/if}
-</div>
+
+    {#if showComments && configReady}
+      <CommentNextCommentList
+        {baseUrl}
+        {group}
+        {kind}
+        {version}
+        {name}
+        {loggedIn}
+        allowAnonymous={resolvedAllowAnonymous}
+        showCaptcha={resolvedShowCaptcha}
+        {demoData}
+        pageSize={resolvedPageSize}
+        replySize={resolvedReplySize}
+        withReplies={resolvedWithReplies}
+        showCommenterDevice={resolvedShowCommenterDevice}
+        {badgeConfig}
+        {aiConfig}
+        {uploadConfig}
+        emotePacks={resolvedEmotePacks}
+      />
+    {/if}
+  </div>
+{/if}
 
 <style>
   .comment-next-root {

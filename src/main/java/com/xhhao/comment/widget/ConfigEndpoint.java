@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xhhao.comment.utils.JsonUtils;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -39,9 +40,15 @@ public class ConfigEndpoint implements CustomEndpoint {
 
     private static final String UPLOAD_GROUP = "upload";
 
+    private static final String AI_GROUP = "ai";
+
     private static final String IMG_BB = "imgBb";
 
     private static final String API_KEY = "apiKey";
+
+    private static final String ENABLED = "enabled";
+
+    private static final String ALLOW_ANONYMOUS = "allowAnonymous";
 
     private final ReactiveExtensionClient client;
 
@@ -62,6 +69,7 @@ public class ConfigEndpoint implements CustomEndpoint {
             .map(this::toConfigNode)
             .defaultIfEmpty(objectMapper.createObjectNode())
             .map(this::removeSensitiveFields)
+            .map(this::applyAiDefaults)
             .flatMap(this::appendSystemAdminIdentifiers)
             .flatMap(rootNode -> ServerResponse.ok().bodyValue(rootNode));
     }
@@ -94,7 +102,40 @@ public class ConfigEndpoint implements CustomEndpoint {
                 imgBbNode.remove(API_KEY);
             }
         }
+
+        var aiValue = rootNode.get(AI_GROUP);
+        if (aiValue instanceof ObjectNode aiNode) {
+            aiNode.remove(List.of(
+                "languageModelName",
+                "maxOutputTokens",
+                "temperature",
+                "systemPrompt",
+                "security"
+            ));
+        }
         return rootNode;
+    }
+
+    private ObjectNode applyAiDefaults(ObjectNode rootNode) {
+        var aiNode = aiNode(rootNode);
+        if (!aiNode.has(ENABLED)) {
+            aiNode.put(ENABLED, false);
+        }
+        if (!aiNode.has(ALLOW_ANONYMOUS)) {
+            aiNode.put(ALLOW_ANONYMOUS, false);
+        }
+        return rootNode;
+    }
+
+    private ObjectNode aiNode(ObjectNode rootNode) {
+        var aiValue = rootNode.get(AI_GROUP);
+        if (aiValue instanceof ObjectNode existingAiNode) {
+            return existingAiNode;
+        }
+
+        var aiNode = objectMapper.createObjectNode();
+        rootNode.set(AI_GROUP, aiNode);
+        return aiNode;
     }
 
     private Mono<ObjectNode> appendSystemAdminIdentifiers(ObjectNode rootNode) {

@@ -3,6 +3,16 @@ import { definePlugin } from '@halo-dev/ui-shared';
 import { defineAsyncComponent, markRaw } from 'vue';
 import 'uno.css';
 
+const ConsoleCommentEditor = defineAsyncComponent({
+  loader: () => import('./components/ConsoleCommentEditor.vue'),
+  loadingComponent: VLoading,
+});
+
+const ConsoleCommentContent = defineAsyncComponent({
+  loader: () => import('./components/ConsoleCommentContent.vue'),
+  loadingComponent: VLoading,
+});
+
 export default definePlugin({
   components: {},
   routes: [
@@ -17,11 +27,11 @@ export default definePlugin({
         }),
         meta: {
           title: '评论徽章设置',
-          permissions: ['plugin:comment-next:badge-rules:view'],
+          permissions: ['*'],
           menu: {
             name: '评论徽章设置',
             icon: markRaw(IconNotificationBadgeLine),
-            priority: 50,
+            priority: 2.1,
           },
         },
       },
@@ -37,14 +47,22 @@ export default definePlugin({
         }),
         meta: {
           title: '评论表情管理',
-          permissions: ['plugin:comment-next:emotes:view'],
+          permissions: ['*'],
           menu: {
             name: '评论表情管理',
             icon: markRaw(IconNotificationBadgeLine),
-            priority: 55,
+            priority: 2.2,
           },
         },
       },
     },
   ],
+  extensionPoints: {
+    'comment:editor:replace': () => ({
+      component: markRaw(ConsoleCommentEditor),
+    }),
+    'comment:list-item:content:replace': () => ({
+      component: markRaw(ConsoleCommentContent),
+    }),
+  },
 });

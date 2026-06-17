@@ -1,4 +1,4 @@
-import type { ResourceMetadata } from '../api/metadata';
+import type { ResourceMetadata } from '../api/metadata.ts';
 
 export interface ResourceWithMetadata {
   metadata?: Pick<ResourceMetadata, 'deletionTimestamp'>;

@@ -12,6 +12,10 @@ import {
   upvoteCommentTarget,
 } from './services/comments';
 import type {
+  CommentNextAiConfig,
+  CommentNextUploadConfig,
+} from './services/config';
+import type {
   CommentNextBadgeConfig,
   CommentNextBadge as CommentNextBadgeModel,
   CommentNextComment,
@@ -40,6 +44,8 @@ const {
   demoData = false,
   replySize = 10,
   showCommenterDevice = true,
+  aiConfig,
+  uploadConfig,
   emotePacks = [],
 }: {
   baseUrl?: string;
@@ -53,6 +59,8 @@ const {
   demoData?: boolean;
   replySize?: number;
   showCommenterDevice?: boolean;
+  aiConfig?: CommentNextAiConfig;
+  uploadConfig?: CommentNextUploadConfig;
   emotePacks?: CommentNextEmotePack[];
 } = $props();
 
@@ -339,6 +347,8 @@ async function loadReplies({
           {loggedIn}
           {allowAnonymous}
           {showCaptcha}
+          {aiConfig}
+          {uploadConfig}
           {emotePacks}
           replyToName={comment.author.displayName}
           onCancel={closeReplyComposer}
@@ -367,6 +377,8 @@ async function loadReplies({
                 {loggedIn}
                 {allowAnonymous}
                 {showCaptcha}
+                {aiConfig}
+                {uploadConfig}
                 {emotePacks}
                 replyToName={reply.author.displayName}
                 quoteReply={reply}

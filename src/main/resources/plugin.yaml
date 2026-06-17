@@ -2,6 +2,8 @@ apiVersion: plugin.halo.run/v1alpha1
 kind: Plugin
 metadata:
   name: PluginCommentNext
+  annotations:
+    "store.halo.run/recommended-apps": '["app-acslk9nu"]'
 spec:
   enabled: true
   requires: ">=2.22.0"
@@ -16,6 +18,8 @@ spec:
   description: "以 AI 辅助写作为核心，为 Halo 提供现代化富文本评论体验，支持验证码、评论列表与用户徽章。"
   configMapName: plugin-comment-next-configmap
   settingName: plugin-comment-next-settings
+  pluginDependencies:
+    ai-foundation?: "*"
   license:
     - name: "GPL-3.0"
       url: "https://github.com/acanyo/plugin-comment-next/blob/main/LICENSE"

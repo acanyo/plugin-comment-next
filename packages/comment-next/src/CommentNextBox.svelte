@@ -1,6 +1,10 @@
 <script lang="ts">
 import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
 import { createComment } from './services/comments';
+import type {
+  CommentNextAiConfig,
+  CommentNextUploadConfig,
+} from './services/config';
 import type { CommentNextComposerSubmitPayload } from './types/composer';
 import type { CommentNextEmotePack } from './types/emote';
 
@@ -20,6 +24,8 @@ const {
   inlineSuggestion = false,
   selectionTools = false,
   placeholder = '写下你的评论...',
+  aiConfig,
+  uploadConfig,
   emotePacks = [],
 }: {
   baseUrl?: string;
@@ -37,6 +43,8 @@ const {
   inlineSuggestion?: boolean;
   selectionTools?: boolean;
   placeholder?: string;
+  aiConfig?: CommentNextAiConfig;
+  uploadConfig?: CommentNextUploadConfig;
   emotePacks?: CommentNextEmotePack[];
 } = $props();
 
@@ -82,6 +90,8 @@ function getSubjectDomId() {
   {inlineSuggestion}
   {selectionTools}
   {placeholder}
+  {aiConfig}
+  {uploadConfig}
   {emotePacks}
   {subject}
   {targetReady}

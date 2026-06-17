@@ -1,13 +1,19 @@
 <script lang="ts">
-import { sanitizeCommentHtml } from './utils/html';
+import { sanitizeCommentHtml, sanitizeConsoleCommentHtml } from './utils/html';
 
 const {
   content = '',
+  allowImages = true,
 }: {
   content?: string;
+  allowImages?: boolean;
 } = $props();
 
-const safeContent = $derived(sanitizeCommentHtml(content));
+const safeContent = $derived(
+  allowImages
+    ? sanitizeCommentHtml(content)
+    : sanitizeConsoleCommentHtml(content)
+);
 </script>
 
 <div class="comment-next-comment-content break-words text-[0.9375rem] text-[var(--comment-next-comment-content-color,var(--comment-next-text-color,#172033))] leading-[1.72]">

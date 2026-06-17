@@ -1,9 +1,7 @@
 package com.xhhao.comment.widget;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import lombok.Data;
 import lombok.Getter;
 import lombok.experimental.Accessors;
@@ -38,6 +36,11 @@ public interface SettingConfigGetter {
      * Never {@link Mono#empty()}.
      */
     Mono<UploadConfig> getUploadConfig();
+
+    /**
+     * Never {@link Mono#empty()}.
+     */
+    Mono<AiConfig> getAiConfig();
 
     @Data
     @Accessors(chain = true)
@@ -90,6 +93,9 @@ public interface SettingConfigGetter {
         private int replySize;
         private boolean withReplies;
         private int withReplySize;
+        private boolean showCommenterDevice = true;
+        private boolean enablePrivateComment;
+        private boolean showPrivateCommentBadge = true;
     }
 
     @Data
@@ -120,7 +126,7 @@ public interface SettingConfigGetter {
 
         private long authenticatedMaxSizeKb = 5120;
 
-        private String allowedContentTypes = defaultAllowedContentTypes();
+        private String allowedContentTypes;
 
         @Getter(onMethod_ = @NonNull)
         private HaloAttachmentUploadConfig haloAttachment = HaloAttachmentUploadConfig.empty();
@@ -140,14 +146,6 @@ public interface SettingConfigGetter {
         public UploadConfig setAuthenticatedProvider(ImageUploadProviderType authenticatedProvider) {
             this.authenticatedProvider =
                 authenticatedProvider == null ? ImageUploadProviderType.HALO_ATTACHMENT : authenticatedProvider;
-            return this;
-        }
-
-        public UploadConfig setAllowedContentTypes(String allowedContentTypes) {
-            this.allowedContentTypes =
-                allowedContentTypes == null || allowedContentTypes.isBlank()
-                    ? defaultAllowedContentTypes()
-                    : allowedContentTypes;
             return this;
         }
 
@@ -175,28 +173,15 @@ public interface SettingConfigGetter {
             return Math.max(1, authenticatedMaxSizeKb) * 1024;
         }
 
-        public List<String> allowedContentTypeList() {
-            return Arrays.stream(allowedContentTypes.split(","))
-                .map(value -> value.trim().toLowerCase(Locale.ROOT))
-                .filter(value -> !value.isBlank())
-                .distinct()
-                .toList();
-        }
-
         public static UploadConfig empty() {
             return new UploadConfig()
                 .setEnabled(false)
                 .setAllowAnonymousUpload(false)
                 .setAnonymousProvider(ImageUploadProviderType.DISABLED)
                 .setAuthenticatedProvider(ImageUploadProviderType.HALO_ATTACHMENT)
-                .setAllowedContentTypes(defaultAllowedContentTypes())
                 .setHaloAttachment(HaloAttachmentUploadConfig.empty())
                 .setImgBb(ImgBbUploadConfig.empty())
                 .setSecurity(UploadSecurityConfig.empty());
-        }
-
-        private static String defaultAllowedContentTypes() {
-            return "image/jpeg,image/png,image/gif,image/webp";
         }
     }
 
@@ -229,6 +214,83 @@ public interface SettingConfigGetter {
 
         public static UploadSecurityConfig empty() {
             return new UploadSecurityConfig();
+        }
+    }
+
+    @Data
+    @Accessors(chain = true)
+    class AiConfig {
+        public static final String GROUP = "ai";
+
+        private boolean enabled;
+
+        private boolean allowAnonymous;
+
+        private String languageModelName;
+
+        private int maxInputLength = 2000;
+
+        private int maxOutputTokens = 512;
+
+        private double temperature = 0.7;
+
+        private String systemPrompt = defaultSystemPrompt();
+
+        @Getter(onMethod_ = @NonNull)
+        private AiSecurityConfig security = AiSecurityConfig.empty();
+
+        public AiConfig setSecurity(AiSecurityConfig security) {
+            this.security = security == null ? AiSecurityConfig.empty() : security;
+            return this;
+        }
+
+        public AiConfig setSystemPrompt(String systemPrompt) {
+            this.systemPrompt = systemPrompt == null || systemPrompt.isBlank()
+                ? defaultSystemPrompt()
+                : systemPrompt;
+            return this;
+        }
+
+        public int normalizedMaxInputLength() {
+            return Math.max(1, maxInputLength);
+        }
+
+        public int normalizedMaxOutputTokens() {
+            return Math.max(1, maxOutputTokens);
+        }
+
+        public double normalizedTemperature() {
+            if (temperature < 0) {
+                return 0;
+            }
+            return Math.min(temperature, 2);
+        }
+
+        public static AiConfig empty() {
+            return new AiConfig()
+                .setEnabled(false)
+                .setAllowAnonymous(false)
+                .setMaxInputLength(2000)
+                .setMaxOutputTokens(512)
+                .setTemperature(0.7)
+                .setSystemPrompt(defaultSystemPrompt())
+                .setSecurity(AiSecurityConfig.empty());
+        }
+
+        private static String defaultSystemPrompt() {
+            return "你是一个评论写作助手。你只输出可直接放进评论框的中文内容，不要解释过程，不要使用 Markdown 标题，不要编造事实。";
+        }
+    }
+
+    @Data
+    class AiSecurityConfig {
+        private int anonymousRateLimit = 3;
+        private int anonymousRateWindowSeconds = 60;
+        private int authenticatedRateLimit = 20;
+        private int authenticatedRateWindowSeconds = 60;
+
+        public static AiSecurityConfig empty() {
+            return new AiSecurityConfig();
         }
     }
 

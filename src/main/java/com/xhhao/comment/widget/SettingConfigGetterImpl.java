@@ -39,4 +39,10 @@ public class SettingConfigGetterImpl implements SettingConfigGetter {
         return settingFetcher.fetch(UploadConfig.GROUP, UploadConfig.class)
             .defaultIfEmpty(UploadConfig.empty());
     }
+
+    @Override
+    public Mono<AiConfig> getAiConfig() {
+        return settingFetcher.fetch(AiConfig.GROUP, AiConfig.class)
+            .defaultIfEmpty(AiConfig.empty());
+    }
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { onMount } from 'svelte';
+import { onMount, tick } from 'svelte';
 import CommentNextEmotePanel from './CommentNextEmotePanel.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import CommentNextImageCaptcha from './CommentNextImageCaptcha.svelte';
@@ -28,10 +28,15 @@ const {
   compact = false,
   showAi = true,
   showInsertTools = true,
+  showSubmitArea = true,
+  imageUploadEnabled = false,
+  imageUploading = false,
+  imageAccept = 'image/*',
   emotePacks = [],
   onCaptchaChange = () => {},
   onToggleCommandMenu = () => {},
   onEmoteSelect = () => {},
+  onImageUpload = () => {},
   onLogin = () => {},
 }: {
   baseUrl?: string;
@@ -52,10 +57,15 @@ const {
   compact?: boolean;
   showAi?: boolean;
   showInsertTools?: boolean;
+  showSubmitArea?: boolean;
+  imageUploadEnabled?: boolean;
+  imageUploading?: boolean;
+  imageAccept?: string;
   emotePacks?: CommentNextEmotePack[];
   onCaptchaChange?: (value: string) => void;
   onToggleCommandMenu?: () => void;
   onEmoteSelect?: (item: CommentNextEmoteItem) => void;
+  onImageUpload?: (file: File) => Promise<void> | void;
   onLogin?: () => void;
 } = $props();
 
@@ -65,11 +75,20 @@ const insertTools = [
 ];
 
 let footerElement = $state<HTMLDivElement | undefined>();
+let imageInputElement = $state<HTMLInputElement | undefined>();
 let emotePanelOpen = $state(false);
+let emotePanelStyle = $state('');
 
 const hasEmotePacks = $derived(emotePacks.some((pack) => pack.items.length));
+const floatingEmotePanel = $derived(compact || !showSubmitArea);
 
 onMount(() => {
+  const handleViewportChange = () => {
+    if (emotePanelOpen && floatingEmotePanel) {
+      void updateEmotePanelPosition();
+    }
+  };
+
   const handlePointerDown = (event: PointerEvent) => {
     const path = event.composedPath();
 
@@ -88,11 +107,24 @@ onMount(() => {
 
   document.addEventListener('pointerdown', handlePointerDown, true);
   document.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('resize', handleViewportChange);
+  window.addEventListener('scroll', handleViewportChange, true);
 
   return () => {
     document.removeEventListener('pointerdown', handlePointerDown, true);
     document.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener('resize', handleViewportChange);
+    window.removeEventListener('scroll', handleViewportChange, true);
   };
+});
+
+$effect(() => {
+  if (emotePanelOpen && floatingEmotePanel) {
+    void updateEmotePanelPosition();
+    return;
+  }
+
+  emotePanelStyle = '';
 });
 
 function handleQuickActionClick() {
@@ -107,11 +139,86 @@ function handleInsertToolClick(key: string) {
     }
 
     emotePanelOpen = !emotePanelOpen;
+
+    if (emotePanelOpen && floatingEmotePanel) {
+      void updateEmotePanelPosition();
+    }
+
+    return;
+  }
+
+  if (key === 'image') {
+    if (!imageUploadEnabled || imageUploading) {
+      return;
+    }
+
+    emotePanelOpen = false;
+    imageInputElement?.click();
   }
 }
 
 function handleEmoteSelect(item: CommentNextEmoteItem) {
   onEmoteSelect(item);
+  emotePanelOpen = false;
+}
+
+function handleImageFileChange(event: Event) {
+  const input = event.currentTarget as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+
+  if (file) {
+    void onImageUpload(file);
+  }
+}
+
+function isInsertToolDisabled(key: string): boolean {
+  if (key === 'smile') {
+    return !hasEmotePacks;
+  }
+
+  if (key === 'image') {
+    return !imageUploadEnabled || imageUploading;
+  }
+
+  return false;
+}
+
+async function updateEmotePanelPosition() {
+  if (typeof window === 'undefined' || !footerElement) {
+    return;
+  }
+
+  await tick();
+
+  const trigger = footerElement.querySelector<HTMLButtonElement>(
+    '[data-comment-next-tool="smile"]'
+  );
+
+  if (!trigger) {
+    return;
+  }
+
+  const rect = trigger.getBoundingClientRect();
+  const viewportPadding = 16;
+  const gap = 8;
+  const panelWidth = Math.min(480, window.innerWidth - viewportPadding * 2);
+  const availableAbove = Math.max(180, rect.top - viewportPadding - gap);
+  const panelHeight = Math.min(
+    360,
+    window.innerHeight - viewportPadding * 2,
+    availableAbove
+  );
+  const maxLeft = window.innerWidth - panelWidth - viewportPadding;
+  const left = Math.min(Math.max(viewportPadding, rect.left), maxLeft);
+  const top = rect.top - gap - panelHeight;
+
+  emotePanelStyle = [
+    `--comment-next-emote-fixed-left:${Math.max(viewportPadding, left)}px`,
+    `--comment-next-emote-fixed-top:${Math.max(viewportPadding, top)}px`,
+    `--comment-next-emote-fixed-width:${panelWidth}px`,
+    `--comment-next-emote-fixed-max-height:${panelHeight}px`,
+  ].join(';');
 }
 </script>
 
@@ -135,21 +242,35 @@ function handleEmoteSelect(item: CommentNextEmoteItem) {
     {#if showInsertTools}
     <div class="comment-next-insert-tools-region">
       {#if emotePanelOpen && hasEmotePacks}
-        <CommentNextEmotePanel packs={emotePacks} onSelect={handleEmoteSelect} />
+        <CommentNextEmotePanel
+          fixed={floatingEmotePanel}
+          panelStyle={emotePanelStyle}
+          packs={emotePacks}
+          onSelect={handleEmoteSelect}
+        />
       {/if}
 
       <div class="comment-next-insert-tools" aria-label="插入工具栏">
+        <input
+          bind:this={imageInputElement}
+          class="comment-next-upload-input"
+          type="file"
+          accept={imageAccept}
+          onchange={handleImageFileChange}
+        />
         {#each insertTools as tool}
           <button
-            class:comment-next-tool-button-active={tool.key === "smile" && emotePanelOpen}
+            class:comment-next-tool-button-active={(tool.key === "smile" && emotePanelOpen) || (tool.key === "image" && imageUploading)}
             class="comment-next-tool-button"
             type="button"
+            data-comment-next-tool={tool.key}
             aria-label={tool.title}
             aria-expanded={tool.key === "smile" ? emotePanelOpen : undefined}
-            disabled={tool.key === "smile" && !hasEmotePacks}
+            aria-busy={tool.key === "image" && imageUploading ? "true" : undefined}
+            disabled={isInsertToolDisabled(tool.key)}
             onclick={() => handleInsertToolClick(tool.key)}
           >
-            <CommentNextIcon name={tool.icon} size={16} />
+            <CommentNextIcon name={tool.key === "image" && imageUploading ? "loader" : tool.icon} size={16} />
           </button>
         {/each}
       </div>
@@ -158,8 +279,9 @@ function handleEmoteSelect(item: CommentNextEmoteItem) {
 
   </div>
 
+  {#if showSubmitArea}
   <div class="comment-next-submit-area">
-    {#if enablePrivate}
+    {#if enablePrivate && loggedIn}
       <div class="comment-next-private-control">
         <CommentNextTooltip text="仅自己和管理员可见" align="end" mobileAlign="start">
           <label class="comment-next-private-option">
@@ -201,6 +323,7 @@ function handleEmoteSelect(item: CommentNextEmoteItem) {
       {!loggedIn && !allowAnonymous ? loginLabel : submitLabel}
     </button>
   </div>
+  {/if}
 </div>
 
 <style>
@@ -285,6 +408,14 @@ function handleEmoteSelect(item: CommentNextEmoteItem) {
 
   .comment-next-tool-button:active {
     --at-apply: translate-y-px;
+  }
+
+  .comment-next-tool-button[aria-busy="true"] :global(.comment-next-icon) {
+    --at-apply: animate-spin;
+  }
+
+  .comment-next-upload-input {
+    --at-apply: sr-only;
   }
 
   .comment-next-private-control {

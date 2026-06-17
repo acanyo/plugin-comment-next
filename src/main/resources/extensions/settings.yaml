@@ -166,14 +166,8 @@ spec:
           value: 5120
           min: 1
           validation: required|min:1
-        - $formkit: text
-          if: "$get(uploadEnabled).value === true"
-          label: 允许的图片 MIME 类型
-          name: allowedContentTypes
-          value: "image/jpeg,image/png,image/gif,image/webp"
-          help: 多个类型用英文逗号分隔。
         - $formkit: group
-          if: "$get(uploadEnabled).value === true && ($get(anonymousProvider).value === HALO_ATTACHMENT || $get(authenticatedProvider).value === HALO_ATTACHMENT)"
+          if: "$get(uploadEnabled).value === true && ($get(authenticatedProvider).value === 'HALO_ATTACHMENT' || ($get(allowAnonymousUpload).value === true && $get(anonymousProvider).value === 'HALO_ATTACHMENT'))"
           name: haloAttachment
           label: Halo 附件库
           value:
@@ -192,7 +186,7 @@ spec:
               auto-select: false
               clearable: true
         - $formkit: group
-          if: "$get(uploadEnabled).value === true && ($get(anonymousProvider).value === IMGBB || $get(authenticatedProvider).value === IMGBB)"
+          if: "$get(uploadEnabled).value === true && ($get(authenticatedProvider).value === 'IMGBB' || ($get(allowAnonymousUpload).value === true && $get(anonymousProvider).value === 'IMGBB'))"
           name: imgBb
           label: ImgBB
           value:
@@ -236,6 +230,93 @@ spec:
               label: 登录用户窗口内允许上传次数
               name: authenticatedRateLimit
               value: 30
+              min: 1
+              validation: required|min:1
+            - $formkit: number
+              label: 登录用户限流窗口（秒）
+              name: authenticatedRateWindowSeconds
+              value: 60
+              min: 1
+              validation: required|min:1
+    - group: ai
+      label: AI 写作
+      formSchema:
+        - $formkit: checkbox
+          label: 启用 AI 写作助手
+          name: enabled
+          id: aiEnabled
+          key: aiEnabled
+          value: false
+          help: 需要安装并启用 Halo AI Foundation 后前台才会显示 AI 入口；未安装时普通评论功能不受影响。模型和供应商密钥在 AI Foundation 中配置，本插件只调用已启用的语言模型。
+        - $formkit: text
+          if: "$get(aiEnabled).value === true"
+          name: languageModelName
+          label: 语言模型名称
+          placeholder: 留空使用 AI Foundation 默认语言模型
+          help: 这里暂时不校验 AI Foundation 插件安装状态；留空时使用 AI Foundation 配置的默认语言模型。
+        - $formkit: checkbox
+          if: "$get(aiEnabled).value === true"
+          label: 允许未登录用户使用 AI
+          name: allowAnonymous
+          id: aiAllowAnonymous
+          key: aiAllowAnonymous
+          value: false
+          help: AI 会消耗模型额度，建议只在配合限流时开启。
+        - $formkit: number
+          if: "$get(aiEnabled).value === true"
+          label: 最大输入字符数
+          name: maxInputLength
+          value: 2000
+          min: 1
+          validation: required|min:1
+        - $formkit: number
+          if: "$get(aiEnabled).value === true"
+          label: 最大输出 Tokens
+          name: maxOutputTokens
+          value: 512
+          min: 1
+          validation: required|min:1
+        - $formkit: number
+          if: "$get(aiEnabled).value === true"
+          label: 温度
+          name: temperature
+          value: 0.7
+          min: 0
+          max: 2
+          step: 0.1
+          validation: required|min:0|max:2
+        - $formkit: textarea
+          if: "$get(aiEnabled).value === true"
+          label: 系统提示词
+          name: systemPrompt
+          rows: 4
+          value: "你是一个评论写作助手。你只输出可直接放进评论框的中文内容，不要解释过程，不要使用 Markdown 标题，不要编造事实。"
+        - $formkit: group
+          if: "$get(aiEnabled).value === true"
+          name: security
+          label: AI 安全拦截
+          value:
+            anonymousRateLimit: 3
+            anonymousRateWindowSeconds: 60
+            authenticatedRateLimit: 20
+            authenticatedRateWindowSeconds: 60
+          children:
+            - $formkit: number
+              label: 未登录用户窗口内允许生成次数
+              name: anonymousRateLimit
+              value: 3
+              min: 1
+              validation: required|min:1
+            - $formkit: number
+              label: 未登录用户限流窗口（秒）
+              name: anonymousRateWindowSeconds
+              value: 60
+              min: 1
+              validation: required|min:1
+            - $formkit: number
+              label: 登录用户窗口内允许生成次数
+              name: authenticatedRateLimit
+              value: 20
               min: 1
               validation: required|min:1
             - $formkit: number

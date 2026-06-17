@@ -10,9 +10,22 @@ import CommentNextFooter from './CommentNextFooter.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import CommentNextSkeleton from './CommentNextSkeleton.svelte';
 import {
+  generateCommentAiSuggestion,
+  getAiSuggestionErrorMessage,
+  type CommentNextAiMode,
+} from './services/ai';
+import {
   CommentNextCommentError,
   getCommentSubmitErrorMessage,
 } from './services/comments';
+import type {
+  CommentNextAiConfig,
+  CommentNextUploadConfig,
+} from './services/config';
+import {
+  getImageUploadErrorMessage,
+  uploadCommentImage,
+} from './services/uploads';
 import {
   loadAnonymousAccount,
   saveAnonymousAccount,
@@ -22,6 +35,10 @@ import type { CommentNextComment } from './types/comment';
 import type { CommentNextComposerSubmitPayload } from './types/composer';
 import type { CommentNextEmoteItem, CommentNextEmotePack } from './types/emote';
 import { sanitizeCommentSubmitHtml } from './utils/html';
+import {
+  inferImageContentType,
+  isImageContentType,
+} from './utils/image-files';
 
 type CommentNextComposerVariant = 'comment' | 'reply';
 
@@ -31,6 +48,7 @@ type CommentNextEditorRef = {
   reset: () => void;
   focus: () => void;
   insertText: (value: string) => void;
+  replaceText: (value: string) => void;
   insertImage: (src: string, alt?: string) => void;
 };
 
@@ -62,8 +80,15 @@ const {
   aiLabel = 'AI 写作',
   showAi = true,
   showInsertTools = true,
+  showAccountFields = true,
+  showFooter = true,
+  showSubmitArea = true,
+  allowImages = true,
+  aiConfig,
+  uploadConfig,
   emotePacks = [],
   loginRedirectHash = '',
+  onChange = () => {},
   onSubmit = async () => undefined,
   onCreated = () => {},
   onCancel = () => {},
@@ -95,8 +120,15 @@ const {
   aiLabel?: string;
   showAi?: boolean;
   showInsertTools?: boolean;
+  showAccountFields?: boolean;
+  showFooter?: boolean;
+  showSubmitArea?: boolean;
+  allowImages?: boolean;
+  aiConfig?: CommentNextAiConfig;
+  uploadConfig?: CommentNextUploadConfig;
   emotePacks?: CommentNextEmotePack[];
   loginRedirectHash?: string;
+  onChange?: (html: string) => void;
   onSubmit?: (
     payload: CommentNextComposerSubmitPayload
   ) => Promise<unknown> | unknown;
@@ -108,7 +140,10 @@ let isAiPanelOpen = $state(false);
 let showInlineSuggestion = $state(false);
 let showSelectionTools = $state(false);
 let previousVariant = $state<CommentNextComposerVariant | undefined>();
-let aiMode = $state('polish');
+let aiMode = $state<CommentNextAiMode>('polish');
+let aiGenerating = $state(false);
+let aiSuggestionText = $state('');
+let aiSuggestionMode = $state<CommentNextAiMode>('polish');
 let anonymousDisplayName = $state('');
 let anonymousEmail = $state('');
 let anonymousWebsite = $state('');
@@ -121,12 +156,15 @@ let composerElement = $state<HTMLFormElement | undefined>();
 let editorRef = $state<CommentNextEditorRef | undefined>();
 let editorHtml = $state('');
 let localSubmitting = $state(false);
+let imageUploading = $state(false);
 let submitMessage = $state('');
 let submitMessageType = $state<'error' | 'success'>('error');
 
 const isLoggedIn = $derived(Boolean(currentUser) || loggedIn);
 const isSubmitting = $derived(submitting || localSubmitting);
-const showAccountBar = $derived(isLoggedIn || allowAnonymous);
+const showAccountBar = $derived(
+  showAccountFields && (isLoggedIn || allowAnonymous)
+);
 const currentUserDisplayName = $derived(
   currentUser?.displayName || (loggedIn ? '已登录用户' : '')
 );
@@ -138,6 +176,9 @@ const anonymousMissingRequired = $derived(
 );
 const captchaRequired = $derived(!isLoggedIn && allowAnonymous && showCaptcha);
 const captchaMissingRequired = $derived(captchaRequired && !captchaCode.trim());
+const imageUploadEnabled = $derived(resolveImageUploadEnabled());
+const imageAccept = 'image/*';
+const aiWritingEnabled = $derived(showAi && resolveAiWritingEnabled());
 const submitDisabledReason = $derived(
   anonymousMissingRequired
     ? '请先填写昵称和邮箱'
@@ -157,6 +198,7 @@ $effect(() => {
   if (previousVariant !== variant) {
     previousVariant = variant;
     aiMode = variant === 'reply' ? 'reply' : 'polish';
+    aiSuggestionMode = aiMode;
   }
 });
 
@@ -220,6 +262,16 @@ onMount(() => {
   };
 });
 
+export function focus() {
+  editorRef?.focus();
+}
+
+export function reset() {
+  editorRef?.reset();
+  editorHtml = '';
+  onChange('');
+}
+
 function handleLogin() {
   const redirectHash = loginRedirectHash || window.location.hash;
   window.location.href = `/login?redirect_uri=${encodeURIComponent(
@@ -270,7 +322,7 @@ async function handleSubmit(event: SubmitEvent) {
   const formData = new FormData(form);
   const payload: CommentNextComposerSubmitPayload = {
     content,
-    hidden: enablePrivate && formData.get('hidden') === 'on',
+    hidden: enablePrivate && isLoggedIn && formData.get('hidden') === 'on',
     captchaCode,
     owner: isLoggedIn
       ? undefined
@@ -392,11 +444,250 @@ function storeAnonymousAccount() {
 
 function handleEmoteSelect(item: CommentNextEmoteItem) {
   if (item.type === 'image') {
+    if (!allowImages) {
+      return;
+    }
+
     editorRef?.insertImage(item.src || item.value, item.label);
     return;
   }
 
   editorRef?.insertText(item.value);
+}
+
+async function handleImageUpload(file: File) {
+  submitMessage = '';
+
+  if (!imageUploadEnabled) {
+    showSubmitMessage(
+      isLoggedIn ? '当前站点未开启图片上传。' : '请先登录后再上传图片。'
+    );
+    return;
+  }
+
+  const localValidationMessage = validateImageFile(file);
+  if (localValidationMessage) {
+    showSubmitMessage(localValidationMessage);
+    return;
+  }
+
+  try {
+    imageUploading = true;
+    const result = await uploadCommentImage({ baseUrl, file });
+    editorRef?.insertImage(result.url, result.filename || file.name);
+    showSubmitMessage('图片上传成功，可继续编辑评论。', 'success');
+  } catch (error) {
+    showSubmitMessage(getImageUploadErrorMessage(error));
+  } finally {
+    imageUploading = false;
+  }
+}
+
+async function handleImagePaste(files: File[]) {
+  if (!files.length) {
+    return;
+  }
+
+  if (imageUploading) {
+    showSubmitMessage('图片正在上传中，请稍后再试。');
+    return;
+  }
+
+  submitMessage = '';
+
+  for (const file of files) {
+    await handleImageUpload(file);
+  }
+}
+
+async function handleAiModeSelect(mode: CommentNextAiMode | string) {
+  const nextMode = normalizeAiMode(mode);
+
+  if (aiGenerating) {
+    return;
+  }
+
+  submitMessage = '';
+  aiMode = nextMode;
+  aiSuggestionMode = nextMode;
+  aiSuggestionText = '';
+  isAiPanelOpen = false;
+  showSelectionTools = false;
+
+  if (!aiWritingEnabled) {
+    showInlineSuggestion = false;
+    showSubmitMessage(
+      isLoggedIn ? '当前站点未开启 AI 写作。' : '请先登录后再使用 AI 写作。'
+    );
+    return;
+  }
+
+  const content = editorRef?.getText() ?? textFromHtml(editorHtml);
+  const localValidationMessage = validateAiInput(nextMode, content);
+
+  if (localValidationMessage) {
+    showInlineSuggestion = false;
+    showSubmitMessage(localValidationMessage);
+    editorRef?.focus();
+    return;
+  }
+
+  try {
+    showInlineSuggestion = true;
+    aiGenerating = true;
+    const result = await generateCommentAiSuggestion({
+      baseUrl,
+      mode: nextMode,
+      content,
+      variant,
+      replyToName,
+    });
+    aiSuggestionText = result.text;
+  } catch (error) {
+    showInlineSuggestion = false;
+    showSubmitMessage(getAiSuggestionErrorMessage(error));
+  } finally {
+    aiGenerating = false;
+  }
+}
+
+function handleAcceptAiSuggestion() {
+  if (!aiSuggestionText || aiGenerating) {
+    return;
+  }
+
+  editorRef?.replaceText(aiSuggestionText);
+  closeAiSuggestion();
+}
+
+function handleInsertAiSuggestion() {
+  if (!aiSuggestionText || aiGenerating) {
+    return;
+  }
+
+  editorRef?.insertText(aiSuggestionText);
+  closeAiSuggestion();
+}
+
+function handleRewriteAiSuggestion() {
+  if (aiGenerating) {
+    return;
+  }
+
+  void handleAiModeSelect(aiSuggestionMode);
+}
+
+function closeAiSuggestion() {
+  showInlineSuggestion = false;
+  aiSuggestionText = '';
+}
+
+function normalizeAiMode(mode: CommentNextAiMode | string): CommentNextAiMode {
+  if (
+    mode === 'polish' ||
+    mode === 'expand' ||
+    mode === 'question' ||
+    mode === 'reply' ||
+    mode === 'summary'
+  ) {
+    return mode;
+  }
+
+  return variant === 'reply' ? 'reply' : 'polish';
+}
+
+function validateAiInput(mode: CommentNextAiMode, content: string): string {
+  const normalizedContent = content.trim();
+  const maxInputLength = Number(aiConfig?.maxInputLength);
+
+  if (
+    Number.isFinite(maxInputLength) &&
+    maxInputLength > 0 &&
+    normalizedContent.length > maxInputLength
+  ) {
+    return `AI 输入内容不能超过 ${maxInputLength} 个字符。`;
+  }
+
+  if (
+    mode !== 'reply' &&
+    !normalizedContent
+  ) {
+    return '请先输入需要 AI 处理的内容。';
+  }
+
+  if (mode === 'reply' && !normalizedContent && !replyToName.trim()) {
+    return '请先输入回复内容或选择回复对象。';
+  }
+
+  return '';
+}
+
+function resolveAiWritingEnabled(): boolean {
+  if (!aiConfig?.enabled) {
+    return false;
+  }
+
+  return isLoggedIn || Boolean(aiConfig.allowAnonymous);
+}
+
+function resolveImageUploadEnabled(): boolean {
+  if (!allowImages) {
+    return false;
+  }
+
+  if (!uploadConfig?.enabled) {
+    return false;
+  }
+
+  if (isLoggedIn) {
+    return uploadConfig.authenticatedProvider !== 'DISABLED';
+  }
+
+  return Boolean(
+    uploadConfig.allowAnonymousUpload &&
+      uploadConfig.anonymousProvider !== 'DISABLED'
+  );
+}
+
+function validateImageFile(file: File): string {
+  const contentType = inferImageContentType(file);
+
+  if (!contentType || !isImageContentType(contentType)) {
+    return '仅支持上传图片文件。';
+  }
+
+  const maxSizeKb = isLoggedIn
+    ? uploadConfig?.authenticatedMaxSizeKb
+    : uploadConfig?.anonymousMaxSizeKb;
+  const normalizedMaxSizeKb = Number(maxSizeKb);
+
+  if (
+    Number.isFinite(normalizedMaxSizeKb) &&
+    normalizedMaxSizeKb > 0 &&
+    file.size > normalizedMaxSizeKb * 1024
+  ) {
+    return `图片大小不能超过 ${formatMaxImageSize(normalizedMaxSizeKb)}。`;
+  }
+
+  return '';
+}
+
+function formatMaxImageSize(maxSizeKb: number): string {
+  if (maxSizeKb >= 1024) {
+    return `${Number((maxSizeKb / 1024).toFixed(1))} MB`;
+  }
+
+  return `${maxSizeKb} KB`;
+}
+
+function textFromHtml(html: string): string {
+  if (!html.trim()) {
+    return '';
+  }
+
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  return template.content.textContent?.trim() ?? '';
 }
 </script>
 
@@ -454,17 +745,21 @@ function handleEmoteSelect(item: CommentNextEmoteItem) {
       inlineSuggestion={showInlineSuggestion}
       selectionTools={showSelectionTools}
       {aiMode}
+      suggestionText={aiSuggestionText}
+      suggestionLoading={aiGenerating}
+      {allowImages}
       topRounded={editorTopRounded}
       onChange={(html) => {
         editorHtml = html;
+        onChange(html);
       }}
+      onImagePaste={handleImagePaste}
       onCloseAiPanel={() => (isAiPanelOpen = false)}
-      onModeSelect={(mode) => {
-        aiMode = mode;
-        isAiPanelOpen = false;
-        showInlineSuggestion = true;
-        showSelectionTools = false;
-      }}
+      onModeSelect={handleAiModeSelect}
+      onAcceptSuggestion={handleAcceptAiSuggestion}
+      onInsertSuggestion={handleInsertAiSuggestion}
+      onRewriteSuggestion={handleRewriteAiSuggestion}
+      onRejectSuggestion={closeAiSuggestion}
     />
 
     {#if submitMessage}
@@ -473,37 +768,47 @@ function handleEmoteSelect(item: CommentNextEmoteItem) {
       </p>
     {/if}
 
-    <CommentNextFooter
-      {baseUrl}
-      {compact}
-      commandMenuOpen={isAiPanelOpen}
-      loggedIn={isLoggedIn}
-      {allowAnonymous}
-      {enablePrivate}
-      {showCaptcha}
-      {captchaImage}
-      {captchaCode}
-      {captchaRefreshKey}
-      submitting={isSubmitting}
-      submitDisabled={anonymousMissingRequired || captchaMissingRequired}
-      submitDisabledReason={submitDisabledReason}
-      {submitLabel}
-      {loginLabel}
-      {aiLabel}
-      {showAi}
-      {showInsertTools}
-      {emotePacks}
-      onCaptchaChange={(value) => {
-        captchaCode = value;
-      }}
-      onEmoteSelect={handleEmoteSelect}
-      onLogin={handleLogin}
-      onToggleCommandMenu={() => {
-        isAiPanelOpen = !isAiPanelOpen;
-        showInlineSuggestion = false;
-        showSelectionTools = false;
-      }}
-    />
+    {#if showFooter}
+      <CommentNextFooter
+        {baseUrl}
+        {compact}
+        commandMenuOpen={isAiPanelOpen}
+        loggedIn={isLoggedIn}
+        {allowAnonymous}
+        {enablePrivate}
+        {showCaptcha}
+        {captchaImage}
+        {captchaCode}
+        {captchaRefreshKey}
+        submitting={isSubmitting}
+        submitDisabled={anonymousMissingRequired || captchaMissingRequired}
+        submitDisabledReason={submitDisabledReason}
+        {submitLabel}
+        {loginLabel}
+        {aiLabel}
+        showAi={aiWritingEnabled}
+        {showInsertTools}
+        {showSubmitArea}
+        {imageUploadEnabled}
+        {imageUploading}
+        {imageAccept}
+        {emotePacks}
+        onCaptchaChange={(value) => {
+          captchaCode = value;
+        }}
+        onEmoteSelect={handleEmoteSelect}
+        onImageUpload={handleImageUpload}
+        onLogin={handleLogin}
+        onToggleCommandMenu={() => {
+          if (!aiWritingEnabled) {
+            return;
+          }
+          isAiPanelOpen = !isAiPanelOpen;
+          showInlineSuggestion = false;
+          showSelectionTools = false;
+        }}
+      />
+    {/if}
   {/if}
 </form>
 

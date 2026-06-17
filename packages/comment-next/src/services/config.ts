@@ -1,8 +1,11 @@
 import type { CommentNextBadgeConfig } from '../types/comment';
+import { resolveApiUrl } from './api';
 
 export interface CommentNextPluginConfig {
   basic?: CommentNextBasicConfig;
   security?: CommentNextSecurityConfig;
+  ai?: CommentNextAiConfig;
+  upload?: CommentNextUploadConfig;
   editor?: CommentNextEditorConfig;
   badge?: CommentNextBadgeConfig;
 }
@@ -24,6 +27,26 @@ export interface CommentNextSecurityConfig {
   captcha?: {
     anonymousCommentCaptcha?: boolean;
   };
+}
+
+export interface CommentNextAiConfig {
+  enabled?: boolean;
+  allowAnonymous?: boolean;
+  maxInputLength?: number;
+}
+
+export type CommentNextImageUploadProvider =
+  | 'DISABLED'
+  | 'HALO_ATTACHMENT'
+  | 'IMGBB';
+
+export interface CommentNextUploadConfig {
+  enabled?: boolean;
+  allowAnonymousUpload?: boolean;
+  anonymousProvider?: CommentNextImageUploadProvider;
+  authenticatedProvider?: CommentNextImageUploadProvider;
+  anonymousMaxSizeKb?: number;
+  authenticatedMaxSizeKb?: number;
 }
 
 export interface CommentNextEditorConfig {
@@ -65,12 +88,4 @@ export async function fetchGlobalInfo(
   }
 
   return response.json() as Promise<CommentNextGlobalInfo>;
-}
-
-function resolveApiUrl(baseUrl: string, endpoint: string): string {
-  if (!baseUrl) {
-    return endpoint;
-  }
-
-  return `${baseUrl.replace(/\/$/, '')}${endpoint}`;
 }

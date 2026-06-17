@@ -23,9 +23,13 @@ const MAX_RECENT_COUNT = 24;
 
 const {
   packs = [],
+  fixed = false,
+  panelStyle = '',
   onSelect = () => {},
 }: {
   packs?: CommentNextEmotePack[];
+  fixed?: boolean;
+  panelStyle?: string;
   onSelect?: (item: CommentNextEmoteItem) => void;
 } = $props();
 
@@ -154,7 +158,9 @@ function saveRecentItemIds(ids: string[]) {
 
 {#if activePack}
   <div
+    class:comment-next-emote-panel-fixed={fixed}
     class="comment-next-emote-panel"
+    style={panelStyle}
     role="dialog"
     tabindex="-1"
     aria-label="表情包"
@@ -239,6 +245,17 @@ function saveRecentItemIds(ids: string[]) {
     animation: comment-next-emote-panel-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
+  .comment-next-emote-panel-fixed {
+    position: fixed !important;
+    top: var(--comment-next-emote-fixed-top, 1rem) !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: var(--comment-next-emote-fixed-left, 1rem) !important;
+    z-index: var(--comment-next-emote-fixed-z-index, 9999) !important;
+    width: var(--comment-next-emote-fixed-width, min(30rem, calc(100vw - 2rem))) !important;
+    max-height: var(--comment-next-emote-fixed-max-height, 22.5rem);
+  }
+
   .comment-next-emote-head {
     --at-apply: flex items-center gap-2 border-b border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-emote-head-bg-color,rgb(248_250_252_/_0.88))] px-2.5 py-2;
   }
@@ -279,6 +296,10 @@ function saveRecentItemIds(ids: string[]) {
     --at-apply: max-h-70 overflow-y-auto border-r border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-emote-tabs-bg-color,#f6f8fb)] p-1.5;
   }
 
+  .comment-next-emote-panel-fixed .comment-next-emote-tabs {
+    max-height: calc(var(--comment-next-emote-fixed-max-height, 22.5rem) - 3.25rem);
+  }
+
   .comment-next-emote-tabs button {
     --at-apply: flex h-8 w-full cursor-pointer items-center justify-between gap-2 rounded-[0.5rem] border-0 bg-transparent px-2 py-0 text-left text-[0.8125rem] text-[var(--comment-next-muted-color,#6b7687)] font-[650] font-inherit transition-[background-color,color,box-shadow,transform] duration-140 ease-in-out;
   }
@@ -306,6 +327,10 @@ function saveRecentItemIds(ids: string[]) {
 
   .comment-next-emote-grid {
     --at-apply: grid max-h-64 grid-cols-[repeat(auto-fill,minmax(3.25rem,1fr))] gap-1.5 overflow-y-auto pr-1;
+  }
+
+  .comment-next-emote-panel-fixed .comment-next-emote-grid {
+    max-height: calc(var(--comment-next-emote-fixed-max-height, 22.5rem) - 4.5rem);
   }
 
   .comment-next-emote-grid-image {

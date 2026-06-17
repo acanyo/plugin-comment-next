@@ -3,10 +3,12 @@ import CommentNextIcon from './CommentNextIcon.svelte';
 
 const {
   activeMode = 'polish',
+  loading = false,
   onModeSelect = () => {},
   onClose = () => {},
 }: {
   activeMode?: string;
+  loading?: boolean;
   onModeSelect?: (mode: string) => void;
   onClose?: () => void;
 } = $props();
@@ -43,6 +45,7 @@ const modes = [
         class="comment-next-ai-panel-item"
         type="button"
         role="menuitem"
+        disabled={loading}
         onclick={() => onModeSelect(mode.key)}
       >
         <span class="comment-next-ai-panel-item-icon">
@@ -128,6 +131,10 @@ const modes = [
   .comment-next-ai-panel-item:hover,
   .comment-next-ai-panel-item-active {
     --at-apply: -translate-y-px [border-color:var(--comment-next-ai-border-color,rgb(191_219_254))] bg-[var(--comment-next-ai-bg-color,#eaf8f5)] text-[var(--comment-next-ai-color,rgb(59,130,246))] shadow-[0_8px_18px_rgb(15_118_110_/_0.1)];
+  }
+
+  .comment-next-ai-panel-item:disabled {
+    --at-apply: cursor-wait opacity-64;
   }
 
   .comment-next-ai-panel-item:focus-visible,

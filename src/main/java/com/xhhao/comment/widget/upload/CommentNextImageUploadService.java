@@ -6,7 +6,6 @@ import com.xhhao.comment.widget.security.CommentNextActionActor;
 import com.xhhao.comment.widget.security.CommentNextActionGuard;
 import com.xhhao.comment.widget.security.CommentNextActionSecurityPolicy;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -16,7 +15,6 @@ import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.http.codec.multipart.Part;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MultiValueMap;
-import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebInputException;
@@ -58,7 +56,7 @@ public class CommentNextImageUploadService {
             ));
         }
 
-        validateFile(file, config, actor);
+        var contentType = validateFile(file, config, actor);
 
         var provider = providers.get(providerType);
         if (provider == null) {
@@ -69,9 +67,10 @@ public class CommentNextImageUploadService {
         }
 
         var maxSizeBytes = maxSizeBytes(config, actor);
+        var uploadFile = new ContentTypedFilePart(file, contentType);
         return provider.upload(new ImageUploadRequest(
             actor,
-            new SizeLimitedFilePart(file, maxSizeBytes),
+            new SizeLimitedFilePart(uploadFile, maxSizeBytes),
             config,
             providerType
         ));
@@ -107,14 +106,15 @@ public class CommentNextImageUploadService {
         return config.getAuthenticatedProvider();
     }
 
-    private void validateFile(FilePart file,
-                              SettingConfigGetter.UploadConfig config,
-                              CommentNextActionActor actor) {
-        var contentType = file.headers().getContentType();
-        if (contentType == null || !isAllowedContentType(contentType, config.allowedContentTypeList())) {
+    private MediaType validateFile(FilePart file,
+                                   SettingConfigGetter.UploadConfig config,
+                                   CommentNextActionActor actor) {
+        var contentType = CommentNextImageContentTypes.resolve(file);
+        if (contentType == null
+            || !CommentNextImageContentTypes.isImage(contentType)) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "仅支持上传允许的图片类型"
+                "仅支持上传图片文件"
             );
         }
 
@@ -125,23 +125,7 @@ public class CommentNextImageUploadService {
                 "图片大小超过限制"
             );
         }
-    }
-
-    private boolean isAllowedContentType(MediaType contentType, List<String> allowedTypes) {
-        for (String allowedType : allowedTypes) {
-            if (!StringUtils.hasText(allowedType)) {
-                continue;
-            }
-            try {
-                var allowedMediaType = MediaType.parseMediaType(allowedType.toLowerCase(Locale.ROOT));
-                if (allowedMediaType.includes(contentType)) {
-                    return true;
-                }
-            } catch (Exception ignored) {
-                // Ignore malformed admin input and continue checking other configured types.
-            }
-        }
-        return false;
+        return contentType;
     }
 
     private long maxSizeBytes(SettingConfigGetter.UploadConfig config, CommentNextActionActor actor) {

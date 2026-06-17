@@ -7,6 +7,10 @@ import CommentNextIcon from './CommentNextIcon.svelte';
 import { createDemoCommentPage, demoBadgeConfig } from './demo/comments';
 import { fetchCommentPage } from './services/comments';
 import type {
+  CommentNextAiConfig,
+  CommentNextUploadConfig,
+} from './services/config';
+import type {
   CommentNextBadgeConfig,
   CommentNextComment,
   CommentNextCommentSort,
@@ -28,6 +32,8 @@ const {
   withReplies = true,
   showCommenterDevice = true,
   badgeConfig: configuredBadgeConfig,
+  aiConfig,
+  uploadConfig,
   emotePacks = [],
 }: {
   baseUrl?: string;
@@ -44,6 +50,8 @@ const {
   withReplies?: boolean;
   showCommenterDevice?: boolean;
   badgeConfig?: CommentNextBadgeConfig;
+  aiConfig?: CommentNextAiConfig;
+  uploadConfig?: CommentNextUploadConfig;
   emotePacks?: CommentNextEmotePack[];
 } = $props();
 
@@ -312,6 +320,8 @@ function resolvePaginationItems(
           {demoData}
           {replySize}
           {showCommenterDevice}
+          {aiConfig}
+          {uploadConfig}
           {emotePacks}
         />
       {/each}

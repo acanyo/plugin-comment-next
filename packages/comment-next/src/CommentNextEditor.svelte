@@ -6,6 +6,7 @@ import {
   getTextSelectionOffset,
   restoreTextSelectionOffset,
 } from './utils/autolink';
+import { isImageFile } from './utils/image-files';
 
 const {
   placeholder = '写下你的评论...',
@@ -13,20 +14,36 @@ const {
   inlineSuggestion = false,
   selectionTools = false,
   aiMode = 'polish',
+  suggestionText = '',
+  suggestionLoading = false,
+  allowImages = true,
   topRounded = false,
   onChange = () => {},
+  onImagePaste = () => {},
   onModeSelect = () => {},
   onCloseAiPanel = () => {},
+  onAcceptSuggestion = () => {},
+  onInsertSuggestion = () => {},
+  onRewriteSuggestion = () => {},
+  onRejectSuggestion = () => {},
 }: {
   placeholder?: string;
   aiOpen?: boolean;
   inlineSuggestion?: boolean;
   selectionTools?: boolean;
   aiMode?: string;
+  suggestionText?: string;
+  suggestionLoading?: boolean;
+  allowImages?: boolean;
   topRounded?: boolean;
   onChange?: (html: string) => void;
+  onImagePaste?: (files: File[]) => Promise<void> | void;
   onModeSelect?: (mode: string) => void;
   onCloseAiPanel?: () => void;
+  onAcceptSuggestion?: () => void;
+  onInsertSuggestion?: () => void;
+  onRewriteSuggestion?: () => void;
+  onRejectSuggestion?: () => void;
 } = $props();
 
 const modeLabels: Record<string, string> = {
@@ -41,11 +58,11 @@ let editorElement: HTMLDivElement | undefined;
 let autolinkTimer: number | undefined;
 
 export function getHtml(): string {
-  return editorElement?.innerHTML ?? '';
+  return getSerializableEditorHtml();
 }
 
 export function getText(): string {
-  return editorElement?.textContent ?? '';
+  return getSerializableEditorText();
 }
 
 export function reset() {
@@ -69,8 +86,18 @@ export function insertText(value: string) {
   insertNodeAtCaret(document.createTextNode(value));
 }
 
+export function replaceText(value: string) {
+  if (!editorElement) {
+    return;
+  }
+
+  editorElement.textContent = value;
+  onChange(getHtml());
+  editorElement.focus();
+}
+
 export function insertImage(src: string, alt = '') {
-  if (!src || !editorElement) {
+  if (!allowImages || !src || !editorElement) {
     return;
   }
 
@@ -83,7 +110,37 @@ export function insertImage(src: string, alt = '') {
   insertNodeAtCaret(image, document.createTextNode(' '));
 }
 
+export function insertHtml(value: string) {
+  if (!value || !editorElement) {
+    return;
+  }
+
+  editorElement.focus();
+  document.execCommand('insertHTML', false, value);
+  if (!allowImages) {
+    removeEditorImages();
+  }
+  onChange(getHtml());
+}
+
+export function runCommand(command: string, value?: string) {
+  if (!command || !editorElement) {
+    return;
+  }
+
+  editorElement.focus();
+  document.execCommand(command, false, value);
+  if (!allowImages) {
+    removeEditorImages();
+  }
+  onChange(getHtml());
+}
+
 function handleEditorInput() {
+  if (!allowImages) {
+    removeEditorImages();
+  }
+
   onChange(getHtml());
 
   if (inlineSuggestion || selectionTools) {
@@ -93,12 +150,30 @@ function handleEditorInput() {
   scheduleAutolink();
 }
 
-function handleEditorPaste() {
+function handleEditorPaste(event: ClipboardEvent) {
+  const imageFiles = getClipboardImageFiles(event.clipboardData);
+  if (imageFiles.length) {
+    event.preventDefault();
+    if (!allowImages) {
+      return;
+    }
+    void onImagePaste(imageFiles);
+    return;
+  }
+
   if (inlineSuggestion || selectionTools) {
     return;
   }
 
-  scheduleAutolink(0);
+  window.setTimeout(() => {
+    if (allowImages) {
+      normalizeEditorImages();
+    } else {
+      removeEditorImages();
+      onChange(getHtml());
+    }
+    runAutolink();
+  }, 0);
 }
 
 function scheduleAutolink(delay = 260) {
@@ -131,6 +206,90 @@ function runAutolink() {
   }
 
   onChange(getHtml());
+}
+
+function getSerializableEditorHtml(): string {
+  if (!editorElement) {
+    return '';
+  }
+
+  const clone = editorElement.cloneNode(true) as HTMLElement;
+  removeTransientEditorNodes(clone);
+
+  return clone.innerHTML;
+}
+
+function getSerializableEditorText(): string {
+  if (!editorElement) {
+    return '';
+  }
+
+  const clone = editorElement.cloneNode(true) as HTMLElement;
+  removeTransientEditorNodes(clone);
+
+  return clone.textContent ?? '';
+}
+
+function removeTransientEditorNodes(root: HTMLElement) {
+  root
+    .querySelectorAll('[data-comment-next-transient="true"]')
+    .forEach((node) => node.remove());
+}
+
+function getClipboardImageFiles(clipboardData: DataTransfer | null): File[] {
+  if (!clipboardData) {
+    return [];
+  }
+
+  const imageFiles = new Map<string, File>();
+
+  for (const item of Array.from(clipboardData.items)) {
+    if (item.kind !== 'file') {
+      continue;
+    }
+
+    const file = item.getAsFile();
+    if (file && isImageFile(file)) {
+      imageFiles.set(fileKey(file), file);
+    }
+  }
+
+  for (const file of Array.from(clipboardData.files)) {
+    if (isImageFile(file)) {
+      imageFiles.set(fileKey(file), file);
+    }
+  }
+
+  return Array.from(imageFiles.values());
+}
+
+function fileKey(file: File): string {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
+function normalizeEditorImages() {
+  if (!editorElement) {
+    return;
+  }
+
+  for (const image of Array.from(editorElement.querySelectorAll('img'))) {
+    image.classList.add('comment-next-emote-image');
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    image.alt ||= '图片';
+  }
+
+  onChange(getHtml());
+}
+
+function removeEditorImages() {
+  if (!editorElement) {
+    return;
+  }
+
+  for (const image of Array.from(editorElement.querySelectorAll('img'))) {
+    image.remove();
+  }
 }
 
 function insertNodeAtCaret(node: Node, trailingNode?: Node) {
@@ -181,12 +340,27 @@ function isSelectionInsideEditor(selection: Selection): boolean {
     return false;
   }
 
+  if (
+    isNodeInsideTransient(selection.anchorNode) ||
+    isNodeInsideTransient(selection.focusNode)
+  ) {
+    return false;
+  }
+
   return (
     editorElement === selection.anchorNode ||
     editorElement.contains(selection.anchorNode) ||
     editorElement === selection.focusNode ||
     editorElement.contains(selection.focusNode)
   );
+}
+
+function isNodeInsideTransient(node: Node): boolean {
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    return Boolean((node as Element).closest('[data-comment-next-transient="true"]'));
+  }
+
+  return Boolean(node.parentElement?.closest('[data-comment-next-transient="true"]'));
 }
 </script>
 
@@ -209,8 +383,12 @@ function isSelectionInsideEditor(selection: Selection): boolean {
     onpaste={handleEditorPaste}
   >
     {#if inlineSuggestion}
-      <p class="comment-next-editor-paragraph">我认为这篇文章对我帮助很大，尤其是关于时间管理的方法。</p>
-      <div class="comment-next-ai-suggestion" contenteditable="false">
+      <div
+        class:comment-next-ai-suggestion-loading={suggestionLoading}
+        class="comment-next-ai-suggestion"
+        contenteditable="false"
+        data-comment-next-transient="true"
+      >
         <div class="comment-next-ai-suggestion-head">
           <div class="comment-next-ai-suggestion-title">
             <span class="comment-next-ai-suggestion-emblem" aria-hidden="true">
@@ -221,21 +399,35 @@ function isSelectionInsideEditor(selection: Selection): boolean {
               <span class="comment-next-ai-suggestion-mode">{modeLabels[aiMode] ?? "写作建议"}</span>
             </div>
           </div>
-          <span class="comment-next-ai-suggestion-status">可插入到光标处</span>
+          <span class="comment-next-ai-suggestion-status">
+            {suggestionLoading ? "正在生成" : "可插入到光标处"}
+          </span>
         </div>
         <p class="comment-next-ai-suggestion-copy">
-          这篇文章让我重新审视了日常安排的优先级，也让我意识到减少任务切换，比单纯追求效率更重要。
+          {suggestionLoading ? "AI 正在整理评论建议..." : suggestionText}
         </p>
         <div class="comment-next-ai-suggestion-actions">
-          <button class="comment-next-ai-suggestion-primary" type="button">
+          <button
+            class="comment-next-ai-suggestion-primary"
+            type="button"
+            disabled={suggestionLoading || !suggestionText}
+            onclick={onAcceptSuggestion}
+          >
             <CommentNextIcon name="check" size={14} />
             接受
           </button>
-          <button type="button">插入</button>
-          <button type="button">
-            <CommentNextIcon name="refresh" size={13} />
+          <button
+            type="button"
+            disabled={suggestionLoading || !suggestionText}
+            onclick={onInsertSuggestion}
+          >
+            插入
+          </button>
+          <button type="button" disabled={suggestionLoading} onclick={onRewriteSuggestion}>
+            <CommentNextIcon name={suggestionLoading ? "loader" : "refresh"} size={13} />
             重写
           </button>
+          <button type="button" disabled={suggestionLoading} onclick={onRejectSuggestion}>关闭</button>
         </div>
       </div>
     {:else if selectionTools}
@@ -248,7 +440,12 @@ function isSelectionInsideEditor(selection: Selection): boolean {
   </div>
 
   {#if aiOpen && !inlineSuggestion && !selectionTools}
-    <CommentNextAiPanel activeMode={aiMode} onModeSelect={onModeSelect} onClose={onCloseAiPanel} />
+    <CommentNextAiPanel
+      activeMode={aiMode}
+      loading={suggestionLoading}
+      onModeSelect={onModeSelect}
+      onClose={onCloseAiPanel}
+    />
   {/if}
 
   {#if selectionTools}
@@ -305,7 +502,11 @@ function isSelectionInsideEditor(selection: Selection): boolean {
   }
 
   .comment-next-editor :global(.comment-next-emote-image) {
-    --at-apply: mx-0.5 inline-block max-h-15 max-w-30 align-middle object-contain;
+    --at-apply: mx-0.5 inline-block max-h-[16rem] max-w-full align-middle object-contain;
+  }
+
+  .comment-next-editor :global(img) {
+    --at-apply: inline-block max-h-[16rem] max-w-full align-middle object-contain;
   }
 
   .comment-next-editor-paragraph {
@@ -362,6 +563,10 @@ function isSelectionInsideEditor(selection: Selection): boolean {
     --at-apply: mt-3 mb-0 ml-0 mr-0 pl-[2.375rem] text-[var(--comment-next-ai-text-color,rgb(30_64_175))] leading-[1.72];
   }
 
+  .comment-next-ai-suggestion-loading .comment-next-ai-suggestion-copy {
+    --at-apply: text-[var(--comment-next-muted-color,#667085)];
+  }
+
   .comment-next-ai-suggestion-actions {
     --at-apply: mt-3.5 gap-1.5 pl-[2.375rem];
   }
@@ -380,6 +585,10 @@ function isSelectionInsideEditor(selection: Selection): boolean {
   .comment-next-ai-suggestion-actions button:active,
   .comment-next-selection-bar button:active {
     --at-apply: translate-y-px;
+  }
+
+  .comment-next-ai-suggestion-actions button:disabled {
+    --at-apply: cursor-wait opacity-56;
   }
 
   .comment-next-ai-suggestion-actions .comment-next-ai-suggestion-primary {

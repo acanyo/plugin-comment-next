@@ -25,6 +25,14 @@ rules:
   - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "uploads/images" ]
     verbs: [ "create" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "ai/suggestions" ]
+    verbs: [ "create" ]
+  - nonResourceURLs:
+      - "/apis/api.commentnext.xhhao.com/v1alpha1/uploads/images"
+      - "/apis/api.commentnext.xhhao.com/v1alpha1/uploads/-/images"
+      - "/apis/api.commentnext.xhhao.com/v1alpha1/ai/-/suggestions"
+    verbs: [ "create" ]
 ---
 apiVersion: v1alpha1
 kind: Role

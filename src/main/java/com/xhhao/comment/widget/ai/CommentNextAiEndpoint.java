@@ -1,4 +1,4 @@
-package com.xhhao.comment.widget.upload;
+package com.xhhao.comment.widget.ai;
 
 import static org.springframework.web.reactive.function.server.RequestPredicates.contentType;
 
@@ -14,20 +14,22 @@ import run.halo.app.core.extension.endpoint.CustomEndpoint;
 import run.halo.app.extension.GroupVersion;
 
 @Component
+@ConditionalOnHaloAiFoundation
 @RequiredArgsConstructor
-public class CommentNextUploadEndpoint implements CustomEndpoint {
-    private final CommentNextImageUploadService imageUploadService;
+public class CommentNextAiEndpoint implements CustomEndpoint {
+    private final CommentNextAiService aiService;
 
     @Override
     public RouterFunction<ServerResponse> endpoint() {
         return RouterFunctions.route()
-            .POST("uploads/-/images", contentType(MediaType.MULTIPART_FORM_DATA), this::uploadImage)
-            .POST("uploads/images", contentType(MediaType.MULTIPART_FORM_DATA), this::uploadImage)
+            .POST("ai/-/suggestions", contentType(MediaType.APPLICATION_JSON), this::generateSuggestion)
             .build();
     }
 
-    private Mono<ServerResponse> uploadImage(ServerRequest request) {
-        return imageUploadService.upload(request)
+    private Mono<ServerResponse> generateSuggestion(ServerRequest request) {
+        return request.bodyToMono(CommentNextAiSuggestionRequest.class)
+            .defaultIfEmpty(new CommentNextAiSuggestionRequest())
+            .flatMap(body -> aiService.generateSuggestion(request, body))
             .flatMap(result -> ServerResponse.ok()
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(result));

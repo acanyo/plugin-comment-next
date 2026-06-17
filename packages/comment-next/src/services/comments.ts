@@ -9,6 +9,7 @@ import {
   getDefaultAnonymousAvatarUrl,
 } from '../avatar/weavatar';
 import { getCaptchaCodeHeader, isCaptchaRequired } from './captcha';
+import { sanitizeCommentSubmitHtml } from '../utils/html';
 
 const COMMENTS_ENDPOINT = '/apis/api.commentnext.xhhao.com/v1alpha1/comments';
 
@@ -426,9 +427,10 @@ export async function createReply(
 function createCommentRequest(
   options: CreateCommentOptions
 ): HaloCommentRequest {
+  const content = sanitizeCommentSubmitHtml(options.content);
   const request: HaloCommentRequest = {
-    raw: options.content,
-    content: options.content,
+    raw: content,
+    content,
     allowNotification: true,
     hidden: Boolean(options.hidden),
     subjectRef: {
@@ -451,9 +453,10 @@ function createCommentRequest(
 }
 
 function createReplyRequest(options: CreateReplyOptions): HaloReplyRequest {
+  const content = sanitizeCommentSubmitHtml(options.content);
   const request: HaloReplyRequest = {
-    raw: options.content,
-    content: options.content,
+    raw: content,
+    content,
     allowNotification: true,
   };
 

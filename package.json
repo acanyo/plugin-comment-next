@@ -10,7 +10,7 @@
     "url": "https://github.com/acanyo/plugin-comment-next.git"
   },
   "scripts": {
-    "build": "npm --prefix packages/comment-next run build && npm --prefix packages/ui run build",
+    "build": "npm --prefix packages/comment-next run build && npm --prefix ui run build",
     "check": "biome check --write",
     "example:dev": "pnpm -C packages/comment-next dev",
     "prepare": "husky",

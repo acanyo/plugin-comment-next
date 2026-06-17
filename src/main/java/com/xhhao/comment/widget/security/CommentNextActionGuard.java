@@ -25,7 +25,7 @@ public class CommentNextActionGuard {
         if (!policy.enabled()) {
             return Mono.error(new ResponseStatusException(
                 HttpStatus.FORBIDDEN,
-                "评论图片上传未开启"
+                action.getDisabledMessage()
             ));
         }
 
@@ -40,7 +40,7 @@ public class CommentNextActionGuard {
         if (actor.anonymous() && !policy.allowAnonymous()) {
             return Mono.error(new ResponseStatusException(
                 HttpStatus.UNAUTHORIZED,
-                "请先登录后再上传图片"
+                action.getAnonymousForbiddenMessage()
             ));
         }
 
@@ -64,7 +64,7 @@ public class CommentNextActionGuard {
             .transformDeferred(RateLimiterOperator.of(rateLimiter))
             .onErrorMap(RequestNotPermitted.class, e -> new ResponseStatusException(
                 HttpStatus.TOO_MANY_REQUESTS,
-                "上传过于频繁，请稍后再试"
+                action.getRateLimitedMessage()
             ));
     }
 

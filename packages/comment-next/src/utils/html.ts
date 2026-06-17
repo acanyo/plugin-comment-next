@@ -32,14 +32,19 @@ const SUBMIT_TAG_ALLOWED_ATTRIBUTES: Record<string, Set<string>> = {
 
 interface SanitizeOptions {
   mode: 'display' | 'submit';
+  allowImages?: boolean;
 }
 
 export function sanitizeCommentHtml(value: string): string {
-  return sanitizeHtml(value, { mode: 'display' });
+  return sanitizeHtml(value, { mode: 'display', allowImages: true });
 }
 
 export function sanitizeCommentSubmitHtml(value: string): string {
-  return sanitizeHtml(value, { mode: 'submit' });
+  return sanitizeHtml(value, { mode: 'submit', allowImages: true });
+}
+
+export function sanitizeConsoleCommentHtml(value: string): string {
+  return sanitizeHtml(value, { mode: 'display', allowImages: false });
 }
 
 function sanitizeHtml(value: string, options: SanitizeOptions): string {
@@ -73,6 +78,11 @@ function sanitizeChildren(parent: ParentNode, options: SanitizeOptions): void {
 
 function sanitizeElement(element: Element, options: SanitizeOptions): void {
   const tagName = element.tagName.toLowerCase();
+
+  if (tagName === 'img' && !options.allowImages) {
+    element.remove();
+    return;
+  }
 
   if (!ALLOWED_TAGS.has(tagName)) {
     element.replaceWith(document.createTextNode(element.textContent ?? ''));
