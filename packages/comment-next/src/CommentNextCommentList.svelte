@@ -1,136 +1,292 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { resolveCommentBadges } from "./badges/resolve";
-  import CommentNextCommentItem from "./CommentNextCommentItem.svelte";
-  import CommentNextCommentSkeleton from "./CommentNextCommentSkeleton.svelte";
-  import CommentNextIcon from "./CommentNextIcon.svelte";
-  import { createDemoCommentPage, demoBadgeConfig } from "./demo/comments";
-  import { fetchCommentPage } from "./services/comments";
-  import type { CommentNextBadgeConfig, CommentNextComment } from "./types/comment";
+import { onMount } from 'svelte';
+import { resolveCommentBadges } from './badges/resolve';
+import CommentNextCommentItem from './CommentNextCommentItem.svelte';
+import CommentNextCommentSkeleton from './CommentNextCommentSkeleton.svelte';
+import CommentNextIcon from './CommentNextIcon.svelte';
+import { createDemoCommentPage, demoBadgeConfig } from './demo/comments';
+import { fetchCommentPage } from './services/comments';
+import type {
+  CommentNextBadgeConfig,
+  CommentNextComment,
+  CommentNextCommentSort,
+} from './types/comment';
+import type { CommentNextEmotePack } from './types/emote';
 
-  let {
-    baseUrl = "",
-    group = "",
-    kind = "",
-    version = "v1alpha1",
-    name = "",
-    demoData = false,
-    pageSize = 20,
-    replySize = 10,
-    withReplies = true,
-    badgeConfig: configuredBadgeConfig,
-  }: {
-    baseUrl?: string;
-    group?: string;
-    kind?: string;
-    version?: string;
-    name?: string;
-    demoData?: boolean;
-    pageSize?: number;
-    replySize?: number;
-    withReplies?: boolean;
-    badgeConfig?: CommentNextBadgeConfig;
-  } = $props();
+const {
+  baseUrl = '',
+  group = '',
+  kind = '',
+  version = 'v1alpha1',
+  name = '',
+  loggedIn = false,
+  allowAnonymous = true,
+  showCaptcha = false,
+  demoData = false,
+  pageSize = 20,
+  replySize = 10,
+  withReplies = true,
+  showCommenterDevice = true,
+  badgeConfig: configuredBadgeConfig,
+  emotePacks = [],
+}: {
+  baseUrl?: string;
+  group?: string;
+  kind?: string;
+  version?: string;
+  name?: string;
+  loggedIn?: boolean;
+  allowAnonymous?: boolean;
+  showCaptcha?: boolean;
+  demoData?: boolean;
+  pageSize?: number;
+  replySize?: number;
+  withReplies?: boolean;
+  showCommenterDevice?: boolean;
+  badgeConfig?: CommentNextBadgeConfig;
+  emotePacks?: CommentNextEmotePack[];
+} = $props();
 
-  let comments = $state<CommentNextComment[]>([]);
-  let page = $state(1);
-  let total = $state(0);
-  let hasNext = $state(false);
-  let loading = $state(false);
-  let errorMessage = $state("");
+let comments = $state<CommentNextComment[]>([]);
+let page = $state(1);
+let total = $state(0);
+let totalPages = $state(1);
+let hasPrevious = $state(false);
+let hasNext = $state(false);
+let firstCommentId = $state('');
+let loading = $state(false);
+let errorMessage = $state('');
+let sortMode = $state<CommentNextCommentSort>('latest');
 
-  const badgeConfig = $derived<CommentNextBadgeConfig>(demoData ? demoBadgeConfig : (configuredBadgeConfig ?? {}));
+const badgeConfig = $derived<CommentNextBadgeConfig>(
+  demoData ? demoBadgeConfig : (configuredBadgeConfig ?? {})
+);
+const visibleComments = $derived(demoData ? sortComments(comments, sortMode) : comments);
+const paginationItems = $derived(resolvePaginationItems(page, totalPages));
+const sortOptions: Array<{ label: string; value: CommentNextCommentSort }> = [
+  { label: '最新', value: 'latest' },
+  { label: '最热', value: 'hot' },
+  { label: '最早', value: 'earliest' },
+];
 
-  onMount(() => {
-    void refreshComments();
+onMount(() => {
+  void refreshComments();
 
-    const handleCreated = () => {
-      void refreshComments({ scrollIntoView: true });
-    };
+  const handleCreated = () => {
+    void refreshComments({ scrollIntoView: true });
+  };
 
-    window.addEventListener("halo:comment:created", handleCreated);
+  window.addEventListener('halo:comment:created', handleCreated);
 
-    return () => {
-      window.removeEventListener("halo:comment:created", handleCreated);
-    };
+  return () => {
+    window.removeEventListener('halo:comment:created', handleCreated);
+  };
+});
+
+async function refreshComments(options: { scrollIntoView?: boolean } = {}) {
+  page = 1;
+  await loadComments();
+
+  if (options.scrollIntoView) {
+    requestAnimationFrame(() => {
+      document.querySelector('comment-next, comment-widget')?.scrollIntoView({
+        block: 'start',
+        behavior: 'smooth',
+      });
+    });
+  }
+}
+
+async function selectPage(nextPage: number, options: { scrollIntoView?: boolean } = {}) {
+  const normalizedPage = clampPage(nextPage);
+
+  if (normalizedPage === page || loading) {
+    return;
+  }
+
+  page = normalizedPage;
+  await loadComments();
+
+  if (options.scrollIntoView) {
+    scrollCommentsIntoView();
+  }
+}
+
+async function selectSort(nextSortMode: CommentNextCommentSort) {
+  if (sortMode === nextSortMode || loading) {
+    return;
+  }
+
+  sortMode = nextSortMode;
+  await refreshComments();
+}
+
+async function loadComments() {
+  if (demoData) {
+    const demoPage = createDemoCommentPage();
+    comments = demoPage.items;
+    total = demoPage.total;
+    totalPages = demoPage.totalPages;
+    hasPrevious = demoPage.hasPrevious;
+    hasNext = demoPage.hasNext;
+    firstCommentId = demoPage.firstCommentId ?? '';
+    errorMessage = '';
+    return;
+  }
+
+  if (!group || !kind || !name) {
+    comments = [];
+    total = 0;
+    totalPages = 1;
+    hasPrevious = false;
+    hasNext = false;
+    firstCommentId = '';
+    return;
+  }
+
+  try {
+    loading = true;
+    errorMessage = '';
+
+    const data = await fetchCommentPage({
+      baseUrl,
+      group,
+      kind,
+      name,
+      version,
+      page,
+      size: pageSize,
+      replySize,
+      withReplies,
+      sort: sortMode,
+    });
+
+    comments = data.items;
+    page = data.page;
+    total = data.total;
+    totalPages = Math.max(data.totalPages || 1, 1);
+    hasPrevious = data.hasPrevious;
+    hasNext = data.hasNext;
+    firstCommentId = data.firstCommentId ?? '';
+  } catch (error) {
+    console.error(error);
+    errorMessage = '评论列表加载失败';
+    comments = [];
+    total = 0;
+    totalPages = 1;
+    hasPrevious = false;
+    hasNext = false;
+    firstCommentId = '';
+  } finally {
+    loading = false;
+  }
+}
+
+function isFirstComment(comment: CommentNextComment): boolean {
+  return Boolean(firstCommentId && comment.id === firstCommentId);
+}
+
+function sortComments(
+  items: CommentNextComment[],
+  mode: CommentNextCommentSort
+): CommentNextComment[] {
+  if (mode === 'latest') {
+    return [...items].sort((left, right) => commentTime(right) - commentTime(left));
+  }
+
+  if (mode === 'earliest') {
+    return [...items].sort((left, right) => commentTime(left) - commentTime(right));
+  }
+
+  return [...items].sort((left, right) => {
+    const upvotesDiff = (right.stats?.upvotes ?? 0) - (left.stats?.upvotes ?? 0);
+    if (upvotesDiff) {
+      return upvotesDiff;
+    }
+
+    return commentTime(right) - commentTime(left);
   });
+}
 
-  async function refreshComments(options: { scrollIntoView?: boolean } = {}) {
-    page = 1;
-    await loadComments({ append: false });
+function commentTime(comment: CommentNextComment): number {
+  return comment.creationTime ? new Date(comment.creationTime).getTime() : 0;
+}
 
-    if (options.scrollIntoView) {
-      requestAnimationFrame(() => {
-        document.querySelector("comment-next, comment-widget")?.scrollIntoView({
-          block: "start",
-          behavior: "smooth",
-        });
-      });
-    }
+function clampPage(nextPage: number): number {
+  return Math.min(Math.max(nextPage, 1), Math.max(totalPages, 1));
+}
+
+function scrollCommentsIntoView() {
+  requestAnimationFrame(() => {
+    document.querySelector('comment-next, comment-widget')?.scrollIntoView({
+      block: 'start',
+      behavior: 'smooth',
+    });
+  });
+}
+
+function resolvePaginationItems(
+  currentPage: number,
+  pageCount: number
+): Array<number | 'ellipsis'> {
+  const normalizedPageCount = Math.max(pageCount, 1);
+
+  if (normalizedPageCount <= 7) {
+    return Array.from({ length: normalizedPageCount }, (_, index) => index + 1);
   }
 
-  async function loadMore() {
-    if (!hasNext || loading) {
-      return;
-    }
+  const pages = new Set<number>([
+    1,
+    normalizedPageCount,
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+  ]);
 
-    page += 1;
-    await loadComments({ append: true });
+  if (currentPage <= 3) {
+    pages.add(2);
+    pages.add(3);
+    pages.add(4);
   }
 
-  async function loadComments({ append }: { append: boolean }) {
-    if (demoData) {
-      const demoPage = createDemoCommentPage();
-      comments = demoPage.items;
-      total = demoPage.total;
-      hasNext = demoPage.hasNext;
-      errorMessage = "";
-      return;
-    }
-
-    if (!group || !kind || !name) {
-      comments = [];
-      total = 0;
-      hasNext = false;
-      return;
-    }
-
-    try {
-      loading = true;
-      errorMessage = "";
-
-      const data = await fetchCommentPage({
-        baseUrl,
-        group,
-        kind,
-        name,
-        version,
-        page,
-        size: pageSize,
-        replySize,
-        withReplies,
-      });
-
-      comments = append ? [...comments, ...data.items] : data.items;
-      total = data.total;
-      hasNext = data.hasNext;
-    } catch (error) {
-      console.error(error);
-      errorMessage = "评论列表加载失败";
-      if (!append) {
-        comments = [];
-        total = 0;
-        hasNext = false;
-      }
-    } finally {
-      loading = false;
-    }
+  if (currentPage >= normalizedPageCount - 2) {
+    pages.add(normalizedPageCount - 3);
+    pages.add(normalizedPageCount - 2);
+    pages.add(normalizedPageCount - 1);
   }
+
+  const sortedPages = [...pages]
+    .filter((item) => item >= 1 && item <= normalizedPageCount)
+    .sort((left, right) => left - right);
+  const items: Array<number | 'ellipsis'> = [];
+
+  for (const item of sortedPages) {
+    const previous = items.at(-1);
+    if (typeof previous === 'number' && item - previous > 1) {
+      items.push('ellipsis');
+    }
+    items.push(item);
+  }
+
+  return items;
+}
 </script>
 
 <section class="comment-next-comments" aria-label="评论列表">
   <div class="comment-next-comments-bar">
-    <span class="comment-next-comments-count">共 {total} 条评论</span>
+    <div class="comment-next-comments-tabs" aria-label="评论排序">
+      {#each sortOptions as option}
+        <button
+          class:comment-next-comments-tab-active={sortMode === option.value}
+          type="button"
+          disabled={loading && sortMode !== option.value}
+          aria-pressed={sortMode === option.value}
+          onclick={() => selectSort(option.value)}
+        >
+          {option.label}
+        </button>
+      {/each}
+    </div>
     {#if errorMessage}
       <button class="comment-next-comments-retry" type="button" onclick={() => refreshComments()}>
         <CommentNextIcon name="refresh" size={13} />
@@ -143,12 +299,20 @@
     <CommentNextCommentSkeleton />
   {:else if comments.length}
     <div class="comment-next-comments-list">
-      {#each comments as comment, index (comment.id)}
+      {#each visibleComments as comment (comment.id)}
         <CommentNextCommentItem
+          {baseUrl}
           {comment}
-          badges={resolveCommentBadges(comment, { isFirstComment: index === 0, config: badgeConfig })}
+          badges={resolveCommentBadges(comment, { isFirstComment: isFirstComment(comment), config: badgeConfig })}
           {badgeConfig}
-          first={index === 0}
+          first={isFirstComment(comment)}
+          {loggedIn}
+          {allowAnonymous}
+          {showCaptcha}
+          {demoData}
+          {replySize}
+          {showCommenterDevice}
+          {emotePacks}
         />
       {/each}
     </div>
@@ -161,25 +325,56 @@
     </div>
   {/if}
 
-  {#if hasNext}
-    <div class="comment-next-comments-more">
-      <button type="button" disabled={loading} onclick={loadMore}>
+  {#if totalPages > 1}
+    <nav class="comment-next-comments-pagination" aria-label={`评论分页，共 ${total} 条`}>
+      <button
+        class="comment-next-comments-page-control"
+        type="button"
+        disabled={loading || !hasPrevious}
+        onclick={() => selectPage(page - 1, { scrollIntoView: true })}
+      >
+        上一页
+      </button>
+
+      <div class="comment-next-comments-page-list">
+        {#each paginationItems as item, index}
+          {#if item === 'ellipsis'}
+            <span class="comment-next-comments-page-ellipsis" aria-hidden="true">...</span>
+          {:else}
+            <button
+              class:comment-next-comments-page-active={item === page}
+              type="button"
+              disabled={loading || item === page}
+              aria-current={item === page ? "page" : undefined}
+              aria-label={`第 ${item} 页`}
+              onclick={() => selectPage(item, { scrollIntoView: true })}
+            >
+              {item}
+            </button>
+          {/if}
+        {/each}
+      </div>
+
+      <button
+        class="comment-next-comments-page-control"
+        type="button"
+        disabled={loading || !hasNext}
+        onclick={() => selectPage(page + 1, { scrollIntoView: true })}
+      >
         {#if loading}
-          <span class="comment-next-comments-more-loading">
-            <CommentNextIcon name="loader" size={15} />
+          <span class="comment-next-comments-pagination-loading">
+            <CommentNextIcon name="loader" size={14} />
           </span>
         {/if}
-        加载更多
+        下一页
       </button>
-    </div>
+    </nav>
   {/if}
 </section>
 
 <style>
   .comment-next-comments {
-    width: 100%;
-    box-sizing: border-box;
-    color: var(--comment-next-text-color, #172033);
+    --at-apply: box-border w-full text-[var(--comment-next-text-color,#172033)];
     font-family: var(
       --comment-next-font-family,
       ui-sans-serif,
@@ -192,112 +387,103 @@
   }
 
   .comment-next-comments-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 2rem;
-    gap: 0.75rem;
-    border-bottom: 1px solid var(--comment-next-border-subtle-color, #e3e9f0);
+    --at-apply: flex min-h-10 items-center justify-between gap-[1.125rem] border-b border-b-solid [border-bottom-color:var(--comment-next-border-subtle-color,#e3e9f0)];
   }
 
-  .comment-next-comments-count {
-    color: var(--comment-next-muted-color, #6b7687);
-    font-size: 0.8125rem;
-    font-weight: 720;
+  .comment-next-comments-tabs {
+    --at-apply: inline-flex min-w-0 items-stretch self-stretch gap-5;
+  }
+
+  .comment-next-comments-tabs button {
+    --at-apply: relative inline-flex min-w-9 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-sm text-[var(--comment-next-muted-color,#6b7687)] font-[720] font-inherit transition-colors duration-140 ease-in-out;
+  }
+
+  .comment-next-comments-tabs button::after {
+    --at-apply: absolute right-0 bottom-[-1px] left-0 h-0.5 rounded-full bg-transparent transition-colors duration-140 ease-in-out;
+    content: "";
+  }
+
+  .comment-next-comments-tabs button:hover,
+  .comment-next-comments-tabs .comment-next-comments-tab-active {
+    --at-apply: text-[var(--comment-next-primary-color,rgb(59,130,246))];
+  }
+
+  .comment-next-comments-tabs .comment-next-comments-tab-active::after {
+    --at-apply: bg-[var(--comment-next-primary-color,rgb(59,130,246))];
+  }
+
+  .comment-next-comments-tabs button:disabled {
+    --at-apply: cursor-wait opacity-62;
   }
 
   .comment-next-comments-retry,
-  .comment-next-comments-more button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
-    border: 1px solid var(--comment-next-border-subtle-color, #dfe5ec);
-    background: var(--comment-next-toolbar-bg-color, #ffffff);
-    color: var(--comment-next-muted-color, #6b7687);
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.8125rem;
-    font-weight: 680;
-    transition:
-      background-color 140ms ease,
-      color 140ms ease,
-      transform 140ms ease;
+  .comment-next-comments-pagination button {
+    --at-apply: inline-flex cursor-pointer items-center justify-center gap-[0.35rem] border border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-toolbar-bg-color,#ffffff)] text-[0.8125rem] text-[var(--comment-next-muted-color,#6b7687)] font-[680] font-inherit transition-[background-color,color,transform] duration-140 ease-in-out;
   }
 
   .comment-next-comments-retry {
-    height: 1.75rem;
-    padding: 0 0.625rem;
-    border-radius: 0.5rem;
+    --at-apply: ml-auto h-7 rounded-lg px-2.5 py-0;
   }
 
   .comment-next-comments-retry:hover,
-  .comment-next-comments-more button:hover {
-    background: var(--comment-next-control-hover-bg-color, #eef2f4);
-    color: var(--comment-next-primary-color, rgb(59, 130, 246));
+  .comment-next-comments-pagination button:hover {
+    --at-apply: bg-[var(--comment-next-control-hover-bg-color,#eef2f4)] text-[var(--comment-next-primary-color,rgb(59,130,246))];
   }
 
   .comment-next-comments-list {
-    display: grid;
+    --at-apply: grid;
   }
 
   .comment-next-comments-empty {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 7rem;
-    gap: 0.5rem;
-    color: var(--comment-next-muted-color, #6b7687);
-    font-size: 0.875rem;
+    --at-apply: flex min-h-28 items-center justify-center gap-2 text-sm text-[var(--comment-next-muted-color,#6b7687)];
   }
 
   .comment-next-comments-empty-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    border: 1px solid var(--comment-next-border-subtle-color, #dfe5ec);
-    border-radius: 999px;
-    background: var(--comment-next-toolbar-bg-color, #ffffff);
+    --at-apply: inline-flex h-8 w-8 items-center justify-center rounded-full border border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-toolbar-bg-color,#ffffff)];
   }
 
-  .comment-next-comments-more {
-    display: flex;
-    justify-content: center;
-    padding-top: 0.5rem;
+  .comment-next-comments-pagination {
+    --at-apply: flex flex-wrap items-center justify-center gap-2 pt-4;
   }
 
-  .comment-next-comments-more button {
-    min-width: 6.5rem;
-    height: 2rem;
-    padding: 0 0.875rem;
-    border-radius: 0.625rem;
+  .comment-next-comments-page-list {
+    --at-apply: inline-flex items-center gap-1.5;
   }
 
-  .comment-next-comments-more button:disabled {
-    cursor: wait;
-    opacity: 0.7;
+  .comment-next-comments-pagination button {
+    --at-apply: h-8 min-w-8 rounded-[0.625rem] px-2.5 py-0 tabular-nums;
   }
 
-  .comment-next-comments-more-loading {
-    animation: comment-next-comments-spin 900ms linear infinite;
+  .comment-next-comments-page-control {
+    --at-apply: min-w-16 px-3.5;
   }
 
-  @keyframes comment-next-comments-spin {
-    to {
-      transform: rotate(360deg);
-    }
+  .comment-next-comments-pagination .comment-next-comments-page-active {
+    --at-apply: [border-color:var(--comment-next-primary-color,rgb(59,130,246))] bg-[var(--comment-next-pill-active-bg-color,rgb(239_246_255))] text-[var(--comment-next-primary-color,rgb(59,130,246))];
+  }
+
+  .comment-next-comments-pagination button:disabled {
+    --at-apply: cursor-not-allowed opacity-56;
+  }
+
+  .comment-next-comments-page-ellipsis {
+    --at-apply: inline-flex h-8 min-w-5 items-center justify-center text-xs text-[var(--comment-next-muted-color,#6b7687)];
+  }
+
+  .comment-next-comments-pagination-loading {
+    --at-apply: animate-spin;
   }
 
   @media (prefers-reduced-motion: reduce) {
     .comment-next-comments-retry,
-    .comment-next-comments-more button {
-      transition: none;
+    .comment-next-comments-tabs button,
+    .comment-next-comments-tabs button::after,
+    .comment-next-comments-pagination button {
+      --at-apply: transition-none;
     }
 
-    .comment-next-comments-more-loading {
-      animation: none;
+    .comment-next-comments-pagination-loading {
+      --at-apply: animate-none;
     }
   }
 </style>

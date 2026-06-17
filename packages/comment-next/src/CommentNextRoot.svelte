@@ -1,110 +1,179 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import CommentNextBox from "./CommentNextBox.svelte";
-  import CommentNextCommentList from "./CommentNextCommentList.svelte";
-  import { fetchPluginConfig, type CommentNextPluginConfig } from "./services/config";
+import { onMount } from 'svelte';
+import CommentNextBox from './CommentNextBox.svelte';
+import CommentNextCommentList from './CommentNextCommentList.svelte';
+import { normalizeCommentNextEmotePacks } from './emotes/normalize';
+import {
+  type CommentNextGlobalInfo,
+  type CommentNextPluginConfig,
+  fetchGlobalInfo,
+  fetchPluginConfig,
+} from './services/config';
+import { fetchEmotePacks } from './services/emotes';
+import type { CommentNextRawEmotePacks } from './types/emote';
 
-  let {
-    baseUrl = "",
-    group = "",
-    kind = "",
-    version = "v1alpha1",
-    name = "",
-    loggedIn = false,
-    allowAnonymous = true,
-    showCaptcha = false,
-    enablePrivate = false,
-    loading = false,
-    submitting = false,
-    commandMenuOpen = false,
-    inlineSuggestion = false,
-    selectionTools = false,
-    placeholder = "写下你的评论...",
-    showComments = true,
-    demoData = false,
-    pageSize = 20,
-    replySize = 10,
-    withReplies = true,
-  }: {
-    baseUrl?: string;
-    group?: string;
-    kind?: string;
-    version?: string;
-    name?: string;
-    loggedIn?: boolean;
-    allowAnonymous?: boolean;
-    showCaptcha?: boolean;
-    enablePrivate?: boolean;
-    loading?: boolean;
-    submitting?: boolean;
-    commandMenuOpen?: boolean;
-    inlineSuggestion?: boolean;
-    selectionTools?: boolean;
-    placeholder?: string;
-    showComments?: boolean;
-    demoData?: boolean;
-    pageSize?: number;
-    replySize?: number;
-    withReplies?: boolean;
-  } = $props();
+const {
+  baseUrl = '',
+  group = '',
+  kind = '',
+  version = 'v1alpha1',
+  name = '',
+  loggedIn = false,
+  allowAnonymous = true,
+  showCaptcha = false,
+  enablePrivate = false,
+  loading = false,
+  submitting = false,
+  commandMenuOpen = false,
+  inlineSuggestion = false,
+  selectionTools = false,
+  placeholder = '写下你的评论...',
+  showComments = true,
+  demoData = false,
+  pageSize = 20,
+  replySize = 10,
+  withReplies = true,
+}: {
+  baseUrl?: string;
+  group?: string;
+  kind?: string;
+  version?: string;
+  name?: string;
+  loggedIn?: boolean;
+  allowAnonymous?: boolean;
+  showCaptcha?: boolean;
+  enablePrivate?: boolean;
+  loading?: boolean;
+  submitting?: boolean;
+  commandMenuOpen?: boolean;
+  inlineSuggestion?: boolean;
+  selectionTools?: boolean;
+  placeholder?: string;
+  showComments?: boolean;
+  demoData?: boolean;
+  pageSize?: number;
+  replySize?: number;
+  withReplies?: boolean;
+} = $props();
 
-  let pluginConfig = $state<CommentNextPluginConfig | undefined>();
-  let configLoaded = $state(false);
-  let configFailed = $state(false);
+let pluginConfig = $state<CommentNextPluginConfig | undefined>();
+let globalInfo = $state<CommentNextGlobalInfo | undefined>();
+let rawEmotePacks = $state<CommentNextRawEmotePacks>({});
+let configLoaded = $state(false);
+let configFailed = $state(false);
+let globalInfoLoaded = $state(false);
+let globalInfoFailed = $state(false);
 
-  const configReady = $derived(demoData || configLoaded || configFailed);
-  const basicConfig = $derived(pluginConfig?.basic);
-  const securityConfig = $derived(pluginConfig?.security);
-  const editorConfig = $derived(pluginConfig?.editor);
-  const badgeConfig = $derived(pluginConfig?.badge);
-  const resolvedShowCaptcha = $derived(securityConfig?.captcha?.anonymousCommentCaptcha ?? showCaptcha);
-  const resolvedEnablePrivate = $derived(basicConfig?.enablePrivateComment ?? enablePrivate);
-  const resolvedPlaceholder = $derived(editorConfig?.placeholder?.trim() || placeholder);
-  const resolvedWithReplies = $derived(basicConfig?.withReplies ?? withReplies);
-  const resolvedPageSize = $derived(resolvePositiveNumber(basicConfig?.size, pageSize));
-  const resolvedReplySize = $derived(
-    resolvePositiveNumber(resolvedWithReplies ? basicConfig?.withReplySize || basicConfig?.replySize : basicConfig?.replySize, replySize)
-  );
+const pluginConfigReady = $derived(demoData || configLoaded || configFailed);
+const globalInfoReady = $derived(
+  demoData || globalInfoLoaded || globalInfoFailed
+);
+const configReady = $derived(pluginConfigReady && globalInfoReady);
+const basicConfig = $derived(pluginConfig?.basic);
+const securityConfig = $derived(pluginConfig?.security);
+const editorConfig = $derived(pluginConfig?.editor);
+const badgeConfig = $derived(pluginConfig?.badge);
+const resolvedAllowAnonymous = $derived(
+  globalInfo?.allowAnonymousComments ?? allowAnonymous
+);
+const resolvedShowCaptcha = $derived(
+  securityConfig?.captcha?.anonymousCommentCaptcha ?? showCaptcha
+);
+const resolvedEnablePrivate = $derived(
+  basicConfig?.enablePrivateComment ?? enablePrivate
+);
+const resolvedShowCommenterDevice = $derived(true);
+const resolvedPlaceholder = $derived(
+  editorConfig?.placeholder?.trim() || placeholder
+);
+const resolvedEmotePacks = $derived(
+  demoData
+    ? normalizeCommentNextEmotePacks(undefined)
+    : normalizeCommentNextEmotePacks(rawEmotePacks)
+);
+const resolvedWithReplies = $derived(basicConfig?.withReplies ?? withReplies);
+const resolvedPageSize = $derived(
+  resolvePositiveNumber(basicConfig?.size, pageSize)
+);
+const resolvedReplySize = $derived(
+  resolvePositiveNumber(
+    resolvedWithReplies
+      ? basicConfig?.withReplySize || basicConfig?.replySize
+      : basicConfig?.replySize,
+    replySize
+  )
+);
 
-  onMount(() => {
-    if (demoData) {
-      configLoaded = true;
-      return;
-    }
-
-    let cancelled = false;
-
-    fetchPluginConfig(baseUrl)
-      .then((config) => {
-        if (!cancelled) {
-          pluginConfig = config;
-          configLoaded = true;
-        }
-      })
-      .catch((error) => {
-        console.error(error);
-        if (!cancelled) {
-          configFailed = true;
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  });
-
-  function resolvePositiveNumber(value: number | undefined, fallback: number): number {
-    const normalizedValue = Number(value);
-
-    if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) {
-      return fallback;
-    }
-
-    return normalizedValue;
+onMount(() => {
+  if (demoData) {
+    configLoaded = true;
+    globalInfoLoaded = true;
+    return;
   }
+
+  let cancelled = false;
+
+  fetchPluginConfig(baseUrl)
+    .then((config) => {
+      if (!cancelled) {
+        pluginConfig = config;
+        configLoaded = true;
+      }
+    })
+    .catch((error) => {
+      console.error(error);
+      if (!cancelled) {
+        configFailed = true;
+      }
+    });
+
+  fetchGlobalInfo(baseUrl)
+    .then((info) => {
+      if (!cancelled) {
+        globalInfo = info;
+        globalInfoLoaded = true;
+      }
+    })
+    .catch((error) => {
+      console.error(error);
+      if (!cancelled) {
+        globalInfoFailed = true;
+      }
+    });
+
+  fetchEmotePacks(baseUrl)
+    .then((emotes) => {
+      if (!cancelled) {
+        rawEmotePacks = emotes;
+      }
+    })
+    .catch((error) => {
+      console.error(error);
+      if (!cancelled) {
+        rawEmotePacks = {};
+      }
+    });
+
+  return () => {
+    cancelled = true;
+  };
+});
+
+function resolvePositiveNumber(
+  value: number | undefined,
+  fallback: number
+): number {
+  const normalizedValue = Number(value);
+
+  if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) {
+    return fallback;
+  }
+
+  return normalizedValue;
+}
 </script>
 
-<div class="comment-next-root">
+<div class="comment-next-root grid w-full gap-4">
   <CommentNextBox
     {baseUrl}
     {group}
@@ -112,7 +181,7 @@
     {version}
     {name}
     {loggedIn}
-    {allowAnonymous}
+    allowAnonymous={resolvedAllowAnonymous}
     showCaptcha={resolvedShowCaptcha}
     enablePrivate={resolvedEnablePrivate}
     loading={loading || !configReady}
@@ -121,6 +190,7 @@
     {inlineSuggestion}
     {selectionTools}
     placeholder={resolvedPlaceholder}
+    emotePacks={resolvedEmotePacks}
   />
 
   {#if showComments && configReady}
@@ -130,19 +200,22 @@
       {kind}
       {version}
       {name}
+      {loggedIn}
+      allowAnonymous={resolvedAllowAnonymous}
+      showCaptcha={resolvedShowCaptcha}
       {demoData}
       pageSize={resolvedPageSize}
       replySize={resolvedReplySize}
       withReplies={resolvedWithReplies}
+      showCommenterDevice={resolvedShowCommenterDevice}
       {badgeConfig}
+      emotePacks={resolvedEmotePacks}
     />
   {/if}
 </div>
 
 <style>
   .comment-next-root {
-    display: grid;
-    width: 100%;
-    gap: 1rem;
+    --at-apply: grid w-full gap-4;
   }
 </style>

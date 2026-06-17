@@ -37,6 +37,8 @@
     "prepublishOnly": "pnpm run build"
   },
   "devDependencies": {
+    "@iconify-json/logos": "^1.2.11",
+    "@iconify-json/simple-icons": "^1.2.86",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tsconfig/svelte": "^5.0.8",
     "@unocss/reset": "^66.7.2",

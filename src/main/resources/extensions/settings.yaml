@@ -34,7 +34,7 @@ spec:
         - $formkit: checkbox
           label: 显示评论者设备信息
           name: showCommenterDevice
-          value: false
+          value: true
         - $formkit: checkbox
           label: 支持私密评论
           id: enablePrivateComment
@@ -106,6 +106,144 @@ spec:
               help: 算术验证码计算范围
               value: 90
               validation: required
+    - group: upload
+      label: 图片上传
+      formSchema:
+        - $formkit: checkbox
+          label: 启用评论图片上传
+          name: enabled
+          id: uploadEnabled
+          key: uploadEnabled
+          value: false
+          help: 开启后，评论编辑器会显示图片上传按钮。图片会先上传到插件后端，再按下方配置存入 Halo 附件库或 ImgBB。
+        - $formkit: checkbox
+          if: "$get(uploadEnabled).value === true"
+          label: 允许未登录用户上传图片
+          name: allowAnonymousUpload
+          id: allowAnonymousUpload
+          key: allowAnonymousUpload
+          value: false
+          help: 建议只在配合大小限制和频率限制时开启，避免被盗刷。
+        - $formkit: select
+          if: "$get(uploadEnabled).value === true && $get(allowAnonymousUpload).value === true"
+          label: 未登录用户上传方式
+          name: anonymousProvider
+          id: anonymousProvider
+          key: anonymousProvider
+          value: "DISABLED"
+          options:
+            - label: 禁用
+              value: "DISABLED"
+            - label: Halo 附件库
+              value: "HALO_ATTACHMENT"
+            - label: ImgBB
+              value: "IMGBB"
+        - $formkit: select
+          if: "$get(uploadEnabled).value === true"
+          label: 登录用户上传方式
+          name: authenticatedProvider
+          id: authenticatedProvider
+          key: authenticatedProvider
+          value: "HALO_ATTACHMENT"
+          options:
+            - label: 禁用
+              value: "DISABLED"
+            - label: Halo 附件库
+              value: "HALO_ATTACHMENT"
+            - label: ImgBB
+              value: "IMGBB"
+        - $formkit: number
+          if: "$get(uploadEnabled).value === true && $get(allowAnonymousUpload).value === true"
+          label: 未登录用户单张图片大小上限（KB）
+          name: anonymousMaxSizeKb
+          value: 2048
+          min: 1
+          validation: required|min:1
+        - $formkit: number
+          if: "$get(uploadEnabled).value === true"
+          label: 登录用户单张图片大小上限（KB）
+          name: authenticatedMaxSizeKb
+          value: 5120
+          min: 1
+          validation: required|min:1
+        - $formkit: text
+          if: "$get(uploadEnabled).value === true"
+          label: 允许的图片 MIME 类型
+          name: allowedContentTypes
+          value: "image/jpeg,image/png,image/gif,image/webp"
+          help: 多个类型用英文逗号分隔。
+        - $formkit: group
+          if: "$get(uploadEnabled).value === true && ($get(anonymousProvider).value === HALO_ATTACHMENT || $get(authenticatedProvider).value === HALO_ATTACHMENT)"
+          name: haloAttachment
+          label: Halo 附件库
+          value:
+            policyName: ""
+            groupName: ""
+          children:
+            - $formkit: attachmentPolicySelect
+              name: policyName
+              label: 存储策略
+              auto-select: false
+              validation: required
+              help: 可选择 Halo 的本地存储策略或其他附件存储策略。
+            - $formkit: attachmentGroupSelect
+              name: groupName
+              label: 存储组
+              auto-select: false
+              clearable: true
+        - $formkit: group
+          if: "$get(uploadEnabled).value === true && ($get(anonymousProvider).value === IMGBB || $get(authenticatedProvider).value === IMGBB)"
+          name: imgBb
+          label: ImgBB
+          value:
+            apiKey: ""
+            expirationSeconds: 0
+          children:
+            - $formkit: password
+              name: apiKey
+              label: API Key
+              validation: required
+              help: 只保存在插件配置中，由后端请求 ImgBB，不会暴露给前端。
+            - $formkit: number
+              name: expirationSeconds
+              label: 图片过期时间（秒）
+              value: 0
+              min: 0
+              help: 0 表示不设置过期时间。
+        - $formkit: group
+          if: "$get(uploadEnabled).value === true"
+          name: security
+          label: 上传安全拦截
+          value:
+            anonymousRateLimit: 5
+            anonymousRateWindowSeconds: 60
+            authenticatedRateLimit: 30
+            authenticatedRateWindowSeconds: 60
+          children:
+            - $formkit: number
+              label: 未登录用户窗口内允许上传次数
+              name: anonymousRateLimit
+              value: 5
+              min: 1
+              validation: required|min:1
+            - $formkit: number
+              label: 未登录用户限流窗口（秒）
+              name: anonymousRateWindowSeconds
+              value: 60
+              min: 1
+              validation: required|min:1
+            - $formkit: number
+              label: 登录用户窗口内允许上传次数
+              name: authenticatedRateLimit
+              value: 30
+              min: 1
+              validation: required|min:1
+            - $formkit: number
+              label: 登录用户限流窗口（秒）
+              name: authenticatedRateWindowSeconds
+              value: 60
+              min: 1
+              validation: required|min:1
     - group: avatar
       label: 头像设置
       formSchema:
@@ -156,18 +294,25 @@ spec:
           name: firstCommentBadge
           value:
             label: 首评
-            icon: medal
+            icon: mdi:medal-outline
+            color: "#f59e0b"
             title: 本文第一位评论者
           children:
             - $formkit: text
               label: 显示文案
               name: label
               value: 首评
-            - $formkit: text
-              label: 图标名称
+            - $formkit: iconify
+              label: Iconify 图标
               name: icon
-              value: medal
-              help: 使用评论组件内置图标名称，留空则只显示文字。
+              format: name
+              valueOnly: true
+              value: mdi:medal-outline
+              help: 选择 Iconify 图标，留空则只显示文字。
+            - $formkit: color
+              label: 徽章颜色
+              name: color
+              value: "#f59e0b"
             - $formkit: text
               label: 提示文案
               name: title
@@ -177,134 +322,42 @@ spec:
           name: adminBadge
           value:
             label: 站长
-            icon: shield
+            icon: mdi:shield-star-outline
+            color: "#3b82f6"
             title: 站点管理员
           children:
             - $formkit: text
               label: 显示文案
               name: label
               value: 站长
-            - $formkit: text
-              label: 图标名称
+            - $formkit: iconify
+              label: Iconify 图标
               name: icon
-              value: shield
+              format: name
+              valueOnly: true
+              value: mdi:shield-star-outline
+            - $formkit: color
+              label: 徽章颜色
+              name: color
+              value: "#3b82f6"
             - $formkit: text
               label: 提示文案
               name: title
               value: 站点管理员
         - $formkit: array
-          label: 管理员身份匹配
+          label: 额外管理员用户
           name: adminIdentifiers
           value: []
-          addLabel: 添加管理员身份
+          addLabel: 添加管理员用户
+          help: 系统超级管理员会自动获得管理员徽章，这里只需要补充额外用户。
           itemLabels:
             - type: text
               label: $value.username
-            - type: text
-              label: $value.email
-            - type: text
-              label: $value.displayName
           children:
-            - $formkit: text
-              label: 用户名
+            - $formkit: userSelect
+              label: Halo 用户
               name: username
-              help: 已登录用户可按 Halo 用户名匹配。
-            - $formkit: email
-              label: 邮箱
-              name: email
-              help: 匿名评论者可按邮箱匹配。
-            - $formkit: text
-              label: 昵称
-              name: displayName
-              help: 不建议只依赖昵称，昵称可被普通评论者填写。
-        - $formkit: array
-          label: 活跃等级徽章
-          name: levelRules
-          value: []
-          addLabel: 添加等级徽章
-          itemLabels:
-            - type: text
-              label: $value.label
-            - type: text
-              label: "≥"
-            - type: text
-              label: $value.minComments
-            - type: text
-              label: "条"
-          children:
-            - $formkit: text
-              label: 规则 ID
-              name: id
-              value: ""
-              placeholder: level-regular
               validation: required
-            - $formkit: text
-              label: 显示文案
-              name: label
-              value: ""
-              placeholder: 常驻
-              validation: required
-            - $formkit: number
-              label: 最少活跃评论数
-              name: minComments
-              value: 10
-              min: 1
-              validation: required
-            - $formkit: text
-              label: 图标名称
-              name: icon
-              value: sparkle
-            - $formkit: text
-              label: 提示文案
-              name: title
-              value: ""
-              placeholder: 累计评论达到 10 条
-        - $formkit: array
-          label: 专属用户徽章
-          name: customRules
-          value: []
-          addLabel: 添加专属徽章
-          itemLabels:
-            - type: text
-              label: $value.label
-            - type: text
-              label: $value.match.username
-            - type: text
-              label: $value.match.email
-          children:
-            - $formkit: text
-              label: 规则 ID
-              name: id
-              value: ""
-              placeholder: special-builder
-              validation: required
-            - $formkit: text
-              label: 显示文案
-              name: label
-              value: ""
-              placeholder: 共建者
-              validation: required
-            - $formkit: text
-              label: 图标名称
-              name: icon
-              value: star
-            - $formkit: text
-              label: 提示文案
-              name: title
-              value: ""
-            - $formkit: group
-              label: 匹配条件
-              name: match
-              children:
-                - $formkit: text
-                  label: 用户名
-                  name: username
-                - $formkit: email
-                  label: 邮箱
-                  name: email
-                - $formkit: text
-                  label: 昵称
-                  name: displayName
     - group: editor
       label: 编辑器
       formSchema:

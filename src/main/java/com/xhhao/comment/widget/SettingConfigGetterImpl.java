@@ -33,4 +33,10 @@ public class SettingConfigGetterImpl implements SettingConfigGetter {
         return settingFetcher.fetch(BadgeConfig.GROUP, BadgeConfig.class)
             .defaultIfEmpty(BadgeConfig.empty());
     }
+
+    @Override
+    public Mono<UploadConfig> getUploadConfig() {
+        return settingFetcher.fetch(UploadConfig.GROUP, UploadConfig.class)
+            .defaultIfEmpty(UploadConfig.empty());
+    }
 }

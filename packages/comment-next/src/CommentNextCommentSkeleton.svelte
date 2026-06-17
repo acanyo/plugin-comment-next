@@ -1,5 +1,5 @@
 <script lang="ts">
-  const widths = ["68%", "52%", "78%"];
+const widths = ['68%', '52%', '78%'];
 </script>
 
 <div class="comment-next-comment-skeleton" aria-busy="true" aria-label="评论列表加载中">
@@ -17,67 +17,45 @@
 
 <style>
   .comment-next-comment-skeleton {
-    display: grid;
-    gap: 0.875rem;
-    padding-top: 1rem;
+    --at-apply: grid gap-3.5 pt-4;
   }
 
   .comment-next-comment-skeleton-row {
-    display: grid;
-    grid-template-columns: 2.25rem minmax(0, 1fr);
-    gap: 0.75rem;
+    --at-apply: grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3;
   }
 
   .comment-next-comment-skeleton-avatar,
   .comment-next-comment-skeleton-meta,
   .comment-next-comment-skeleton-line {
-    position: relative;
-    display: block;
-    overflow: hidden;
-    background: var(--comment-next-skeleton-base-color, #edf2f5);
+    --at-apply: relative block overflow-hidden bg-[var(--comment-next-skeleton-base-color,#edf2f5)];
   }
 
   .comment-next-comment-skeleton-avatar::after,
   .comment-next-comment-skeleton-meta::after,
   .comment-next-comment-skeleton-line::after {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      var(--comment-next-skeleton-highlight-color, rgb(255 255 255 / 0.78)),
-      transparent
-    );
+    --at-apply: absolute inset-0 [background:linear-gradient(90deg,transparent,var(--comment-next-skeleton-highlight-color,rgb(255_255_255_/_0.78)),transparent)] -translate-x-full;
     content: "";
-    transform: translateX(-100%);
     animation: comment-next-comment-skeleton-shimmer 1.35s ease-in-out infinite;
   }
 
   .comment-next-comment-skeleton-avatar {
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 999px;
+    --at-apply: h-9 w-9 rounded-full;
   }
 
   .comment-next-comment-skeleton-body {
-    display: grid;
-    gap: 0.5rem;
-    padding-top: 0.125rem;
+    --at-apply: grid gap-2 pt-0.5;
   }
 
   .comment-next-comment-skeleton-meta {
-    height: 0.875rem;
-    border-radius: 999px;
+    --at-apply: h-3.5 rounded-full;
   }
 
   .comment-next-comment-skeleton-line {
-    width: 100%;
-    height: 0.75rem;
-    border-radius: 999px;
+    --at-apply: h-3 w-full rounded-full;
   }
 
   .comment-next-comment-skeleton-line-short {
-    width: 42%;
+    --at-apply: w-[42%];
   }
 
   @keyframes comment-next-comment-skeleton-shimmer {

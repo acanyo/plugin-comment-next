@@ -1,23 +1,23 @@
 <script lang="ts">
-  import CommentNextIcon from "./CommentNextIcon.svelte";
+import CommentNextIcon from './CommentNextIcon.svelte';
 
-  let {
-    activeMode = "polish",
-    onModeSelect = () => {},
-    onClose = () => {},
-  }: {
-    activeMode?: string;
-    onModeSelect?: (mode: string) => void;
-    onClose?: () => void;
-  } = $props();
+const {
+  activeMode = 'polish',
+  onModeSelect = () => {},
+  onClose = () => {},
+}: {
+  activeMode?: string;
+  onModeSelect?: (mode: string) => void;
+  onClose?: () => void;
+} = $props();
 
-  const modes = [
-    { key: "polish", icon: "wand", label: "润色", hint: "让表达更自然" },
-    { key: "expand", icon: "plusCircle", label: "补充", hint: "延展一个观点" },
-    { key: "question", icon: "circleHelp", label: "提问", hint: "换成提问角度" },
-    { key: "reply", icon: "message", label: "回复", hint: "整理为回复语气" },
-    { key: "summary", icon: "listChecks", label: "总结", hint: "压缩成短评" },
-  ];
+const modes = [
+  { key: 'polish', icon: 'wand', label: '润色', hint: '让表达更自然' },
+  { key: 'expand', icon: 'plusCircle', label: '补充', hint: '延展一个观点' },
+  { key: 'question', icon: 'circleHelp', label: '提问', hint: '换成提问角度' },
+  { key: 'reply', icon: 'message', label: '回复', hint: '整理为回复语气' },
+  { key: 'summary', icon: 'listChecks', label: '总结', hint: '压缩成短评' },
+];
 </script>
 
 <div class="comment-next-ai-panel" role="dialog" aria-label="AI 写作助手">
@@ -31,7 +31,7 @@
         <small class="comment-next-ai-panel-description">选择一个处理方式，建议会直接进入正文层</small>
       </div>
     </div>
-    <button class="comment-next-ai-panel-close" type="button" title="关闭" aria-label="关闭 AI 写作助手" onclick={onClose}>
+    <button class="comment-next-ai-panel-close" type="button" aria-label="关闭 AI 写作助手" onclick={onClose}>
       <CommentNextIcon name="x" size={15} />
     </button>
   </div>
@@ -57,36 +57,12 @@
 
 <style>
   .comment-next-ai-panel {
-    position: absolute;
-    right: 1rem;
-    bottom: 0.875rem;
-    left: 1rem;
-    z-index: 4;
-    box-sizing: border-box;
-    max-width: 42rem;
-    padding: 0.75rem;
-    border: 1px solid var(--comment-next-ai-border-color, rgb(191 219 254));
-    border-radius: var(--comment-next-radius-md, 0.75rem);
-    background: var(
-      --comment-next-ai-panel-surface-bg,
-      linear-gradient(180deg, rgb(255 255 255 / 0.96), rgb(248 252 251 / 0.96)),
-      var(--comment-next-ai-panel-bg-color, #f8fcfb)
-    );
-    box-shadow:
-      0 18px 44px rgb(15 23 42 / 0.12),
-      0 1px 0 rgb(255 255 255 / 0.8) inset;
-    color: var(--comment-next-text-color, #172033);
+    --at-apply: absolute right-4 bottom-3.5 left-4 z-4 box-border max-w-168 rounded-[var(--comment-next-radius-md,0.75rem)] border border-solid [border-color:var(--comment-next-ai-border-color,rgb(191_219_254))] [background:var(--comment-next-ai-panel-surface-bg,linear-gradient(180deg,rgb(255_255_255_/_0.96),rgb(248_252_251_/_0.96)),var(--comment-next-ai-panel-bg-color,#f8fcfb))] p-3 text-[var(--comment-next-text-color,#172033)] shadow-[0_18px_44px_rgb(15_23_42_/_0.12),0_1px_0_rgb(255_255_255_/_0.8)_inset];
     animation: comment-next-panel-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
   .comment-next-ai-panel::before {
-    position: absolute;
-    top: 0.75rem;
-    bottom: 0.75rem;
-    left: 0;
-    width: 0.1875rem;
-    border-radius: 999px;
-    background: var(--comment-next-ai-color, rgb(59, 130, 246));
+    --at-apply: absolute top-3 bottom-3 left-0 w-[0.1875rem] rounded-full bg-[var(--comment-next-ai-color,rgb(59,130,246))];
     content: "";
   }
 
@@ -94,142 +70,69 @@
   .comment-next-ai-panel-title,
   .comment-next-ai-panel-grid,
   .comment-next-ai-panel-item {
-    display: flex;
-    align-items: center;
+    --at-apply: flex items-center;
   }
 
   .comment-next-ai-panel-head {
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding-left: 0.375rem;
+    --at-apply: justify-between gap-3 pl-1.5;
   }
 
   .comment-next-ai-panel-title {
-    min-width: 0;
-    gap: 0.625rem;
+    --at-apply: min-w-0 gap-2.5;
   }
 
   .comment-next-ai-panel-heading {
-    display: block;
-    color: var(--comment-next-text-color, #172033);
-    font-size: 0.875rem;
-    font-weight: 760;
+    --at-apply: block text-sm text-[var(--comment-next-text-color,#172033)] font-[760];
   }
 
   .comment-next-ai-panel-description {
-    display: block;
-    margin-top: 0.125rem;
-    color: var(--comment-next-muted-color, #667085);
-    font-size: 0.75rem;
-    font-weight: 500;
+    --at-apply: mt-0.5 block text-xs text-[var(--comment-next-muted-color,#667085)] font-medium;
   }
 
   .comment-next-ai-panel-emblem {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    border: 1px solid var(--comment-next-ai-border-color, rgb(191 219 254));
-    border-radius: 999px;
-    background: var(--comment-next-ai-bg-color, rgb(239 246 255));
-    color: var(--comment-next-ai-color, rgb(59, 130, 246));
+    --at-apply: inline-flex h-7 w-7 items-center justify-center rounded-full border border-solid [border-color:var(--comment-next-ai-border-color,rgb(191_219_254))] bg-[var(--comment-next-ai-bg-color,rgb(239_246_255))] text-[var(--comment-next-ai-color,rgb(59,130,246))];
   }
 
   .comment-next-ai-panel-close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    padding: 0;
-    border: 0;
-    border-radius: 0.5rem;
-    background: transparent;
-    color: var(--comment-next-muted-color, #667085);
-    cursor: pointer;
-    font: inherit;
-    transition:
-      background-color 150ms ease,
-      color 150ms ease,
-      transform 150ms ease;
+    --at-apply: inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-[var(--comment-next-muted-color,#667085)] font-inherit transition-[background-color,color,transform] duration-150 ease-in-out;
   }
 
   .comment-next-ai-panel-close:hover {
-    background: var(--comment-next-control-hover-bg-color, #eef2f4);
-    color: var(--comment-next-text-color, #172033);
+    --at-apply: bg-[var(--comment-next-control-hover-bg-color,#eef2f4)] text-[var(--comment-next-text-color,#172033)];
   }
 
   .comment-next-ai-panel-close:active {
-    transform: scale(0.94);
+    --at-apply: scale-94;
   }
 
   .comment-next-ai-panel-grid {
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-    overflow-x: auto;
-    padding: 0.0625rem 0.0625rem 0.125rem;
+    --at-apply: mt-3 gap-2 overflow-x-auto px-[0.0625rem] pb-0.5 pt-[0.0625rem];
   }
 
   .comment-next-ai-panel-item {
-    position: relative;
-    flex: 1 0 7.25rem;
-    min-width: 0;
-    min-height: 4.5rem;
-    box-sizing: border-box;
-    align-items: flex-start;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.25rem;
-    padding: 0.6875rem 0.75rem;
-    border: 1px solid var(--comment-next-ai-control-border-color, #d8e8e5);
-    border-radius: 0.625rem;
-    background: var(--comment-next-ai-control-bg-color, #ffffff);
-    color: var(--comment-next-text-color, #172033);
-    cursor: pointer;
-    font: inherit;
-    text-align: left;
-    transition:
-      border-color 150ms ease,
-      background-color 150ms ease,
-      box-shadow 150ms ease,
-      color 150ms ease,
-      transform 150ms ease;
+    --at-apply: relative flex-[1_0_7.25rem] min-h-18 min-w-0 box-border cursor-pointer flex-col items-start justify-center gap-1 rounded-[0.625rem] border border-solid [border-color:var(--comment-next-ai-control-border-color,#d8e8e5)] bg-[var(--comment-next-ai-control-bg-color,#ffffff)] px-3 py-[0.6875rem] text-left text-[var(--comment-next-text-color,#172033)] font-inherit transition-[border-color,background-color,box-shadow,color,transform] duration-150 ease-in-out;
   }
 
   .comment-next-ai-panel-item-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 0.125rem;
-    color: var(--comment-next-ai-color, rgb(59, 130, 246));
+    --at-apply: mb-0.5 inline-flex items-center justify-center text-[var(--comment-next-ai-color,rgb(59,130,246))];
   }
 
   .comment-next-ai-panel-item-label {
-    font-size: 0.875rem;
-    font-weight: 730;
+    --at-apply: text-sm font-[730];
   }
 
   .comment-next-ai-panel-item-hint {
-    color: var(--comment-next-muted-color, #667085);
-    font-size: 0.75rem;
-    font-weight: 500;
-    line-height: 1.35;
+    --at-apply: text-xs text-[var(--comment-next-muted-color,#667085)] font-medium leading-[1.35];
   }
 
   .comment-next-ai-panel-item:hover,
   .comment-next-ai-panel-item-active {
-    border-color: var(--comment-next-ai-border-color, rgb(191 219 254));
-    background: var(--comment-next-ai-bg-color, #eaf8f5);
-    box-shadow: 0 8px 18px rgb(15 118 110 / 0.1);
-    color: var(--comment-next-ai-color, rgb(59, 130, 246));
-    transform: translateY(-1px);
+    --at-apply: -translate-y-px [border-color:var(--comment-next-ai-border-color,rgb(191_219_254))] bg-[var(--comment-next-ai-bg-color,#eaf8f5)] text-[var(--comment-next-ai-color,rgb(59,130,246))] shadow-[0_8px_18px_rgb(15_118_110_/_0.1)];
   }
 
   .comment-next-ai-panel-item:focus-visible,
   .comment-next-ai-panel-close:focus-visible {
-    outline: 2px solid var(--comment-next-focus-ring-color, #80cbc0);
-    outline-offset: 2px;
+    --at-apply: outline-2 outline-solid outline-offset-2 [outline-color:var(--comment-next-focus-ring-color,#80cbc0)];
   }
 
   @keyframes comment-next-panel-in {
@@ -246,21 +149,15 @@
 
   @media (max-width: 640px) {
     .comment-next-ai-panel {
-      right: 0.75rem;
-      bottom: 0.75rem;
-      left: 0.75rem;
-      padding: 0.625rem;
+      --at-apply: right-3 bottom-3 left-3 p-2.5;
     }
 
     .comment-next-ai-panel-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      overflow: visible;
+      --at-apply: grid grid-cols-2 overflow-visible;
     }
 
     .comment-next-ai-panel-item {
-      flex-basis: auto;
-      min-height: 4.25rem;
+      --at-apply: basis-auto min-h-17;
     }
   }
 
@@ -268,8 +165,7 @@
     .comment-next-ai-panel,
     .comment-next-ai-panel-item,
     .comment-next-ai-panel-close {
-      animation: none;
-      transition: none;
+      --at-apply: animate-none transition-none;
     }
   }
 </style>

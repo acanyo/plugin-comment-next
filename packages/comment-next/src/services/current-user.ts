@@ -16,15 +16,20 @@ interface DetailedUserResponse {
   };
 }
 
-const ANONYMOUS_USER_NAME = "anonymousUser";
+const ANONYMOUS_USER_NAME = 'anonymousUser';
 
-export async function fetchCurrentUser(baseUrl = ""): Promise<CurrentUser | undefined> {
-  const response = await fetch(`${baseUrl}/apis/api.console.halo.run/v1alpha1/users/-`, {
-    credentials: "include",
-    headers: {
-      Accept: "application/json",
-    },
-  });
+export async function fetchCurrentUser(
+  baseUrl = ''
+): Promise<CurrentUser | undefined> {
+  const response = await fetch(
+    `${baseUrl}/apis/api.console.halo.run/v1alpha1/users/-`,
+    {
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+      },
+    }
+  );
 
   if (!response.ok) {
     throw new Error(`Failed to fetch current user: ${response.status}`);
@@ -32,7 +37,7 @@ export async function fetchCurrentUser(baseUrl = ""): Promise<CurrentUser | unde
 
   const data = (await response.json()) as DetailedUserResponse;
   const user = data.user;
-  const name = user?.metadata?.name ?? "";
+  const name = user?.metadata?.name ?? '';
 
   if (!user || name === ANONYMOUS_USER_NAME) {
     return undefined;

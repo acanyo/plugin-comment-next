@@ -1,37 +1,44 @@
 <script lang="ts">
-  import CommentNextAvatar from "./CommentNextAvatar.svelte";
-  import CommentNextIcon from "./CommentNextIcon.svelte";
+import CommentNextAvatar from './CommentNextAvatar.svelte';
+import CommentNextIcon from './CommentNextIcon.svelte';
 
-  let {
-    visible = true,
-    loggedIn = false,
-    avatarUrl = "",
-    avatarAlt = "",
-    userDisplayName = "",
-    displayName = "",
-    email = "",
-    website = "",
-    onChange = () => {},
-  }: {
-    visible?: boolean;
-    loggedIn?: boolean;
-    avatarUrl?: string;
-    avatarAlt?: string;
-    userDisplayName?: string;
-    displayName?: string;
-    email?: string;
-    website?: string;
-    onChange?: (values: { displayName: string; email: string; website: string }) => void;
-  } = $props();
+const {
+  visible = true,
+  loggedIn = false,
+  avatarUrl = '',
+  avatarAlt = '',
+  userDisplayName = '',
+  displayName = '',
+  email = '',
+  website = '',
+  onChange = () => {},
+}: {
+  visible?: boolean;
+  loggedIn?: boolean;
+  avatarUrl?: string;
+  avatarAlt?: string;
+  userDisplayName?: string;
+  displayName?: string;
+  email?: string;
+  website?: string;
+  onChange?: (values: {
+    displayName: string;
+    email: string;
+    website: string;
+  }) => void;
+} = $props();
 
-  function updateField(field: "displayName" | "email" | "website", value: string) {
-    onChange({
-      displayName,
-      email,
-      website,
-      [field]: value,
-    });
-  }
+function updateField(
+  field: 'displayName' | 'email' | 'website',
+  value: string
+) {
+  onChange({
+    displayName,
+    email,
+    website,
+    [field]: value,
+  });
+}
 </script>
 
 {#if visible}
@@ -93,154 +100,93 @@
 
 <style>
   .comment-next-account-fields {
-    display: grid;
-    grid-template-columns: auto repeat(3, minmax(0, 1fr));
-    align-items: center;
-    gap: 0;
-    box-sizing: border-box;
-    padding: 0.625rem 0.875rem;
-    border-bottom: 1px solid var(--comment-next-border-subtle-color, #e0e6ee);
-    border-radius: var(--comment-next-radius-lg, 0.875rem) var(--comment-next-radius-lg, 0.875rem) 0 0;
-    background: var(
-      --comment-next-account-fields-bg,
-      linear-gradient(180deg, rgb(252 253 253 / 0.98), rgb(249 251 251 / 0.98))
-    );
+    --at-apply: grid grid-cols-[auto_repeat(3,minmax(0,1fr))] items-center gap-0 box-border border-b [border-bottom-style:var(--comment-next-divider-style,dashed)] [border-bottom-color:var(--comment-next-divider-color,#d4dde8)] rounded-t-[var(--comment-next-radius-lg,0.875rem)] bg-[var(--comment-next-account-fields-bg,transparent)] px-3.5 py-2.5;
   }
 
   .comment-next-account-fields-logged-in {
-    grid-template-columns: auto minmax(0, 1fr);
+    --at-apply: grid-cols-[auto_minmax(0,1fr)];
   }
 
   .comment-next-account-avatar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding-right: 0.75rem;
+    --at-apply: flex items-center justify-center pr-3;
   }
 
   .comment-next-account-current-user {
-    display: flex;
-    min-width: 0;
-    align-items: baseline;
-    gap: 0.5rem;
+    --at-apply: flex min-w-0 items-baseline gap-2;
   }
 
   .comment-next-account-current-label {
-    color: var(--comment-next-muted-color, #6b7687);
-    font-size: 0.78125rem;
-    font-weight: 620;
-    white-space: nowrap;
+    --at-apply: whitespace-nowrap text-[0.78125rem] text-[var(--comment-next-muted-color,#6b7687)] font-[620];
   }
 
   .comment-next-account-current-name {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--comment-next-text-color, #172033);
-    font-size: 0.9375rem;
-    font-weight: 760;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    --at-apply: min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.9375rem] text-[var(--comment-next-text-color,#172033)] font-[760];
   }
 
   .comment-next-field {
-    position: relative;
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    height: 2.25rem;
-    gap: 0.625rem;
-    box-sizing: border-box;
-    padding: 0 0.875rem;
-    border: 0;
-    border-radius: 0.625rem;
-    background: transparent;
-    color: var(--comment-next-muted-color, #6b7687);
-    transition:
-      box-shadow 140ms ease,
-      background-color 140ms ease,
-      color 140ms ease;
+    --at-apply: relative flex h-9 min-w-0 box-border items-center gap-2.5 rounded-[0.625rem] border-0 bg-transparent px-3.5 py-0 text-[var(--comment-next-muted-color,#6b7687)] transition-[box-shadow,background-color,color] duration-140 ease-in-out;
   }
 
   .comment-next-field + .comment-next-field::before {
-    position: absolute;
-    top: 0.45rem;
-    bottom: 0.45rem;
-    left: 0;
-    width: 1px;
-    background: var(--comment-next-field-divider-color, #dbe4ed);
+    --at-apply: absolute top-[0.45rem] bottom-[0.45rem] left-0 w-px;
+    background-image: linear-gradient(
+      to bottom,
+      var(--comment-next-field-divider-color, #dbe4ed) 45%,
+      transparent 0
+    );
+    background-size: 1px 0.375rem;
     content: "";
-    transition: opacity 140ms ease;
+    --at-apply: transition-opacity duration-140 ease-in-out;
   }
 
   .comment-next-field:focus-within {
-    background: var(--comment-next-field-focus-bg-color, #ffffff);
-    box-shadow:
-      0 6px 14px rgb(15 23 42 / 0.05),
-      0 0 0 1px var(--comment-next-primary-color, rgb(59, 130, 246)) inset;
-    color: var(--comment-next-primary-color, rgb(59, 130, 246));
+    --at-apply: bg-[var(--comment-next-field-focus-bg-color,#ffffff)] text-[var(--comment-next-primary-color,rgb(59,130,246))] shadow-[0_6px_14px_rgb(15_23_42_/_0.05),0_0_0_1px_var(--comment-next-primary-color,rgb(59,130,246))_inset];
   }
 
   .comment-next-field:focus-within::before,
   .comment-next-field:focus-within + .comment-next-field::before {
-    opacity: 0;
+    --at-apply: opacity-0;
   }
 
   .comment-next-field-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.125rem;
-    color: currentColor;
-    opacity: 0.92;
+    --at-apply: inline-flex w-[1.125rem] items-center justify-center text-current opacity-92;
   }
 
   .comment-next-field input {
-    min-width: 0;
-    width: 100%;
-    border: 0;
-    outline: 0;
-    background: transparent;
-    color: var(--comment-next-text-color, #172033);
-    font: inherit;
-    font-size: 0.90625rem;
-    font-weight: 500;
+    --at-apply: min-w-0 w-full border-0 bg-transparent text-[0.90625rem] text-[var(--comment-next-text-color,#172033)] font-medium font-inherit outline-none;
   }
 
   .comment-next-field input::placeholder {
-    color: var(--comment-next-placeholder-color, #8a95a5);
-    font-weight: 500;
+    --at-apply: text-[var(--comment-next-placeholder-color,#8a95a5)] font-medium;
   }
 
   @media (max-width: 720px) {
     .comment-next-account-fields {
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: 0.125rem;
-      padding: 0.625rem;
+      --at-apply: grid-cols-[auto_minmax(0,1fr)] gap-0.5 p-2.5;
     }
 
     .comment-next-account-fields:not(.comment-next-account-fields-logged-in) .comment-next-account-avatar {
-      grid-row: span 3;
-      align-self: start;
-      padding-top: 0.25rem;
+      --at-apply: row-span-3 self-start pt-1;
     }
 
     .comment-next-account-fields:not(.comment-next-account-fields-logged-in) .comment-next-field {
-      grid-column: 2;
+      --at-apply: col-start-2;
     }
 
     .comment-next-field + .comment-next-field::before {
-      top: -0.0625rem;
-      right: 0.75rem;
-      bottom: auto;
-      left: 0.75rem;
-      width: auto;
-      height: 1px;
+      --at-apply: top-[-0.0625rem] right-3 bottom-auto left-3 h-px w-auto;
+      background-image: linear-gradient(
+        to right,
+        var(--comment-next-field-divider-color, #dbe4ed) 45%,
+        transparent 0
+      );
+      background-size: 0.375rem 1px;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .comment-next-field {
-      transition: none;
+      --at-apply: transition-none;
     }
   }
 </style>

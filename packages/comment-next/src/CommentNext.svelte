@@ -27,51 +27,51 @@
 />
 
 <script lang="ts">
-  import CommentNextRoot from "./CommentNextRoot.svelte";
+import CommentNextRoot from './CommentNextRoot.svelte';
 
-  let {
-    baseUrl = "",
-    group = "",
-    kind = "",
-    version = "v1alpha1",
-    name = "",
-    loggedIn = false,
-    allowAnonymous = true,
-    showCaptcha = false,
-    enablePrivate = false,
-    loading = false,
-    submitting = false,
-    commandMenuOpen = false,
-    inlineSuggestion = false,
-    selectionTools = false,
-    placeholder = "写下你的评论...",
-    showComments = true,
-    demoData = false,
-    pageSize = 20,
-    replySize = 10,
-    withReplies = true,
-  }: {
-    baseUrl?: string;
-    group?: string;
-    kind?: string;
-    version?: string;
-    name?: string;
-    loggedIn?: boolean;
-    allowAnonymous?: boolean;
-    showCaptcha?: boolean;
-    enablePrivate?: boolean;
-    loading?: boolean;
-    submitting?: boolean;
-    commandMenuOpen?: boolean;
-    inlineSuggestion?: boolean;
-    selectionTools?: boolean;
-    placeholder?: string;
-    showComments?: boolean;
-    demoData?: boolean;
-    pageSize?: number;
-    replySize?: number;
-    withReplies?: boolean;
-  } = $props();
+const {
+  baseUrl = '',
+  group = '',
+  kind = '',
+  version = 'v1alpha1',
+  name = '',
+  loggedIn = false,
+  allowAnonymous = true,
+  showCaptcha = false,
+  enablePrivate = false,
+  loading = false,
+  submitting = false,
+  commandMenuOpen = false,
+  inlineSuggestion = false,
+  selectionTools = false,
+  placeholder = '写下你的评论...',
+  showComments = true,
+  demoData = false,
+  pageSize = 20,
+  replySize = 10,
+  withReplies = true,
+}: {
+  baseUrl?: string;
+  group?: string;
+  kind?: string;
+  version?: string;
+  name?: string;
+  loggedIn?: boolean;
+  allowAnonymous?: boolean;
+  showCaptcha?: boolean;
+  enablePrivate?: boolean;
+  loading?: boolean;
+  submitting?: boolean;
+  commandMenuOpen?: boolean;
+  inlineSuggestion?: boolean;
+  selectionTools?: boolean;
+  placeholder?: string;
+  showComments?: boolean;
+  demoData?: boolean;
+  pageSize?: number;
+  replySize?: number;
+  withReplies?: boolean;
+} = $props();
 </script>
 
 <CommentNextRoot
@@ -99,7 +99,6 @@
 
 <style>
   :host {
-    display: block;
-    width: 100%;
+    --at-apply: block w-full;
   }
 </style>

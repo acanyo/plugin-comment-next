@@ -1,84 +1,61 @@
 <script lang="ts">
-  import CommentNextIcon from "./CommentNextIcon.svelte";
+import CommentNextIcon from './CommentNextIcon.svelte';
 
-  let {
-    src = "",
-    alt = "",
-    size = 36,
-  }: {
-    src?: string;
-    alt?: string;
-    size?: number;
-  } = $props();
+const {
+  src = '',
+  alt = '',
+  size = 36,
+}: {
+  src?: string;
+  alt?: string;
+  size?: number;
+} = $props();
 
-  let failed = $state(false);
-  let previousSrc = $state("");
-  const placeholderText = $derived(getPlaceholderText(alt));
+let failed = $state(false);
+let previousSrc = $state('');
+const placeholderText = $derived(getPlaceholderText(alt));
 
-  $effect(() => {
-    if (previousSrc !== src) {
-      previousSrc = src;
-      failed = false;
-    }
-  });
-
-  function getPlaceholderText(value: string): string {
-    const trimmedValue = value.trim();
-
-    if (!trimmedValue) {
-      return "";
-    }
-
-    const words = trimmedValue.split(/\s+/).filter(Boolean);
-
-    if (words.length > 1) {
-      return `${words[0].charAt(0)}${words[1].charAt(0)}`.toUpperCase();
-    }
-
-    return trimmedValue.charAt(0).toUpperCase();
+$effect(() => {
+  if (previousSrc !== src) {
+    previousSrc = src;
+    failed = false;
   }
+});
+
+function getPlaceholderText(value: string): string {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return '';
+  }
+
+  const words = trimmedValue.split(/\s+/).filter(Boolean);
+
+  if (words.length > 1) {
+    return `${words[0].charAt(0)}${words[1].charAt(0)}`.toUpperCase();
+  }
+
+  return trimmedValue.charAt(0).toUpperCase();
+}
 </script>
 
-<span class="comment-next-avatar" style={`--comment-next-avatar-size: ${size}px`} aria-label={alt || "头像"}>
+<span
+  class="comment-next-avatar inline-flex items-center justify-center flex-none w-[var(--comment-next-avatar-size,36px)] h-[var(--comment-next-avatar-size,36px)] overflow-hidden border border-solid [border-color:var(--comment-next-avatar-border-color,rgb(15_23_42_/_0.08))] rounded-full [background:linear-gradient(180deg,rgb(255_255_255_/_0.88),rgb(238_244_244_/_0.9)),var(--comment-next-field-bg-color,#fbfcfd)] text-[var(--comment-next-muted-color,#6b7687)] shadow-[0_1px_2px_rgb(15_23_42_/_0.06)]"
+  style={`--comment-next-avatar-size: ${size}px`}
+  aria-label={alt || "头像"}
+>
   {#if src && !failed}
-    <img class="comment-next-avatar-image" {src} {alt} loading="lazy" decoding="async" onerror={() => (failed = true)} />
+    <img
+      class="comment-next-avatar-image block h-full w-full object-cover"
+      {src}
+      {alt}
+      loading="lazy"
+      decoding="async"
+      onerror={() => (failed = true)}
+    />
   {:else if placeholderText}
-    <span class="comment-next-avatar-placeholder">{placeholderText}</span>
+    <span class="comment-next-avatar-placeholder select-none text-[0.8125rem] text-[var(--comment-next-text-color,#172033)] font-[760] leading-none">{placeholderText}</span>
   {:else}
     <CommentNextIcon name="user" size={Math.round(size * 0.46)} />
   {/if}
 </span>
-
-<style>
-  .comment-next-avatar {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    width: var(--comment-next-avatar-size, 36px);
-    height: var(--comment-next-avatar-size, 36px);
-    overflow: hidden;
-    border: 1px solid var(--comment-next-avatar-border-color, rgb(15 23 42 / 0.08));
-    border-radius: 999px;
-    background:
-      linear-gradient(180deg, rgb(255 255 255 / 0.88), rgb(238 244 244 / 0.9)),
-      var(--comment-next-field-bg-color, #fbfcfd);
-    color: var(--comment-next-muted-color, #6b7687);
-    box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
-  }
-
-  .comment-next-avatar-image {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .comment-next-avatar-placeholder {
-    color: var(--comment-next-text-color, #172033);
-    font-size: 0.8125rem;
-    font-weight: 760;
-    line-height: 1;
-    user-select: none;
-  }
-</style>

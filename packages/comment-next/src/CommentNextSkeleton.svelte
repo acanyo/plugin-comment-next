@@ -1,19 +1,19 @@
 <script lang="ts">
-  let {
-    showAccountFields = true,
-    loggedIn = false,
-    showCaptcha = false,
-    enablePrivate = false,
-  }: {
-    showAccountFields?: boolean;
-    loggedIn?: boolean;
-    showCaptcha?: boolean;
-    enablePrivate?: boolean;
-  } = $props();
+const {
+  showAccountFields = true,
+  loggedIn = false,
+  showCaptcha = false,
+  enablePrivate = false,
+}: {
+  showAccountFields?: boolean;
+  loggedIn?: boolean;
+  showCaptcha?: boolean;
+  enablePrivate?: boolean;
+} = $props();
 
-  const editorRows = ["72%", "48%", "64%"];
-  const accountRows = ["4rem", "4.25rem", "3.75rem"];
-  const tools = Array.from({ length: 2 });
+const editorRows = ['72%', '48%', '64%'];
+const accountRows = ['4rem', '4.25rem', '3.75rem'];
+const tools = Array.from({ length: 2 });
 </script>
 
 <div class="comment-next-skeleton" aria-busy="true" aria-label="评论框加载中">
@@ -69,20 +69,11 @@
 
 <style>
   .comment-next-skeleton {
-    overflow: hidden;
-    border-radius: var(--comment-next-radius-lg, 0.75rem);
-    background: var(--comment-next-bg-color, #ffffff);
+    --at-apply: overflow-hidden rounded-[var(--comment-next-radius-lg,0.75rem)] bg-[var(--comment-next-bg-color,#ffffff)];
   }
 
   .comment-next-skeleton-editor {
-    min-height: var(--comment-next-editor-min-height, 12.5rem);
-    box-sizing: border-box;
-    padding: 1.125rem;
-    background: var(
-      --comment-next-skeleton-editor-bg,
-      linear-gradient(180deg, rgb(251 253 253 / 0.94), rgb(255 255 255 / 0.96)),
-      var(--comment-next-editor-bg-color, #ffffff)
-    );
+    --at-apply: box-border min-h-[var(--comment-next-editor-min-height,12.5rem)] [background:var(--comment-next-skeleton-editor-bg,linear-gradient(180deg,rgb(251_253_253_/_0.94),rgb(255_255_255_/_0.96)),var(--comment-next-editor-bg-color,#ffffff))] p-[1.125rem];
   }
 
   .comment-next-skeleton-topline,
@@ -90,18 +81,15 @@
   .comment-next-skeleton-footer,
   .comment-next-skeleton-tools,
   .comment-next-skeleton-actions {
-    display: flex;
-    align-items: center;
+    --at-apply: flex items-center;
   }
 
   .comment-next-skeleton-topline {
-    gap: 0.5rem;
+    --at-apply: gap-2;
   }
 
   .comment-next-skeleton-lines {
-    display: grid;
-    gap: 0.625rem;
-    margin-top: 1.5rem;
+    --at-apply: mt-6 grid gap-2.5;
   }
 
   .comment-next-skeleton-bar,
@@ -114,9 +102,7 @@
   .comment-next-skeleton-chip,
   .comment-next-skeleton-captcha,
   .comment-next-skeleton-submit {
-    position: relative;
-    overflow: hidden;
-    background: var(--comment-next-skeleton-base-color, #edf2f5);
+    --at-apply: relative overflow-hidden bg-[var(--comment-next-skeleton-base-color,#edf2f5)];
   }
 
   .comment-next-skeleton-bar::after,
@@ -129,142 +115,83 @@
   .comment-next-skeleton-chip::after,
   .comment-next-skeleton-captcha::after,
   .comment-next-skeleton-submit::after {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      var(--comment-next-skeleton-highlight-color, rgb(255 255 255 / 0.78)),
-      transparent
-    );
+    --at-apply: absolute inset-0 [background:linear-gradient(90deg,transparent,var(--comment-next-skeleton-highlight-color,rgb(255_255_255_/_0.78)),transparent)] -translate-x-full;
     animation: comment-next-skeleton-shimmer 1.35s ease-in-out infinite;
     content: "";
-    transform: translateX(-100%);
   }
 
   .comment-next-skeleton-dot {
-    width: 1.75rem;
-    height: 1.75rem;
-    border-radius: 999px;
+    --at-apply: h-7 w-7 rounded-full;
   }
 
   .comment-next-skeleton-bar {
-    display: block;
-    height: 0.75rem;
-    border-radius: 999px;
+    --at-apply: block h-3 rounded-full;
   }
 
   .comment-next-skeleton-bar-short {
-    width: 8.5rem;
+    --at-apply: w-34;
   }
 
   .comment-next-skeleton-fields {
-    display: grid;
-    grid-template-columns: auto repeat(3, minmax(0, 1fr));
-    align-items: center;
-    gap: 0;
-    box-sizing: border-box;
-    padding: 0.625rem 0.875rem;
-    border-bottom: 1px solid var(--comment-next-border-subtle-color, #e0e6ee);
-    border-radius: var(--comment-next-radius-lg, 0.875rem) var(--comment-next-radius-lg, 0.875rem) 0 0;
-    background: var(
-      --comment-next-account-fields-bg,
-      linear-gradient(180deg, rgb(252 253 253 / 0.98), rgb(249 251 251 / 0.98))
-    );
+    --at-apply: grid grid-cols-[auto_repeat(3,minmax(0,1fr))] items-center gap-0 box-border rounded-t-[var(--comment-next-radius-lg,0.875rem)] border-b border-b-solid [border-bottom-color:var(--comment-next-border-subtle-color,#e0e6ee)] [background:var(--comment-next-account-fields-bg,linear-gradient(180deg,rgb(252_253_253_/_0.98),rgb(249_251_251_/_0.98)))] px-3.5 py-2.5;
   }
 
   .comment-next-skeleton-fields-logged-in {
-    grid-template-columns: auto minmax(0, 1fr);
+    --at-apply: grid-cols-[auto_minmax(0,1fr)];
   }
 
   .comment-next-skeleton-account-avatar {
-    width: 2.125rem;
-    height: 2.125rem;
-    margin-right: 0.75rem;
-    border-radius: 999px;
+    --at-apply: mr-3 h-[2.125rem] w-[2.125rem] rounded-full;
   }
 
   .comment-next-skeleton-current-user {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 0.5rem;
+    --at-apply: flex min-w-0 items-center gap-2;
   }
 
   .comment-next-skeleton-field {
-    position: relative;
-    display: flex;
-    align-items: center;
-    height: 2.25rem;
-    gap: 0.625rem;
-    box-sizing: border-box;
-    padding: 0 0.875rem;
-    background: transparent;
+    --at-apply: relative flex h-9 box-border items-center gap-2.5 bg-transparent px-3.5 py-0;
   }
 
   .comment-next-skeleton-field + .comment-next-skeleton-field::before {
-    position: absolute;
-    top: 0.45rem;
-    bottom: 0.45rem;
-    left: 0;
-    width: 1px;
-    background: var(--comment-next-field-divider-color, #dbe4ed);
+    --at-apply: absolute top-[0.45rem] bottom-[0.45rem] left-0 w-px bg-[var(--comment-next-field-divider-color,#dbe4ed)];
     content: "";
   }
 
   .comment-next-skeleton-field-icon {
-    width: 1rem;
-    height: 1rem;
-    border-radius: 0.375rem;
+    --at-apply: h-4 w-4 rounded-md;
   }
 
   .comment-next-skeleton-field-line {
-    height: 0.75rem;
-    border-radius: 999px;
+    --at-apply: h-3 rounded-full;
   }
 
   .comment-next-skeleton-footer {
-    justify-content: space-between;
-    min-height: 3.625rem;
-    gap: 0.875rem;
-    padding: 0 0.875rem;
-    border-top: 1px solid var(--comment-next-border-subtle-color, #e2e8ef);
-    background: var(--comment-next-footer-bg-color, #fbfcfc);
+    --at-apply: min-h-[3.625rem] justify-between gap-3.5 border-t border-t-solid [border-top-color:var(--comment-next-border-subtle-color,#e2e8ef)] bg-[var(--comment-next-footer-bg-color,#fbfcfc)] px-3.5 py-0;
   }
 
   .comment-next-skeleton-tools,
   .comment-next-skeleton-actions {
-    gap: 0.5rem;
+    --at-apply: gap-2;
   }
 
   .comment-next-skeleton-ai-action {
-    width: 5.75rem;
-    height: 2.125rem;
-    border-radius: 0.5625rem;
+    --at-apply: h-[2.125rem] w-[5.75rem] rounded-[0.5625rem];
   }
 
   .comment-next-skeleton-tool {
-    width: 1.875rem;
-    height: 1.875rem;
-    border-radius: 0.5rem;
+    --at-apply: h-7.5 w-7.5 rounded-lg;
   }
 
   .comment-next-skeleton-chip {
-    width: 3rem;
-    height: 1.625rem;
-    border-radius: 999px;
+    --at-apply: h-[1.625rem] w-12 rounded-full;
   }
 
   .comment-next-skeleton-captcha {
-    width: 7.75rem;
-    height: 2rem;
-    border-radius: 0.5rem;
+    --at-apply: h-8 w-[7.75rem] rounded-lg;
   }
 
   .comment-next-skeleton-submit {
-    width: 5.75rem;
-    height: 2.25rem;
-    border-radius: 0.5rem;
+    --at-apply: h-9 w-[5.75rem] rounded-lg;
   }
 
   @keyframes comment-next-skeleton-shimmer {
@@ -275,41 +202,29 @@
 
   @media (max-width: 780px) {
     .comment-next-skeleton-footer {
-      align-items: stretch;
-      flex-direction: column;
-      padding: 0.875rem;
+      --at-apply: flex-col items-stretch p-3.5;
     }
 
     .comment-next-skeleton-actions {
-      justify-content: space-between;
-      flex-wrap: wrap;
+      --at-apply: flex-wrap justify-between;
     }
   }
 
   @media (max-width: 720px) {
     .comment-next-skeleton-fields {
-      grid-template-columns: auto minmax(0, 1fr);
-      gap: 0.125rem;
-      padding: 0.625rem;
+      --at-apply: grid-cols-[auto_minmax(0,1fr)] gap-0.5 p-2.5;
     }
 
     .comment-next-skeleton-fields:not(.comment-next-skeleton-fields-logged-in) .comment-next-skeleton-account-avatar {
-      grid-row: span 3;
-      align-self: start;
-      margin-top: 0.25rem;
+      --at-apply: row-span-3 self-start mt-1;
     }
 
     .comment-next-skeleton-fields:not(.comment-next-skeleton-fields-logged-in) .comment-next-skeleton-field {
-      grid-column: 2;
+      --at-apply: col-start-2;
     }
 
     .comment-next-skeleton-field + .comment-next-skeleton-field::before {
-      top: -0.0625rem;
-      right: 0.75rem;
-      bottom: auto;
-      left: 0.75rem;
-      width: auto;
-      height: 1px;
+      --at-apply: top-[-0.0625rem] right-3 bottom-auto left-3 h-px w-auto;
     }
   }
 
@@ -324,7 +239,7 @@
     .comment-next-skeleton-chip::after,
     .comment-next-skeleton-captcha::after,
     .comment-next-skeleton-submit::after {
-      animation: none;
+      --at-apply: animate-none;
     }
   }
 </style>

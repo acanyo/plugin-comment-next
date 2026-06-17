@@ -1,12 +1,12 @@
 export function formatCommentDate(value?: string): string {
   if (!value) {
-    return "";
+    return '';
   }
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "";
+    return '';
   }
 
   return date.toLocaleString();
@@ -14,18 +14,21 @@ export function formatCommentDate(value?: string): string {
 
 export function formatRelativeTime(value?: string): string {
   if (!value) {
-    return "";
+    return '';
   }
 
   const date = new Date(value);
-  const diffSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  const diffSeconds = Math.max(
+    0,
+    Math.floor((Date.now() - date.getTime()) / 1000)
+  );
 
   if (Number.isNaN(diffSeconds)) {
-    return "";
+    return '';
   }
 
   if (diffSeconds < 60) {
-    return "刚刚";
+    return '刚刚';
   }
 
   const diffMinutes = Math.floor(diffSeconds / 60);

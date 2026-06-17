@@ -1,6 +1,7 @@
 const AUTO_LINK_PATTERN = /(?:https?:\/\/|www\.)[^\s<]+/gi;
 const TRAILING_PUNCTUATION_PATTERN = /[),.;:!?，。；：！？）]+$/;
-const SKIPPED_PARENT_SELECTOR = "a, button, input, textarea, select, [contenteditable='false']";
+const SKIPPED_PARENT_SELECTOR =
+  "a, button, input, textarea, select, [contenteditable='false']";
 
 export function autolinkUrls(root: HTMLElement): boolean {
   const textNodes = collectLinkableTextNodes(root);
@@ -38,7 +39,10 @@ export function getTextSelectionOffset(root: HTMLElement): number | undefined {
   return beforeSelection.toString().length;
 }
 
-export function restoreTextSelectionOffset(root: HTMLElement, offset: number): void {
+export function restoreTextSelectionOffset(
+  root: HTMLElement,
+  offset: number
+): void {
   const range = document.createRange();
   const selection = window.getSelection();
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -71,12 +75,16 @@ function collectLinkableTextNodes(root: HTMLElement): Text[] {
   const nodes: Text[] = [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
-      const text = node.textContent ?? "";
+      const text = node.textContent ?? '';
       const parent = node.parentElement;
 
       AUTO_LINK_PATTERN.lastIndex = 0;
 
-      if (!parent || !AUTO_LINK_PATTERN.test(text) || parent.closest(SKIPPED_PARENT_SELECTOR)) {
+      if (
+        !parent ||
+        !AUTO_LINK_PATTERN.test(text) ||
+        parent.closest(SKIPPED_PARENT_SELECTOR)
+      ) {
         return NodeFilter.FILTER_REJECT;
       }
 
@@ -95,7 +103,7 @@ function collectLinkableTextNodes(root: HTMLElement): Text[] {
 }
 
 function createLinkedFragment(textNode: Text): DocumentFragment | undefined {
-  const text = textNode.textContent ?? "";
+  const text = textNode.textContent ?? '';
   const fragment = document.createDocumentFragment();
   let lastIndex = 0;
   let hasMatch = false;
@@ -105,8 +113,11 @@ function createLinkedFragment(textNode: Text): DocumentFragment | undefined {
   for (const match of text.matchAll(AUTO_LINK_PATTERN)) {
     const matchText = match[0];
     const matchIndex = match.index ?? 0;
-    const trailingPunctuation = matchText.match(TRAILING_PUNCTUATION_PATTERN)?.[0] ?? "";
-    const visibleUrl = trailingPunctuation ? matchText.slice(0, -trailingPunctuation.length) : matchText;
+    const trailingPunctuation =
+      matchText.match(TRAILING_PUNCTUATION_PATTERN)?.[0] ?? '';
+    const visibleUrl = trailingPunctuation
+      ? matchText.slice(0, -trailingPunctuation.length)
+      : matchText;
 
     if (!visibleUrl) {
       continue;
@@ -133,12 +144,12 @@ function createLinkedFragment(textNode: Text): DocumentFragment | undefined {
 }
 
 function createAnchor(url: string): HTMLAnchorElement {
-  const anchor = document.createElement("a");
+  const anchor = document.createElement('a');
 
-  anchor.className = "comment-next-auto-link";
-  anchor.href = url.startsWith("www.") ? `https://${url}` : url;
-  anchor.rel = "nofollow noopener noreferrer";
-  anchor.target = "_blank";
+  anchor.className = 'comment-next-auto-link';
+  anchor.href = url.startsWith('www.') ? `https://${url}` : url;
+  anchor.rel = 'nofollow noopener noreferrer';
+  anchor.target = '_blank';
   anchor.textContent = url;
 
   return anchor;

@@ -38,9 +38,18 @@ node {
     nodeProjectDir = file("${project.projectDir}")
 }
 
-tasks.register('buildFrontend', PnpmTask) {
-    args = ['build']
+tasks.register('buildCommentNext', PnpmTask) {
+    args = ['-C', 'packages/comment-next', 'build']
     dependsOn('installDepsForUI')
+}
+
+tasks.register('buildConsoleUi', PnpmTask) {
+    args = ['-C', 'packages/ui', 'build']
+    dependsOn('installDepsForUI')
+}
+
+tasks.register('buildFrontend') {
+    dependsOn('buildCommentNext', 'buildConsoleUi')
 }
 
 tasks.register('installDepsForUI', PnpmTask) {

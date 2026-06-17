@@ -1,3 +1,3 @@
-import "./CommentNext.svelte";
-import "./CommentWidget.svelte";
-import "./var.css";
+import './CommentNext.svelte';
+import './CommentWidget.svelte';
+import './var.css';

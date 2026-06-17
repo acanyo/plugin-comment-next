@@ -6,9 +6,10 @@ export interface CaptchaRequiredResponse {
   captcha?: string;
 }
 
-const CAPTCHA_ENDPOINT = "/apis/api.commentnext.xhhao.com/v1alpha1/captcha/-/generate";
-const CAPTCHA_CODE_HEADER = "X-Captcha-Code";
-const CAPTCHA_REQUIRED_HEADER = "X-Require-Captcha";
+const CAPTCHA_ENDPOINT =
+  '/apis/api.commentnext.xhhao.com/v1alpha1/captcha/-/generate';
+const CAPTCHA_CODE_HEADER = 'X-Captcha-Code';
+const CAPTCHA_REQUIRED_HEADER = 'X-Require-Captcha';
 
 export function getCaptchaCodeHeader(code: string): Record<string, string> {
   const normalizedCode = code.trim();
@@ -23,14 +24,16 @@ export function getCaptchaCodeHeader(code: string): Record<string, string> {
 }
 
 export function isCaptchaRequired(response: Response): boolean {
-  return response.status === 403 && response.headers.has(CAPTCHA_REQUIRED_HEADER);
+  return (
+    response.status === 403 && response.headers.has(CAPTCHA_REQUIRED_HEADER)
+  );
 }
 
-export async function fetchCaptchaImage(baseUrl = ""): Promise<string> {
+export async function fetchCaptchaImage(baseUrl = ''): Promise<string> {
   const response = await fetch(resolveApiUrl(baseUrl, CAPTCHA_ENDPOINT), {
-    credentials: "include",
+    credentials: 'include',
     headers: {
-      Accept: "text/plain",
+      Accept: 'text/plain',
     },
   });
 
@@ -46,5 +49,5 @@ function resolveApiUrl(baseUrl: string, endpoint: string): string {
     return endpoint;
   }
 
-  return `${baseUrl.replace(/\/$/, "")}${endpoint}`;
+  return `${baseUrl.replace(/\/$/, '')}${endpoint}`;
 }

@@ -1,44 +1,113 @@
 <script lang="ts">
-  import type { CommentNextBadge } from "./types/comment";
-  import CommentNextIcon from "./CommentNextIcon.svelte";
+import CommentNextIcon from './CommentNextIcon.svelte';
+import CommentNextTooltip from './CommentNextTooltip.svelte';
+import type { CommentNextBadge } from './types/comment';
 
-  let {
-    badge,
-  }: {
-    badge: CommentNextBadge;
-  } = $props();
-</script>
+const {
+  badge,
+}: {
+  badge: CommentNextBadge;
+} = $props();
 
-<span class={`comment-next-badge comment-next-badge-${badge.tone}`} title={badge.title ?? badge.label}>
-  {#if badge.icon}
-    <CommentNextIcon name={badge.icon} size={12} />
-  {/if}
-  <span>{badge.label}</span>
-</span>
+type BadgeIcon =
+  | { type: 'builtin'; name: string }
+  | { type: 'mask'; style: string }
+  | { type: 'svg'; svg: string };
 
-<style>
-  .comment-next-badge {
-    display: inline-flex;
-    align-items: center;
-    max-width: 8rem;
-    height: 1.25rem;
-    gap: 0.2rem;
-    box-sizing: border-box;
-    padding: 0 0.4rem;
-    border: 1px solid var(--comment-next-badge-border-color, rgb(15 23 42 / 0.08));
-    border-radius: 0.375rem;
-    background: var(--comment-next-badge-bg-color, #f3f6f8);
-    color: var(--comment-next-badge-color, #4b5870);
-    font-size: 0.6875rem;
-    font-weight: 760;
-    line-height: 1;
-    white-space: nowrap;
+const badgeStyle = $derived(resolveBadgeStyle(badge.color));
+const badgeIcon = $derived(resolveBadgeIcon(badge.icon));
+const tooltipText = $derived(badge.title?.trim() ?? '');
+
+function resolveBadgeStyle(color?: string): string | undefined {
+  const badgeColor = normalizeColor(color);
+  if (!badgeColor) {
+    return undefined;
   }
 
-  .comment-next-badge span {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  return [
+    `--comment-next-badge-color: ${badgeColor}`,
+    `--comment-next-badge-bg-color: color-mix(in srgb, ${badgeColor} 10%, transparent)`,
+    `--comment-next-badge-border-color: color-mix(in srgb, ${badgeColor} 26%, transparent)`,
+  ].join(';');
+}
+
+function normalizeColor(color?: string): string | undefined {
+  const value = color?.trim();
+  if (!value) {
+    return undefined;
+  }
+
+  if (/^#[0-9a-f]{3,8}$/i.test(value)) {
+    return value;
+  }
+
+  if (/^rgba?\([0-9\s,./%]+\)$/i.test(value)) {
+    return value;
+  }
+
+  return undefined;
+}
+
+function resolveBadgeIcon(icon?: string): BadgeIcon | undefined {
+  const value = icon?.trim();
+  if (!value) {
+    return undefined;
+  }
+
+  if (value.startsWith('<svg')) {
+    return { type: 'svg', svg: value };
+  }
+
+  const maskUrl = resolveMaskUrl(value);
+  if (maskUrl) {
+    return {
+      type: 'mask',
+      style: `--comment-next-badge-icon-url: url("${maskUrl}")`,
+    };
+  }
+
+  return { type: 'builtin', name: value };
+}
+
+function resolveMaskUrl(icon: string): string | undefined {
+  if (/^(data:image\/svg\+xml|https?:\/\/|\/)/i.test(icon)) {
+    return icon.replaceAll('"', '%22');
+  }
+
+  if (/^[a-z0-9-]+:[a-z0-9-]+$/i.test(icon)) {
+    return `https://api.iconify.design/${icon}.svg`;
+  }
+
+  return undefined;
+}
+</script>
+
+<CommentNextTooltip text={tooltipText} align="start">
+  <span
+    class:comment-next-badge-first={badge.tone === "first"}
+    class:comment-next-badge-admin={badge.tone === "admin"}
+    class:comment-next-badge-level={badge.tone === "level"}
+    class:comment-next-badge-custom={badge.tone === "custom"}
+    class:comment-next-badge-muted={badge.tone === "muted"}
+    class="comment-next-badge inline-flex items-center box-border h-5 max-w-32 gap-[0.2rem] whitespace-nowrap rounded-md border border-solid [border-color:var(--comment-next-badge-border-color,rgb(15_23_42_/_0.08))] bg-[var(--comment-next-badge-bg-color,#f3f6f8)] px-[0.4rem] text-[0.6875rem] text-[var(--comment-next-badge-color,#4b5870)] font-[760] leading-none"
+    style={badgeStyle}
+  >
+    {#if badgeIcon}
+      {#if badgeIcon.type === "builtin"}
+        <CommentNextIcon name={badgeIcon.name} size={12} />
+      {:else if badgeIcon.type === "mask"}
+        <span class="comment-next-badge-icon comment-next-badge-icon-mask inline-flex h-3 w-3 flex-none bg-current [mask:var(--comment-next-badge-icon-url)_center_/_contain_no-repeat] [-webkit-mask:var(--comment-next-badge-icon-url)_center_/_contain_no-repeat]" style={badgeIcon.style} aria-hidden="true"></span>
+      {:else}
+        <span class="comment-next-badge-icon comment-next-badge-icon-svg inline-flex h-3 w-3 flex-none items-center justify-center" aria-hidden="true">{@html badgeIcon.svg}</span>
+      {/if}
+    {/if}
+    <span class="min-w-0 overflow-hidden text-ellipsis">{badge.label}</span>
+  </span>
+</CommentNextTooltip>
+
+<style>
+  .comment-next-badge-icon-svg :global(svg) {
+    --at-apply: block h-full w-full text-current;
   }
 
   .comment-next-badge-first {

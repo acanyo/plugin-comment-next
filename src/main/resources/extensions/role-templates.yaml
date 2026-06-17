@@ -16,3 +16,95 @@ rules:
   - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "config" ]
     verbs: [ "list" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "emotes" ]
+    verbs: [ "list" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "comments", "comments/replies" ]
+    verbs: [ "list" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "uploads/images" ]
+    verbs: [ "create" ]
+---
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: comment-next-view-badge-rules
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/module: "评论组件 Next"
+    rbac.authorization.halo.run/display-name: "查看徽章规则"
+    rbac.authorization.halo.run/ui-permissions: |
+      [ "plugin:comment-next:badge-rules:view" ]
+rules:
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "badgerules" ]
+    verbs: [ "get", "list" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "badgeassignments" ]
+    verbs: [ "get", "list" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "badgeprofiles" ]
+    verbs: [ "get", "list" ]
+---
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: comment-next-view-emotes
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/module: "评论组件 Next"
+    rbac.authorization.halo.run/display-name: "查看评论表情"
+    rbac.authorization.halo.run/ui-permissions: |
+      [ "plugin:comment-next:emotes:view" ]
+rules:
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "emotegroups" ]
+    verbs: [ "get", "list" ]
+---
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: comment-next-manage-badge-rules
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/dependencies: |
+      [ "comment-next-view-badge-rules" ]
+    rbac.authorization.halo.run/module: "评论组件 Next"
+    rbac.authorization.halo.run/display-name: "管理徽章规则"
+    rbac.authorization.halo.run/ui-permissions: |
+      [ "plugin:comment-next:badge-rules:manage" ]
+rules:
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "badgerules" ]
+    verbs: [ "create", "delete", "get", "list", "patch", "update" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "badgeassignments" ]
+    verbs: [ "create", "delete", "get", "list", "patch", "update" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "badgeprofiles" ]
+    verbs: [ "create", "delete", "get", "list", "patch", "update" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "badges" ]
+    verbs: [ "create" ]
+---
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: comment-next-manage-emotes
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/dependencies: |
+      [ "comment-next-view-emotes" ]
+    rbac.authorization.halo.run/module: "评论组件 Next"
+    rbac.authorization.halo.run/display-name: "管理评论表情"
+    rbac.authorization.halo.run/ui-permissions: |
+      [ "plugin:comment-next:emotes:manage" ]
+rules:
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "emotegroups" ]
+    verbs: [ "create", "delete", "get", "list", "patch", "update" ]

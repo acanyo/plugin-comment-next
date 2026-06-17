@@ -2,15 +2,18 @@ export async function hashAvatarIdentity(value: string): Promise<string> {
   const normalizedValue = value.trim().toLowerCase();
 
   if (!normalizedValue) {
-    return "";
+    return '';
   }
 
   if (globalThis.crypto?.subtle) {
     try {
-      const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalizedValue));
+      const digest = await globalThis.crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(normalizedValue)
+      );
       return Array.from(new Uint8Array(digest))
-        .map((byte) => byte.toString(16).padStart(2, "0"))
-        .join("");
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('');
     } catch {
       return createMd5Hash(normalizedValue);
     }
@@ -106,7 +109,7 @@ function createMd5Hash(value: string): string {
     d = addUnsigned(d, originalD);
   }
 
-  return [a, b, c, d].map(toLittleEndianHex).join("");
+  return [a, b, c, d].map(toLittleEndianHex).join('');
 }
 
 function createMd5WordArray(value: string): number[] {
@@ -120,7 +123,7 @@ function createMd5WordArray(value: string): number[] {
   }
 
   wordArray[bitLength >> 5] = wordArray[bitLength >> 5] || 0;
-  wordArray[bitLength >> 5] |= 0x80 << bitLength % 32;
+  wordArray[bitLength >> 5] |= 0x80 << (bitLength % 32);
   wordArray[(((bitLength + 64) >>> 9) << 4) + 14] = bitLength;
 
   return wordArray.map((word) => word || 0);
@@ -136,7 +139,13 @@ function md5Round(
   s: number,
   ac: number
 ): number {
-  return addUnsigned(rotateLeft(addUnsigned(addUnsigned(a, transform(b, c, d)), addUnsigned(x || 0, ac)), s), b);
+  return addUnsigned(
+    rotateLeft(
+      addUnsigned(addUnsigned(a, transform(b, c, d)), addUnsigned(x || 0, ac)),
+      s
+    ),
+    b
+  );
 }
 
 function ff(x: number, y: number, z: number): number {
@@ -164,10 +173,10 @@ function addUnsigned(left: number, right: number): number {
 }
 
 function toLittleEndianHex(value: number): string {
-  let output = "";
+  let output = '';
 
   for (let i = 0; i <= 3; i += 1) {
-    output += ((value >>> (i * 8)) & 255).toString(16).padStart(2, "0");
+    output += ((value >>> (i * 8)) & 255).toString(16).padStart(2, '0');
   }
 
   return output;

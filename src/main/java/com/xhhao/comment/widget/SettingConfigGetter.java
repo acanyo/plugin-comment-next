@@ -1,12 +1,15 @@
 package com.xhhao.comment.widget;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import lombok.Data;
 import lombok.Getter;
 import lombok.experimental.Accessors;
 import org.springframework.lang.NonNull;
 import reactor.core.publisher.Mono;
+import com.xhhao.comment.widget.upload.ImageUploadProviderType;
 import com.xhhao.comment.widget.captcha.CaptchaType;
 
 public interface SettingConfigGetter {
@@ -30,6 +33,11 @@ public interface SettingConfigGetter {
      * Never {@link Mono#empty()}.
      */
     Mono<BadgeConfig> getBadgeConfig();
+
+    /**
+     * Never {@link Mono#empty()}.
+     */
+    Mono<UploadConfig> getUploadConfig();
 
     @Data
     @Accessors(chain = true)
@@ -95,6 +103,137 @@ public interface SettingConfigGetter {
 
     @Data
     @Accessors(chain = true)
+    class UploadConfig {
+        public static final String GROUP = "upload";
+
+        private boolean enabled;
+
+        private boolean allowAnonymousUpload;
+
+        @Getter(onMethod_ = @NonNull)
+        private ImageUploadProviderType anonymousProvider = ImageUploadProviderType.DISABLED;
+
+        @Getter(onMethod_ = @NonNull)
+        private ImageUploadProviderType authenticatedProvider = ImageUploadProviderType.HALO_ATTACHMENT;
+
+        private long anonymousMaxSizeKb = 2048;
+
+        private long authenticatedMaxSizeKb = 5120;
+
+        private String allowedContentTypes = defaultAllowedContentTypes();
+
+        @Getter(onMethod_ = @NonNull)
+        private HaloAttachmentUploadConfig haloAttachment = HaloAttachmentUploadConfig.empty();
+
+        @Getter(onMethod_ = @NonNull)
+        private ImgBbUploadConfig imgBb = ImgBbUploadConfig.empty();
+
+        @Getter(onMethod_ = @NonNull)
+        private UploadSecurityConfig security = UploadSecurityConfig.empty();
+
+        public UploadConfig setAnonymousProvider(ImageUploadProviderType anonymousProvider) {
+            this.anonymousProvider =
+                anonymousProvider == null ? ImageUploadProviderType.DISABLED : anonymousProvider;
+            return this;
+        }
+
+        public UploadConfig setAuthenticatedProvider(ImageUploadProviderType authenticatedProvider) {
+            this.authenticatedProvider =
+                authenticatedProvider == null ? ImageUploadProviderType.HALO_ATTACHMENT : authenticatedProvider;
+            return this;
+        }
+
+        public UploadConfig setAllowedContentTypes(String allowedContentTypes) {
+            this.allowedContentTypes =
+                allowedContentTypes == null || allowedContentTypes.isBlank()
+                    ? defaultAllowedContentTypes()
+                    : allowedContentTypes;
+            return this;
+        }
+
+        public UploadConfig setHaloAttachment(HaloAttachmentUploadConfig haloAttachment) {
+            this.haloAttachment =
+                haloAttachment == null ? HaloAttachmentUploadConfig.empty() : haloAttachment;
+            return this;
+        }
+
+        public UploadConfig setImgBb(ImgBbUploadConfig imgBb) {
+            this.imgBb = imgBb == null ? ImgBbUploadConfig.empty() : imgBb;
+            return this;
+        }
+
+        public UploadConfig setSecurity(UploadSecurityConfig security) {
+            this.security = security == null ? UploadSecurityConfig.empty() : security;
+            return this;
+        }
+
+        public long anonymousMaxSizeBytes() {
+            return Math.max(1, anonymousMaxSizeKb) * 1024;
+        }
+
+        public long authenticatedMaxSizeBytes() {
+            return Math.max(1, authenticatedMaxSizeKb) * 1024;
+        }
+
+        public List<String> allowedContentTypeList() {
+            return Arrays.stream(allowedContentTypes.split(","))
+                .map(value -> value.trim().toLowerCase(Locale.ROOT))
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .toList();
+        }
+
+        public static UploadConfig empty() {
+            return new UploadConfig()
+                .setEnabled(false)
+                .setAllowAnonymousUpload(false)
+                .setAnonymousProvider(ImageUploadProviderType.DISABLED)
+                .setAuthenticatedProvider(ImageUploadProviderType.HALO_ATTACHMENT)
+                .setAllowedContentTypes(defaultAllowedContentTypes())
+                .setHaloAttachment(HaloAttachmentUploadConfig.empty())
+                .setImgBb(ImgBbUploadConfig.empty())
+                .setSecurity(UploadSecurityConfig.empty());
+        }
+
+        private static String defaultAllowedContentTypes() {
+            return "image/jpeg,image/png,image/gif,image/webp";
+        }
+    }
+
+    @Data
+    class HaloAttachmentUploadConfig {
+        private String policyName;
+        private String groupName;
+
+        public static HaloAttachmentUploadConfig empty() {
+            return new HaloAttachmentUploadConfig();
+        }
+    }
+
+    @Data
+    class ImgBbUploadConfig {
+        private String apiKey;
+        private int expirationSeconds;
+
+        public static ImgBbUploadConfig empty() {
+            return new ImgBbUploadConfig();
+        }
+    }
+
+    @Data
+    class UploadSecurityConfig {
+        private int anonymousRateLimit = 5;
+        private int anonymousRateWindowSeconds = 60;
+        private int authenticatedRateLimit = 30;
+        private int authenticatedRateWindowSeconds = 60;
+
+        public static UploadSecurityConfig empty() {
+            return new UploadSecurityConfig();
+        }
+    }
+
+    @Data
+    @Accessors(chain = true)
     class BadgeConfig {
         public static final String GROUP = "badge";
 
@@ -108,12 +247,6 @@ public interface SettingConfigGetter {
 
         @Getter(onMethod_ = @NonNull)
         private List<BadgeIdentifier> adminIdentifiers = new ArrayList<>();
-
-        @Getter(onMethod_ = @NonNull)
-        private List<BadgeLevelRule> levelRules = new ArrayList<>();
-
-        @Getter(onMethod_ = @NonNull)
-        private List<BadgeIdentityRule> customRules = new ArrayList<>();
 
         public BadgeConfig setFirstCommentBadge(BadgeSetting firstCommentBadge) {
             this.firstCommentBadge = firstCommentBadge == null ? BadgeSetting.firstComment() : firstCommentBadge;
@@ -130,16 +263,6 @@ public interface SettingConfigGetter {
             return this;
         }
 
-        public BadgeConfig setLevelRules(List<BadgeLevelRule> levelRules) {
-            this.levelRules = levelRules == null ? new ArrayList<>() : levelRules;
-            return this;
-        }
-
-        public BadgeConfig setCustomRules(List<BadgeIdentityRule> customRules) {
-            this.customRules = customRules == null ? new ArrayList<>() : customRules;
-            return this;
-        }
-
         public static BadgeConfig empty() {
             return new BadgeConfig();
         }
@@ -149,12 +272,14 @@ public interface SettingConfigGetter {
     class BadgeSetting {
         private String label;
         private String icon;
+        private String color;
         private String title;
 
         public static BadgeSetting firstComment() {
             var badge = new BadgeSetting();
             badge.setLabel("首评");
-            badge.setIcon("medal");
+            badge.setIcon("mdi:medal-outline");
+            badge.setColor("#f59e0b");
             badge.setTitle("本文第一位评论者");
             return badge;
         }
@@ -162,7 +287,8 @@ public interface SettingConfigGetter {
         public static BadgeSetting admin() {
             var badge = new BadgeSetting();
             badge.setLabel("站长");
-            badge.setIcon("shield");
+            badge.setIcon("mdi:shield-star-outline");
+            badge.setColor("#3b82f6");
             badge.setTitle("站点管理员");
             return badge;
         }
@@ -173,31 +299,5 @@ public interface SettingConfigGetter {
         private String username;
         private String email;
         private String displayName;
-    }
-
-    @Data
-    class BadgeLevelRule {
-        private String id;
-        private String label;
-        private int minComments;
-        private String icon;
-        private String title;
-    }
-
-    @Data
-    class BadgeIdentityRule {
-        private String id;
-        private String label;
-
-        @Getter(onMethod_ = @NonNull)
-        private BadgeIdentifier match = new BadgeIdentifier();
-
-        private String icon;
-        private String title;
-
-        public BadgeIdentityRule setMatch(BadgeIdentifier match) {
-            this.match = match == null ? new BadgeIdentifier() : match;
-            return this;
-        }
     }
 }

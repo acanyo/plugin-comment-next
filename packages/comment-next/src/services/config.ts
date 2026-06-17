@@ -1,4 +1,4 @@
-import type { CommentNextBadgeConfig } from "../types/comment";
+import type { CommentNextBadgeConfig } from '../types/comment';
 
 export interface CommentNextPluginConfig {
   basic?: CommentNextBasicConfig;
@@ -7,12 +7,17 @@ export interface CommentNextPluginConfig {
   badge?: CommentNextBadgeConfig;
 }
 
+export interface CommentNextGlobalInfo {
+  allowAnonymousComments?: boolean;
+}
+
 export interface CommentNextBasicConfig {
   size?: number;
   replySize?: number;
   withReplies?: boolean;
   withReplySize?: number;
   enablePrivateComment?: boolean;
+  showCommenterDevice?: boolean;
 }
 
 export interface CommentNextSecurityConfig {
@@ -25,13 +30,16 @@ export interface CommentNextEditorConfig {
   placeholder?: string;
 }
 
-const CONFIG_ENDPOINT = "/apis/api.commentnext.xhhao.com/v1alpha1/config";
+const CONFIG_ENDPOINT = '/apis/api.commentnext.xhhao.com/v1alpha1/config';
+const GLOBAL_INFO_ENDPOINT = '/actuator/globalinfo';
 
-export async function fetchPluginConfig(baseUrl = ""): Promise<CommentNextPluginConfig> {
+export async function fetchPluginConfig(
+  baseUrl = ''
+): Promise<CommentNextPluginConfig> {
   const response = await fetch(resolveApiUrl(baseUrl, CONFIG_ENDPOINT), {
-    credentials: "include",
+    credentials: 'include',
     headers: {
-      Accept: "application/json",
+      Accept: 'application/json',
     },
   });
 
@@ -42,10 +50,27 @@ export async function fetchPluginConfig(baseUrl = ""): Promise<CommentNextPlugin
   return response.json() as Promise<CommentNextPluginConfig>;
 }
 
+export async function fetchGlobalInfo(
+  baseUrl = ''
+): Promise<CommentNextGlobalInfo> {
+  const response = await fetch(resolveApiUrl(baseUrl, GLOBAL_INFO_ENDPOINT), {
+    credentials: 'include',
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch global info: ${response.status}`);
+  }
+
+  return response.json() as Promise<CommentNextGlobalInfo>;
+}
+
 function resolveApiUrl(baseUrl: string, endpoint: string): string {
   if (!baseUrl) {
     return endpoint;
   }
 
-  return `${baseUrl.replace(/\/$/, "")}${endpoint}`;
+  return `${baseUrl.replace(/\/$/, '')}${endpoint}`;
 }

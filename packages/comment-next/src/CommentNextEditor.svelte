@@ -1,82 +1,193 @@
 <script lang="ts">
-  import CommentNextAiPanel from "./CommentNextAiPanel.svelte";
-  import CommentNextIcon from "./CommentNextIcon.svelte";
-  import { autolinkUrls, getTextSelectionOffset, restoreTextSelectionOffset } from "./utils/autolink";
+import CommentNextAiPanel from './CommentNextAiPanel.svelte';
+import CommentNextIcon from './CommentNextIcon.svelte';
+import {
+  autolinkUrls,
+  getTextSelectionOffset,
+  restoreTextSelectionOffset,
+} from './utils/autolink';
 
-  let {
-    placeholder = "写下你的评论...",
-    aiOpen = false,
-    inlineSuggestion = false,
-    selectionTools = false,
-    aiMode = "polish",
-    topRounded = false,
-    onModeSelect = () => {},
-    onCloseAiPanel = () => {},
-  }: {
-    placeholder?: string;
-    aiOpen?: boolean;
-    inlineSuggestion?: boolean;
-    selectionTools?: boolean;
-    aiMode?: string;
-    topRounded?: boolean;
-    onModeSelect?: (mode: string) => void;
-    onCloseAiPanel?: () => void;
-  } = $props();
+const {
+  placeholder = '写下你的评论...',
+  aiOpen = false,
+  inlineSuggestion = false,
+  selectionTools = false,
+  aiMode = 'polish',
+  topRounded = false,
+  onChange = () => {},
+  onModeSelect = () => {},
+  onCloseAiPanel = () => {},
+}: {
+  placeholder?: string;
+  aiOpen?: boolean;
+  inlineSuggestion?: boolean;
+  selectionTools?: boolean;
+  aiMode?: string;
+  topRounded?: boolean;
+  onChange?: (html: string) => void;
+  onModeSelect?: (mode: string) => void;
+  onCloseAiPanel?: () => void;
+} = $props();
 
-  const modeLabels: Record<string, string> = {
-    polish: "润色建议",
-    expand: "补充观点",
-    question: "提问角度",
-    reply: "生成回复",
-    summary: "总结观点",
-  };
+const modeLabels: Record<string, string> = {
+  polish: '润色建议',
+  expand: '补充观点',
+  question: '提问角度',
+  reply: '生成回复',
+  summary: '总结观点',
+};
 
-  let editorElement: HTMLDivElement | undefined;
-  let autolinkTimer: number | undefined;
+let editorElement: HTMLDivElement | undefined;
+let autolinkTimer: number | undefined;
 
-  function handleEditorInput() {
-    if (inlineSuggestion || selectionTools) {
-      return;
-    }
+export function getHtml(): string {
+  return editorElement?.innerHTML ?? '';
+}
 
-    scheduleAutolink();
+export function getText(): string {
+  return editorElement?.textContent ?? '';
+}
+
+export function reset() {
+  if (!editorElement) {
+    return;
   }
 
-  function handleEditorPaste() {
-    if (inlineSuggestion || selectionTools) {
-      return;
-    }
+  editorElement.innerHTML = '';
+  onChange('');
+}
 
-    scheduleAutolink(0);
+export function focus() {
+  editorElement?.focus();
+}
+
+export function insertText(value: string) {
+  if (!value || !editorElement) {
+    return;
   }
 
-  function scheduleAutolink(delay = 260) {
-    if (!editorElement) {
-      return;
-    }
+  insertNodeAtCaret(document.createTextNode(value));
+}
 
-    if (autolinkTimer) {
-      window.clearTimeout(autolinkTimer);
-    }
-
-    autolinkTimer = window.setTimeout(() => {
-      runAutolink();
-    }, delay);
+export function insertImage(src: string, alt = '') {
+  if (!src || !editorElement) {
+    return;
   }
 
-  function runAutolink() {
-    if (!editorElement) {
-      return;
-    }
+  const image = document.createElement('img');
+  image.src = src;
+  image.alt = alt;
+  image.className = 'comment-next-emote-image';
+  image.loading = 'lazy';
+  image.decoding = 'async';
+  insertNodeAtCaret(image, document.createTextNode(' '));
+}
 
-    const wasFocused = document.activeElement === editorElement;
-    const selectionOffset = wasFocused ? getTextSelectionOffset(editorElement) : undefined;
-    const changed = autolinkUrls(editorElement);
+function handleEditorInput() {
+  onChange(getHtml());
 
-    if (changed && wasFocused && selectionOffset !== undefined) {
-      restoreTextSelectionOffset(editorElement, selectionOffset);
-    }
+  if (inlineSuggestion || selectionTools) {
+    return;
   }
+
+  scheduleAutolink();
+}
+
+function handleEditorPaste() {
+  if (inlineSuggestion || selectionTools) {
+    return;
+  }
+
+  scheduleAutolink(0);
+}
+
+function scheduleAutolink(delay = 260) {
+  if (!editorElement) {
+    return;
+  }
+
+  if (autolinkTimer) {
+    window.clearTimeout(autolinkTimer);
+  }
+
+  autolinkTimer = window.setTimeout(() => {
+    runAutolink();
+  }, delay);
+}
+
+function runAutolink() {
+  if (!editorElement) {
+    return;
+  }
+
+  const wasFocused = document.activeElement === editorElement;
+  const selectionOffset = wasFocused
+    ? getTextSelectionOffset(editorElement)
+    : undefined;
+  const changed = autolinkUrls(editorElement);
+
+  if (changed && wasFocused && selectionOffset !== undefined) {
+    restoreTextSelectionOffset(editorElement, selectionOffset);
+  }
+
+  onChange(getHtml());
+}
+
+function insertNodeAtCaret(node: Node, trailingNode?: Node) {
+  if (!editorElement) {
+    return;
+  }
+
+  editorElement.focus();
+
+  const selection = window.getSelection();
+  const range = resolveEditorRange(selection);
+
+  range.deleteContents();
+  range.insertNode(node);
+
+  if (trailingNode) {
+    range.setStartAfter(node);
+    range.insertNode(trailingNode);
+    range.setStartAfter(trailingNode);
+  } else {
+    range.setStartAfter(node);
+  }
+
+  range.collapse(true);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  onChange(getHtml());
+}
+
+function resolveEditorRange(selection: Selection | null): Range {
+  if (
+    selection?.rangeCount &&
+    editorElement &&
+    isSelectionInsideEditor(selection)
+  ) {
+    return selection.getRangeAt(0);
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(editorElement as HTMLDivElement);
+  range.collapse(false);
+
+  return range;
+}
+
+function isSelectionInsideEditor(selection: Selection): boolean {
+  if (!editorElement || !selection.anchorNode || !selection.focusNode) {
+    return false;
+  }
+
+  return (
+    editorElement === selection.anchorNode ||
+    editorElement.contains(selection.anchorNode) ||
+    editorElement === selection.focusNode ||
+    editorElement.contains(selection.focusNode)
+  );
+}
 </script>
 
 <div
@@ -158,113 +269,60 @@
 
 <style>
   .comment-next-editor-wrap {
-    position: relative;
-    min-height: var(--comment-next-editor-min-height, 12.5rem);
-    overflow: hidden;
-    background: var(
-      --comment-next-editor-surface-bg,
-      linear-gradient(180deg, rgb(255 255 255 / 0.96), rgb(250 253 252 / 0.96)),
-      var(--comment-next-editor-bg-color, #ffffff)
-    );
+    --at-apply: relative min-h-[var(--comment-next-editor-min-height,12.5rem)] overflow-hidden [background:var(--comment-next-editor-surface-bg,transparent,var(--comment-next-editor-bg-color,#ffffff))];
   }
 
   .comment-next-editor-wrap-top-rounded {
-    border-radius: var(--comment-next-radius-lg, 0.875rem) var(--comment-next-radius-lg, 0.875rem) 0 0;
+    --at-apply: rounded-t-[var(--comment-next-radius-lg,0.875rem)];
   }
 
   .comment-next-editor-wrap::after {
-    position: absolute;
-    right: 1rem;
-    bottom: 0;
-    left: 1rem;
-    height: 1px;
-    background: var(--comment-next-border-subtle-color, #e2e8ef);
+    --at-apply: absolute right-4 bottom-0 left-4 h-0 border-t [border-top-style:var(--comment-next-divider-style,dashed)] [border-top-color:var(--comment-next-divider-color,#d4dde8)] bg-transparent;
     content: "";
   }
 
   .comment-next-editor-wrap-ai-open,
   .comment-next-editor-wrap-inline,
   .comment-next-editor-wrap-selection {
-    background: var(
-      --comment-next-editor-ai-surface-bg,
-      radial-gradient(circle at 1.5rem 1.25rem, rgb(59 130 246 / 0.14), transparent 8rem),
-      linear-gradient(180deg, rgb(255 255 255 / 0.98), rgb(247 252 251 / 0.98)),
-      var(--comment-next-editor-bg-color, #ffffff)
-    );
+    --at-apply: [background:var(--comment-next-editor-ai-surface-bg,radial-gradient(circle_at_1.5rem_1.25rem,rgb(59_130_246_/_0.14),transparent_8rem),linear-gradient(180deg,rgb(255_255_255_/_0.98),rgb(247_252_251_/_0.98)),var(--comment-next-editor-bg-color,#ffffff))];
   }
 
   .comment-next-editor {
-    min-height: var(--comment-next-editor-min-height, 12.5rem);
-    box-sizing: border-box;
-    padding: 1.125rem 1.25rem 1.25rem;
-    outline: none;
-    color: var(--comment-next-text-color, #172033);
-    font-size: 0.9375rem;
-    line-height: 1.7;
-    caret-color: var(--comment-next-primary-color, rgb(59, 130, 246));
+    --at-apply: box-border min-h-[var(--comment-next-editor-min-height,12.5rem)] px-5 pb-5 pt-[1.125rem] text-[0.9375rem] text-[var(--comment-next-text-color,#172033)] leading-[1.7] outline-none caret-[var(--comment-next-primary-color,rgb(59,130,246))];
   }
 
   .comment-next-editor:empty::before {
     content: attr(data-placeholder);
-    color: var(--comment-next-placeholder-color, #8b96a7);
-    pointer-events: none;
+    --at-apply: pointer-events-none text-[var(--comment-next-placeholder-color,#8b96a7)];
   }
 
   .comment-next-editor :global(.comment-next-auto-link) {
-    color: var(--comment-next-link-color, rgb(59, 130, 246));
-    font-weight: 620;
-    text-decoration-color: var(--comment-next-link-underline-color, rgb(59 130 246 / 0.35));
-    text-decoration-thickness: 0.08em;
-    text-underline-offset: 0.18em;
-    transition:
-      color 140ms ease,
-      text-decoration-color 140ms ease;
+    --at-apply: text-[var(--comment-next-link-color,rgb(59,130,246))] font-[620] decoration-[var(--comment-next-link-underline-color,rgb(59_130_246_/_0.35))] decoration-[0.08em] underline-offset-[0.18em] transition-[color,text-decoration-color] duration-140 ease-in-out;
   }
 
   .comment-next-editor :global(.comment-next-auto-link:hover) {
-    color: var(--comment-next-link-hover-color, rgb(37 99 235));
-    text-decoration-color: currentColor;
+    --at-apply: text-[var(--comment-next-link-hover-color,rgb(37_99_235))] decoration-current;
+  }
+
+  .comment-next-editor :global(.comment-next-emote-image) {
+    --at-apply: mx-0.5 inline-block max-h-15 max-w-30 align-middle object-contain;
   }
 
   .comment-next-editor-paragraph {
-    margin: 0;
+    --at-apply: m-0;
   }
 
   .comment-next-selection-mark {
-    padding: 0.0625rem 0.1875rem;
-    border-radius: 0.25rem;
-    background: var(--comment-next-ai-mark-bg-color, rgb(191 219 254));
-    box-shadow: 0 0 0 1px rgb(59 130 246 / 0.16) inset;
-    color: inherit;
+    --at-apply: rounded px-[0.1875rem] py-[0.0625rem] bg-[var(--comment-next-ai-mark-bg-color,rgb(191_219_254))] text-inherit shadow-[0_0_0_1px_rgb(59_130_246_/_0.16)_inset];
   }
 
   .comment-next-ai-suggestion {
-    position: relative;
-    margin-top: 1rem;
-    max-width: 45rem;
-    padding: 0.875rem 1rem 1rem;
-    border: 1px solid var(--comment-next-ai-border-color, rgb(191 219 254));
-    border-radius: var(--comment-next-radius-md, 0.75rem);
-    background: var(
-      --comment-next-ai-suggestion-surface-bg,
-      linear-gradient(180deg, rgb(255 255 255 / 0.94), rgb(243 252 249 / 0.94)),
-      var(--comment-next-ai-suggestion-bg-color, rgb(248 251 255))
-    );
-    box-shadow:
-      0 12px 28px rgb(15 23 42 / 0.08),
-      0 1px 0 rgb(255 255 255 / 0.86) inset;
-    color: var(--comment-next-text-color, #172033);
+    --at-apply: relative mt-4 max-w-180 rounded-[var(--comment-next-radius-md,0.75rem)] border border-solid [border-color:var(--comment-next-ai-border-color,rgb(191_219_254))] [background:var(--comment-next-ai-suggestion-surface-bg,linear-gradient(180deg,rgb(255_255_255_/_0.94),rgb(243_252_249_/_0.94)),var(--comment-next-ai-suggestion-bg-color,rgb(248_251_255)))] px-4 pb-4 pt-3.5 text-[var(--comment-next-text-color,#172033)] shadow-[0_12px_28px_rgb(15_23_42_/_0.08),0_1px_0_rgb(255_255_255_/_0.86)_inset];
     animation: comment-next-suggestion-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
   .comment-next-ai-suggestion::before {
-    position: absolute;
-    top: 0.75rem;
-    bottom: 0.75rem;
-    left: 0;
-    width: 0.1875rem;
-    border-radius: 999px;
-    background: var(--comment-next-ai-color, rgb(59, 130, 246));
+    --at-apply: absolute top-3 bottom-3 left-0 w-[0.1875rem] rounded-full bg-[var(--comment-next-ai-color,rgb(59,130,246))];
     content: "";
   }
 
@@ -273,135 +331,69 @@
   .comment-next-ai-suggestion-emblem,
   .comment-next-ai-suggestion-actions,
   .comment-next-selection-bar {
-    display: flex;
-    align-items: center;
+    --at-apply: flex items-center;
   }
 
   .comment-next-ai-suggestion-head {
-    justify-content: space-between;
-    gap: 0.75rem;
-    color: var(--comment-next-muted-color, #667085);
-    font-size: 0.8125rem;
+    --at-apply: justify-between gap-3 text-[0.8125rem] text-[var(--comment-next-muted-color,#667085)];
   }
 
   .comment-next-ai-suggestion-title {
-    min-width: 0;
-    gap: 0.625rem;
+    --at-apply: min-w-0 gap-2.5;
   }
 
   .comment-next-ai-suggestion-emblem {
-    justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    border: 1px solid var(--comment-next-ai-border-color, rgb(191 219 254));
-    border-radius: 999px;
-    background: var(--comment-next-ai-bg-color, rgb(239 246 255));
-    color: var(--comment-next-ai-color, rgb(59, 130, 246));
+    --at-apply: h-7 w-7 justify-center rounded-full border border-solid [border-color:var(--comment-next-ai-border-color,rgb(191_219_254))] bg-[var(--comment-next-ai-bg-color,rgb(239_246_255))] text-[var(--comment-next-ai-color,rgb(59,130,246))];
   }
 
   .comment-next-ai-suggestion-kicker {
-    display: block;
-    color: var(--comment-next-ai-color, rgb(59, 130, 246));
-    font-size: 0.75rem;
-    font-weight: 700;
+    --at-apply: block text-xs text-[var(--comment-next-ai-color,rgb(59,130,246))] font-bold;
   }
 
   .comment-next-ai-suggestion-mode {
-    display: block;
-    margin-top: 0.0625rem;
-    color: var(--comment-next-text-color, #172033);
-    font-size: 0.875rem;
-    font-weight: 760;
+    --at-apply: mt-[0.0625rem] block text-sm text-[var(--comment-next-text-color,#172033)] font-[760];
   }
 
   .comment-next-ai-suggestion-status {
-    flex: 0 0 auto;
-    color: var(--comment-next-muted-color, #667085);
-    font-size: 0.75rem;
+    --at-apply: flex-none text-xs text-[var(--comment-next-muted-color,#667085)];
   }
 
   .comment-next-ai-suggestion-copy {
-    margin: 0.75rem 0 0;
-    padding-left: 2.375rem;
-    color: var(--comment-next-ai-text-color, rgb(30 64 175));
-    line-height: 1.72;
+    --at-apply: mt-3 mb-0 ml-0 mr-0 pl-[2.375rem] text-[var(--comment-next-ai-text-color,rgb(30_64_175))] leading-[1.72];
   }
 
   .comment-next-ai-suggestion-actions {
-    gap: 0.375rem;
-    margin-top: 0.875rem;
-    padding-left: 2.375rem;
+    --at-apply: mt-3.5 gap-1.5 pl-[2.375rem];
   }
 
   .comment-next-ai-suggestion-actions button,
   .comment-next-selection-bar button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 1.75rem;
-    gap: 0.3125rem;
-    padding: 0 0.625rem;
-    border: 1px solid transparent;
-    border-radius: 0.5rem;
-    background: transparent;
-    color: var(--comment-next-muted-color, #667085);
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.8125rem;
-    font-weight: 620;
-    transition:
-      background-color 150ms ease,
-      border-color 150ms ease,
-      color 150ms ease,
-      transform 150ms ease;
+    --at-apply: inline-flex h-7 cursor-pointer items-center justify-center gap-[0.3125rem] rounded-lg border border-solid border-transparent bg-transparent px-2.5 py-0 text-[0.8125rem] text-[var(--comment-next-muted-color,#667085)] font-[620] font-inherit transition-[background-color,border-color,color,transform] duration-150 ease-in-out;
   }
 
   .comment-next-ai-suggestion-actions button:hover,
   .comment-next-selection-bar button:hover,
   .comment-next-selection-action-active {
-    border-color: var(--comment-next-ai-border-color, rgb(191 219 254));
-    background: var(--comment-next-ai-control-hover-bg-color, rgb(239 246 255));
-    color: var(--comment-next-ai-color, rgb(59, 130, 246));
+    --at-apply: [border-color:var(--comment-next-ai-border-color,rgb(191_219_254))] bg-[var(--comment-next-ai-control-hover-bg-color,rgb(239_246_255))] text-[var(--comment-next-ai-color,rgb(59,130,246))];
   }
 
   .comment-next-ai-suggestion-actions button:active,
   .comment-next-selection-bar button:active {
-    transform: translateY(1px);
+    --at-apply: translate-y-px;
   }
 
-  .comment-next-ai-suggestion-primary {
-    border-color: var(--comment-next-ai-color, rgb(59, 130, 246)) !important;
-    background: var(--comment-next-ai-color, rgb(59, 130, 246)) !important;
-    color: #ffffff !important;
+  .comment-next-ai-suggestion-actions .comment-next-ai-suggestion-primary {
+    --at-apply: [border-color:var(--comment-next-ai-color,rgb(59,130,246))] bg-[var(--comment-next-ai-color,rgb(59,130,246))] text-white;
   }
 
   .comment-next-selection-bar {
-    position: absolute;
-    top: 3.5rem;
-    left: 1.25rem;
-    z-index: 3;
-    gap: 0.25rem;
-    padding: 0.375rem;
-    border: 1px solid var(--comment-next-menu-border-color, #d5dde7);
-    border-radius: 0.75rem;
-    background: var(--comment-next-menu-bg-color, #ffffff);
-    box-shadow:
-      0 14px 34px rgb(15 23 42 / 0.14),
-      0 1px 0 rgb(255 255 255 / 0.8) inset;
+    --at-apply: absolute top-14 left-5 z-3 gap-1.5 rounded-xl border border-solid [border-color:var(--comment-next-menu-border-color,#d5dde7)] bg-[var(--comment-next-menu-bg-color,#ffffff)] p-1.5 shadow-[0_14px_34px_rgb(15_23_42_/_0.14),0_1px_0_rgb(255_255_255_/_0.8)_inset];
     animation: comment-next-selection-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
   .comment-next-selection-bar::after {
-    position: absolute;
-    bottom: -0.3125rem;
-    left: 2rem;
-    width: 0.625rem;
-    height: 0.625rem;
-    border-right: 1px solid var(--comment-next-menu-border-color, #d5dde7);
-    border-bottom: 1px solid var(--comment-next-menu-border-color, #d5dde7);
-    background: var(--comment-next-menu-bg-color, #ffffff);
+    --at-apply: absolute bottom-[-0.3125rem] left-8 h-2.5 w-2.5 border-r border-b border-solid [border-color:var(--comment-next-menu-border-color,#d5dde7)] bg-[var(--comment-next-menu-bg-color,#ffffff)] rotate-45;
     content: "";
-    transform: rotate(45deg);
   }
 
   @keyframes comment-next-suggestion-in {
@@ -431,24 +423,20 @@
   @media (max-width: 640px) {
     .comment-next-editor-wrap,
     .comment-next-editor {
-      min-height: var(--comment-next-editor-mobile-min-height, 9rem);
-      padding: 1rem;
+      --at-apply: min-h-[var(--comment-next-editor-mobile-min-height,9rem)] p-4;
     }
 
     .comment-next-ai-suggestion-copy,
     .comment-next-ai-suggestion-actions {
-      padding-left: 0;
+      --at-apply: pl-0;
     }
 
     .comment-next-ai-suggestion-head {
-      align-items: flex-start;
-      flex-direction: column;
+      --at-apply: flex-col items-start;
     }
 
     .comment-next-selection-bar {
-      right: 0.75rem;
-      left: 0.75rem;
-      overflow-x: auto;
+      --at-apply: right-3 left-3 overflow-x-auto;
     }
   }
 
@@ -457,8 +445,7 @@
     .comment-next-selection-bar,
     .comment-next-ai-suggestion-actions button,
     .comment-next-selection-bar button {
-      animation: none;
-      transition: none;
+      --at-apply: animate-none transition-none;
     }
   }
 </style>
