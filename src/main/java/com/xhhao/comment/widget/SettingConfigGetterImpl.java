@@ -21,12 +21,6 @@ public class SettingConfigGetterImpl implements SettingConfigGetter {
     }
 
     @Override
-    public Mono<AvatarConfig> getAvatarConfig() {
-        return settingFetcher.fetch(AvatarConfig.GROUP, AvatarConfig.class)
-            .defaultIfEmpty(new AvatarConfig());
-    }
-
-    @Override
     public Mono<SecurityConfig> getSecurityConfig() {
         return settingFetcher.fetch(SecurityConfig.GROUP, SecurityConfig.class)
             .defaultIfEmpty(SecurityConfig.empty())

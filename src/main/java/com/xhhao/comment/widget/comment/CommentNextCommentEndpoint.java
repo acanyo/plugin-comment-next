@@ -28,6 +28,7 @@ public class CommentNextCommentEndpoint implements CustomEndpoint {
     public RouterFunction<ServerResponse> endpoint() {
         return RouterFunctions.route()
             .GET("comments", this::listComments)
+            .GET("comments/featured", this::listFeaturedComments)
             .GET("comments/{name}/replies", this::listReplies)
             .GET("target-reactions", this::reactionSummary)
             .POST("target-reactions", this::toggleReaction)
@@ -38,6 +39,11 @@ public class CommentNextCommentEndpoint implements CustomEndpoint {
 
     private Mono<ServerResponse> listComments(ServerRequest request) {
         return commentService.list(new CommentNextCommentQuery(request))
+            .flatMap(comments -> ServerResponse.ok().bodyValue(comments));
+    }
+
+    private Mono<ServerResponse> listFeaturedComments(ServerRequest request) {
+        return commentService.listFeatured(new CommentNextFeaturedCommentQuery(request))
             .flatMap(comments -> ServerResponse.ok().bodyValue(comments));
     }
 

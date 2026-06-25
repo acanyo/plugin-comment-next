@@ -943,41 +943,6 @@ spec:
               min: 1
               validation: min:1
               help: AI 拦截只需要返回简短 JSON，一般建议留空；如果模型经常输出不完整再调大。
-    - group: avatar
-      label: 头像设置
-      formSchema:
-        - $formkit: checkbox
-          label: 是否启用第三方头像
-          name: enable
-          id: enable
-          key: enable
-          value: false
-        - $formkit: select
-          label: 头像服务提供者
-          if: "$get(enable).value === true"
-          name: provider
-          options:
-            - label: "Gravatar"
-              value: "gravatar"
-          value: "gravatar"
-        - $formkit: text
-          label: 头像服务镜像地址
-          if: "$get(enable).value === true"
-          name: providerMirror
-          value: ""
-          help: 使用官方源则留空, 示例：https://gravatar.com
-        - $formkit: select
-          label: 头像策略
-          if: "$get(enable).value === true"
-          name: policy
-          options:
-            - label: "仅匿名用户"
-              value: "anonymousUser"
-            - label: "所有用户"
-              value: "allUser"
-            - label: "匿名&无头像用户"
-              value: "noAvatarUser"
-          value: "anonymousUser"
     - group: badge
       label: 徽章设置
       formSchema:

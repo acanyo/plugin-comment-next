@@ -9,6 +9,7 @@ import static run.halo.app.extension.index.query.Queries.or;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
@@ -16,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.HtmlUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import run.halo.app.core.extension.User;
@@ -63,6 +65,103 @@ class CommentNextCommentService {
                     .flatMap(comment -> replyPageNode(comment, query.getPage(), query.getSize(),
                         access, badgeContext));
             });
+    }
+
+    Mono<ObjectNode> listFeatured(CommentNextFeaturedCommentQuery query) {
+        return Mono.zip(accessService.getCurrentAccess(), authorService.badgeContext())
+            .flatMap(tuple -> {
+                var access = tuple.getT1();
+                var badgeContext = tuple.getT2();
+                return featuredItems(query, access, badgeContext)
+                    .filter(item -> matchesKeyword(item, query.keyword()))
+                    .sort(featuredComparator())
+                    .collectList()
+                    .map(items -> featuredPageNode(items, query));
+            });
+    }
+
+    private Flux<FeaturedCommentItem> featuredItems(CommentNextFeaturedCommentQuery query,
+        CommentNextAccessContext access, CommentNextBadgeContext badgeContext) {
+        return switch (query.target()) {
+            case COMMENT -> featuredComments(query, access, badgeContext);
+            case REPLY -> featuredReplies(query, access, badgeContext);
+            case ALL -> Flux.merge(
+                featuredComments(query, access, badgeContext),
+                featuredReplies(query, access, badgeContext)
+            );
+        };
+    }
+
+    private Flux<FeaturedCommentItem> featuredComments(CommentNextFeaturedCommentQuery query,
+        CommentNextAccessContext access, CommentNextBadgeContext badgeContext) {
+        return client.listAll(Comment.class, notDeletingOptions(), Sort.by("metadata.name"))
+            .filter(comment -> isFeatured(comment.getMetadata().getAnnotations()))
+            .filter(comment -> isVisibleComment(comment, access))
+            .filter(comment -> matchesSubject(comment.getSpec().getSubjectRef(), query))
+            .collectList()
+            .flatMapMany(comments -> counterService.fetchUpvotes(
+                    CommentNextCounterService.COMMENTS_PLURAL,
+                    extensionNames(comments)
+                )
+                .flatMapMany(upvotes -> Flux.fromIterable(comments)
+                    .flatMapSequential(comment -> mapper.toCommentNode(
+                            comment,
+                            badgeContext,
+                            upvotes.getOrDefault(comment.getMetadata().getName(), 0)
+                        )
+                        .map(node -> toFeaturedCommentItem(
+                            node,
+                            "comment",
+                            "",
+                            comment.getSpec().getSubjectRef(),
+                            comment.getMetadata().getAnnotations(),
+                            comment.getSpec()
+                        ))
+                    )
+                )
+            );
+    }
+
+    private Flux<FeaturedCommentItem> featuredReplies(CommentNextFeaturedCommentQuery query,
+        CommentNextAccessContext access, CommentNextBadgeContext badgeContext) {
+        return client.listAll(Comment.class, notDeletingOptions(), Sort.by("metadata.name"))
+            .filter(comment -> isVisibleComment(comment, access))
+            .collectMap(comment -> comment.getMetadata().getName())
+            .flatMapMany(commentMap -> client.listAll(Reply.class, notDeletingOptions(),
+                    Sort.by("metadata.name"))
+                .filter(reply -> reply.getSpec() != null)
+                .filter(reply -> isFeatured(reply.getMetadata().getAnnotations()))
+                .filter(reply -> {
+                    var comment = commentMap.get(reply.getSpec().getCommentName());
+                    return comment != null
+                        && isVisibleReply(reply, comment, access)
+                        && matchesSubject(comment.getSpec().getSubjectRef(), query);
+                })
+                .collectList()
+                .flatMapMany(replies -> counterService.fetchUpvotes(
+                        CommentNextCounterService.REPLIES_PLURAL,
+                        extensionNames(replies)
+                    )
+                    .flatMapMany(upvotes -> Flux.fromIterable(replies)
+                        .flatMapSequential(reply -> {
+                            var comment = commentMap.get(reply.getSpec().getCommentName());
+                            return mapper.toReplyNode(
+                                    reply,
+                                    badgeContext,
+                                    upvotes.getOrDefault(reply.getMetadata().getName(), 0)
+                                )
+                                .map(node -> toFeaturedCommentItem(
+                                    node,
+                                    "reply",
+                                    reply.getSpec().getCommentName(),
+                                    comment.getSpec().getSubjectRef(),
+                                    reply.getMetadata().getAnnotations(),
+                                    reply.getSpec()
+                                ));
+                        })
+                    )
+                )
+            );
     }
 
     private Mono<ObjectNode> toCommentPageNode(ListResult<Comment> comments,
@@ -182,6 +281,12 @@ class CommentNextCommentService {
         return builder.build();
     }
 
+    private ListOptions notDeletingOptions() {
+        return ListOptions.builder()
+            .andQuery(ExtensionUtil.notDeleting())
+            .build();
+    }
+
     private boolean isVisibleReply(Reply reply, Comment comment, CommentNextAccessContext access) {
         if (ExtensionUtil.isDeleted(reply)) {
             return false;
@@ -195,6 +300,14 @@ class CommentNextCommentService {
             return true;
         }
         return Boolean.TRUE.equals(spec.getApproved()) && !Boolean.TRUE.equals(spec.getHidden());
+    }
+
+    private boolean matchesSubject(Ref subjectRef, CommentNextFeaturedCommentQuery query) {
+        if (!query.hasSubject()) {
+            return true;
+        }
+        return subjectRef != null && Comment.toSubjectRefKey(subjectRef)
+            .equals(Comment.toSubjectRefKey(query.toRef()));
     }
 
     private boolean isOwner(Comment.CommentOwner owner, String username) {
@@ -254,6 +367,137 @@ class CommentNextCommentService {
             .thenComparing(comment -> comment.getMetadata().getName());
     }
 
+    private Comparator<FeaturedCommentItem> featuredComparator() {
+        return Comparator
+            .comparing((FeaturedCommentItem item) -> !item.top())
+            .thenComparingInt(FeaturedCommentItem::priority)
+            .thenComparing(
+                (FeaturedCommentItem item) -> safeInstant(item.featuredAt()),
+                Comparator.reverseOrder()
+            )
+            .thenComparing(
+                item -> safeInstant(item.creationTime()),
+                Comparator.reverseOrder()
+            )
+            .thenComparing(FeaturedCommentItem::targetType)
+            .thenComparing(FeaturedCommentItem::name);
+    }
+
+    private ObjectNode featuredPageNode(List<FeaturedCommentItem> items,
+        CommentNextFeaturedCommentQuery query) {
+        var page = Math.max(1, query.page());
+        var size = Math.max(1, query.size());
+        var pageItems = ListResult.subList(items, page, size);
+        var pageResult = new ListResult<>(
+            page,
+            size,
+            items.size(),
+            pageItems
+        );
+        return mapper.pageNode(
+            pageResult,
+            pageItems.stream().map(FeaturedCommentItem::node).toList()
+        );
+    }
+
+    private FeaturedCommentItem toFeaturedCommentItem(ObjectNode node,
+        String targetType, String parentName, Ref subjectRef, Map<String, String> annotations,
+        Comment.BaseCommentSpec spec) {
+        var featuredAt = instant(text(annotations, CommentNextCommentAnnotations.FEATURED_AT));
+        var subject = subjectRef == null ? "" : Comment.toSubjectRefKey(subjectRef);
+
+        node.put("targetType", targetType);
+        node.put("parentName", parentName);
+        node.put("subject", subject);
+        if (featuredAt != null) {
+            node.put("featuredAt", featuredAt.toString());
+        }
+
+        return new FeaturedCommentItem(
+            node,
+            targetType,
+            node.path("metadata").path("name").asText(""),
+            parentName,
+            subject,
+            ownerDisplayName(spec.getOwner()),
+            plainText(spec.getContent()),
+            featuredAt,
+            creationTime(spec),
+            isTop(spec),
+            priority(spec)
+        );
+    }
+
+    private boolean matchesKeyword(FeaturedCommentItem item, String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        var normalizedKeyword = keyword.strip().toLowerCase();
+        return contains(item.name(), normalizedKeyword)
+            || contains(item.parentName(), normalizedKeyword)
+            || contains(item.subject(), normalizedKeyword)
+            || contains(item.authorName(), normalizedKeyword)
+            || contains(item.content(), normalizedKeyword)
+            || contains(item.targetType(), normalizedKeyword);
+    }
+
+    private boolean contains(String value, String keyword) {
+        return StringUtils.hasText(value)
+            && value.toLowerCase().contains(keyword);
+    }
+
+    private String ownerDisplayName(Comment.CommentOwner owner) {
+        if (owner == null) {
+            return "匿名用户";
+        }
+        if (StringUtils.hasText(owner.getDisplayName())) {
+            return owner.getDisplayName().strip();
+        }
+        if (StringUtils.hasText(owner.getName())) {
+            return owner.getName().strip();
+        }
+        return "匿名用户";
+    }
+
+    private String plainText(String html) {
+        if (!StringUtils.hasText(html)) {
+            return "";
+        }
+        var withoutTags = html
+            .replaceAll("(?is)<(script|style)[^>]*>.*?</\\1>", " ")
+            .replaceAll("(?i)<br\\s*/?>", "\n")
+            .replaceAll("(?i)</p\\s*>", "\n")
+            .replaceAll("<[^>]+>", " ");
+        return HtmlUtils.htmlUnescape(withoutTags)
+            .replaceAll("[\\t\\x0B\\f\\r ]+", " ")
+            .replaceAll("\\n{3,}", "\n\n")
+            .strip();
+    }
+
+    private String text(Map<String, String> annotations, String key) {
+        return annotations == null ? "" : annotations.getOrDefault(key, "");
+    }
+
+    private boolean isFeatured(Map<String, String> annotations) {
+        return annotations != null
+            && Boolean.parseBoolean(annotations.get(CommentNextCommentAnnotations.FEATURED));
+    }
+
+    private Instant instant(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Instant.parse(value);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Instant safeInstant(Instant instant) {
+        return instant == null ? Instant.EPOCH : instant;
+    }
+
     private java.util.Collection<String> extensionNames(
         java.util.Collection<? extends run.halo.app.extension.Extension> items) {
         return items.stream()
@@ -271,5 +515,20 @@ class CommentNextCommentService {
 
     private int priority(Comment.BaseCommentSpec spec) {
         return spec == null || spec.getPriority() == null ? 0 : spec.getPriority();
+    }
+
+    private record FeaturedCommentItem(
+        ObjectNode node,
+        String targetType,
+        String name,
+        String parentName,
+        String subject,
+        String authorName,
+        String content,
+        Instant featuredAt,
+        Instant creationTime,
+        boolean top,
+        int priority
+    ) {
     }
 }

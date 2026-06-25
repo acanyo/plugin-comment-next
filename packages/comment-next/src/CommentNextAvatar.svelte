@@ -40,8 +40,8 @@ function getPlaceholderText(value: string): string {
 </script>
 
 <span
-  class="comment-next-avatar inline-flex items-center justify-center flex-none w-[var(--comment-next-avatar-size,36px)] h-[var(--comment-next-avatar-size,36px)] overflow-hidden border border-solid [border-color:var(--comment-next-avatar-border-color,rgb(15_23_42_/_0.08))] rounded-full [background:linear-gradient(180deg,rgb(255_255_255_/_0.88),rgb(238_244_244_/_0.9)),var(--comment-next-field-bg-color,#fbfcfd)] text-[var(--comment-next-muted-color,#6b7687)] shadow-[0_1px_2px_rgb(15_23_42_/_0.06)]"
-  style={`--comment-next-avatar-size: ${size}px`}
+  class="comment-next-avatar inline-flex items-center justify-center flex-none overflow-hidden border border-solid [border-color:var(--comment-next-avatar-border-color,rgb(15_23_42_/_0.08))] [background:linear-gradient(180deg,rgb(255_255_255_/_0.88),rgb(238_244_244_/_0.9)),var(--comment-next-field-bg-color,#fbfcfd)] text-[var(--comment-next-muted-color,#6b7687)] shadow-[0_1px_2px_rgb(15_23_42_/_0.06)]"
+  style={`--comment-next-avatar-instance-size: ${size}px`}
   aria-label={alt || "头像"}
 >
   {#if src && !failed}
@@ -59,3 +59,17 @@ function getPlaceholderText(value: string): string {
     <CommentNextIcon name="user" size={Math.round(size * 0.46)} />
   {/if}
 </span>
+
+<style>
+  .comment-next-avatar {
+    width: var(
+      --halo-cw-avatar-size,
+      var(--comment-next-avatar-size, var(--comment-next-avatar-instance-size, 36px))
+    );
+    height: var(
+      --halo-cw-avatar-size,
+      var(--comment-next-avatar-size, var(--comment-next-avatar-instance-size, 36px))
+    );
+    border-radius: var(--comment-next-avatar-rounded, var(--halo-cw-avatar-rounded, 9999px));
+  }
+</style>

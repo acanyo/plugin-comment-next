@@ -73,6 +73,26 @@ export default definePlugin({
     {
       parentName: 'CommentsRoot',
       route: {
+        path: 'comment-next-featured-records',
+        name: 'CommentNextFeaturedRecords',
+        component: defineAsyncComponent({
+          loader: () => import('./views/FeaturedCommentsView.vue'),
+          loadingComponent: VLoading,
+        }),
+        meta: {
+          title: '精选评论',
+          permissions: ['*'],
+          menu: {
+            name: '精选评论',
+            icon: markRaw(IconNotificationBadgeLine),
+            priority: 2.25,
+          },
+        },
+      },
+    },
+    {
+      parentName: 'CommentsRoot',
+      route: {
         path: 'comment-next-ai-moderation-records',
         name: 'CommentNextAiModerationRecords',
         component: defineAsyncComponent({

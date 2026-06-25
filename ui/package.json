@@ -11,8 +11,8 @@
     "@halo-dev/api-client": "^2.22.0",
     "@halo-dev/components": "^2.22.0",
     "@halo-dev/ui-shared": "^2.22.0",
-    "@xhhao/comment-next": "workspace:*",
     "@iconify/vue": "^5.0.0",
+    "@xhhao/comment-next": "workspace:*",
     "axios": "^1.13.2",
     "vue": "^3.5.24",
     "vue-draggable-plus": "^0.6.1"

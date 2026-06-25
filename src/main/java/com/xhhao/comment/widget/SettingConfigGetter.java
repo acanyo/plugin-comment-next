@@ -21,11 +21,6 @@ public interface SettingConfigGetter {
     /**
      * Never {@link Mono#empty()}.
      */
-    Mono<AvatarConfig> getAvatarConfig();
-
-    /**
-     * Never {@link Mono#empty()}.
-     */
     Mono<SecurityConfig> getSecurityConfig();
 
     /**
@@ -179,15 +174,6 @@ public interface SettingConfigGetter {
         private boolean showCommenterDevice = true;
         private boolean enablePrivateComment;
         private boolean showPrivateCommentBadge = true;
-    }
-
-    @Data
-    class AvatarConfig {
-        public static final String GROUP = "avatar";
-        private boolean enable;
-        private String provider;
-        private String providerMirror;
-        private String policy;
     }
 
     @Data
