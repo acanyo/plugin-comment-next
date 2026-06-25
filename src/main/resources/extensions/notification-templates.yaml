@@ -1,0 +1,50 @@
+apiVersion: notification.halo.run/v1alpha1
+kind: NotificationTemplate
+metadata:
+  name: comment-next-template-ai-review-intercepted-admin
+spec:
+  reasonSelector:
+    reasonType: comment-next-ai-review-intercepted-admin
+    language: default
+  template:
+    title: "AI 已拦截[(${targetLabel != null ? targetLabel : '评论'})]"
+    rawBody: |
+      AI 已拦截一条[(${targetLabel != null ? targetLabel : '评论'})]。
+      评论人：[(${authorName != null ? authorName : ''})]
+      风险类型：[(${categories != null ? categories : ''})]
+      置信度：[(${confidence != null ? confidence : ''})]
+      处理策略：[(${action != null ? action : ''})]
+      拦截原因：[(${reason != null ? reason : ''})]
+      内容：[(${content != null ? content : ''})]
+      查看记录：[(${site.url})][(${manageUrl != null ? manageUrl : ''})]
+    htmlBody: |
+      <p>AI 已拦截一条<span th:text="${targetLabel != null ? targetLabel : '评论'}"></span>。</p>
+      <p>评论人：<strong th:text="${authorName != null ? authorName : ''}"></strong></p>
+      <p>风险类型：<span th:text="${categories != null ? categories : ''}"></span></p>
+      <p>置信度：<span th:text="${confidence != null ? confidence : ''}"></span></p>
+      <p>处理策略：<span th:text="${action != null ? action : ''}"></span></p>
+      <p>拦截原因：<span th:text="${reason != null ? reason : ''}"></span></p>
+      <p>内容：<span th:text="${content != null ? content : ''}"></span></p>
+      <p><a th:href="|${site.url}${manageUrl}|" th:text="'查看拦截记录'"></a></p>
+
+---
+apiVersion: notification.halo.run/v1alpha1
+kind: NotificationTemplate
+metadata:
+  name: comment-next-template-ai-review-intercepted-commenter
+spec:
+  reasonSelector:
+    reasonType: comment-next-ai-review-intercepted-commenter
+    language: default
+  template:
+    title: "你的[(${targetLabel != null ? targetLabel : '评论'})]已进入审核"
+    rawBody: |
+      你的[(${targetLabel != null ? targetLabel : '评论'})]触发了站点内容安全审核，当前已进入审核处理流程。
+      风险类型：[(${categories != null ? categories : ''})]
+      拦截原因：[(${reason != null ? reason : ''})]
+      内容：[(${content != null ? content : ''})]
+    htmlBody: |
+      <p>你的<span th:text="${targetLabel != null ? targetLabel : '评论'}"></span>触发了站点内容安全审核，当前已进入审核处理流程。</p>
+      <p>风险类型：<span th:text="${categories != null ? categories : ''}"></span></p>
+      <p>拦截原因：<span th:text="${reason != null ? reason : ''}"></span></p>
+      <p>内容：<span th:text="${content != null ? content : ''}"></span></p>

@@ -9,6 +9,7 @@ import {
   getDefaultAnonymousAvatarUrl,
 } from '../avatar/weavatar';
 import { getCaptchaCodeHeader, isCaptchaRequired } from './captcha';
+import type { CommentNextCaptchaType } from './captcha';
 import { sanitizeCommentSubmitHtml } from '../utils/html';
 
 const COMMENTS_ENDPOINT = '/apis/api.commentnext.xhhao.com/v1alpha1/comments';
@@ -104,6 +105,7 @@ interface HaloProblemDetail {
   status?: number;
   detail?: string;
   captcha?: string;
+  captchaType?: CommentNextCaptchaType;
 }
 
 interface HaloCommentPage {
@@ -121,7 +123,11 @@ interface HaloComment {
   metadata?: {
     name?: string;
     creationTimestamp?: string;
+    annotations?: Record<string, string>;
   };
+  top?: boolean;
+  featured?: boolean;
+  priority?: number;
   owner?: {
     displayName?: string;
     avatar?: string;
@@ -138,6 +144,8 @@ interface HaloComment {
     hidden?: boolean;
     quoteReply?: string;
     userAgent?: string;
+    top?: boolean;
+    priority?: number;
     owner?: {
       name?: string;
       displayName?: string;
@@ -166,6 +174,7 @@ export class CommentNextCommentError extends Error {
   detail?: string;
   captchaRequired: boolean;
   captchaImage?: string;
+  captchaType?: CommentNextCaptchaType;
 
   constructor({
     status,
@@ -174,6 +183,7 @@ export class CommentNextCommentError extends Error {
     detail,
     captchaRequired,
     captchaImage,
+    captchaType,
   }: {
     status: number;
     type?: string;
@@ -181,6 +191,7 @@ export class CommentNextCommentError extends Error {
     detail?: string;
     captchaRequired?: boolean;
     captchaImage?: string;
+    captchaType?: CommentNextCaptchaType;
   }) {
     super(detail || title || `Failed to submit comment: ${status}`);
     this.name = 'CommentNextCommentError';
@@ -190,6 +201,7 @@ export class CommentNextCommentError extends Error {
     this.detail = detail;
     this.captchaRequired = Boolean(captchaRequired);
     this.captchaImage = captchaImage;
+    this.captchaType = captchaType;
   }
 }
 
@@ -357,6 +369,7 @@ export async function createComment(
       detail: problem?.detail,
       captchaRequired: isCaptchaRequired(response),
       captchaImage: problem?.captcha,
+      captchaType: problem?.captchaType,
     });
   }
 
@@ -418,6 +431,7 @@ export async function createReply(
       detail: problem?.detail,
       captchaRequired: isCaptchaRequired(response),
       captchaImage: problem?.captcha,
+      captchaType: problem?.captchaType,
     });
   }
 
@@ -541,6 +555,9 @@ function adaptHaloComment(comment: HaloComment): CommentNextComment {
       comment.spec?.creationTime ?? comment.metadata?.creationTimestamp,
     approved: comment.spec?.approved,
     private: comment.spec?.hidden,
+    top: Boolean(comment.top ?? comment.spec?.top),
+    featured: Boolean(comment.featured ?? isFeaturedComment(comment)),
+    priority: normalizeNumber(comment.priority ?? comment.spec?.priority) ?? 0,
     quoteReplyId: comment.spec?.quoteReply,
     userAgent: comment.spec?.userAgent,
     author: {
@@ -570,6 +587,12 @@ function adaptHaloComment(comment: HaloComment): CommentNextComment {
       : undefined,
     replies: (comment.replies?.items ?? []).map(adaptHaloComment),
   };
+}
+
+function isFeaturedComment(comment: HaloComment): boolean {
+  return Boolean(
+    comment.metadata?.annotations?.['commentnext.xhhao.com/featured'] === 'true'
+  );
 }
 
 function resolveAuthorAvatar(

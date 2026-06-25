@@ -8,6 +8,8 @@ import { createDemoCommentPage, demoBadgeConfig } from './demo/comments';
 import { fetchCommentPage } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextReactionConfig,
+  CommentNextSecurityConfig,
   CommentNextUploadConfig,
 } from './services/config';
 import type {
@@ -26,6 +28,8 @@ const {
   loggedIn = false,
   allowAnonymous = true,
   showCaptcha = false,
+  captchaType = 'ALPHANUMERIC',
+  captchaConfig,
   demoData = false,
   pageSize = 20,
   replySize = 10,
@@ -33,6 +37,7 @@ const {
   showCommenterDevice = true,
   badgeConfig: configuredBadgeConfig,
   aiConfig,
+  reactionConfig,
   uploadConfig,
   emotePacks = [],
 }: {
@@ -44,6 +49,8 @@ const {
   loggedIn?: boolean;
   allowAnonymous?: boolean;
   showCaptcha?: boolean;
+  captchaType?: NonNullable<CommentNextSecurityConfig['captcha']>['type'];
+  captchaConfig?: CommentNextSecurityConfig['captcha'];
   demoData?: boolean;
   pageSize?: number;
   replySize?: number;
@@ -51,6 +58,7 @@ const {
   showCommenterDevice?: boolean;
   badgeConfig?: CommentNextBadgeConfig;
   aiConfig?: CommentNextAiConfig;
+  reactionConfig?: CommentNextReactionConfig;
   uploadConfig?: CommentNextUploadConfig;
   emotePacks?: CommentNextEmotePack[];
 } = $props();
@@ -76,12 +84,14 @@ const sortOptions: Array<{ label: string; value: CommentNextCommentSort }> = [
   { label: '最热', value: 'hot' },
   { label: '最早', value: 'earliest' },
 ];
+const aiMentionName = $derived(resolveAiMentionName(aiConfig));
 
 onMount(() => {
   void refreshComments();
 
   const handleCreated = () => {
     void refreshComments({ scrollIntoView: true });
+    scheduleCreatedRefreshes();
   };
 
   window.addEventListener('halo:comment:created', handleCreated);
@@ -103,6 +113,11 @@ async function refreshComments(options: { scrollIntoView?: boolean } = {}) {
       });
     });
   }
+}
+
+function scheduleCreatedRefreshes() {
+  window.setTimeout(() => void refreshComments(), 1800);
+  window.setTimeout(() => void refreshComments(), 5200);
 }
 
 async function selectPage(nextPage: number, options: { scrollIntoView?: boolean } = {}) {
@@ -199,14 +214,25 @@ function sortComments(
   mode: CommentNextCommentSort
 ): CommentNextComment[] {
   if (mode === 'latest') {
-    return [...items].sort((left, right) => commentTime(right) - commentTime(left));
+    return [...items].sort((left, right) => {
+      const moderationDiff = compareCommentModeration(left, right);
+      return moderationDiff || commentTime(right) - commentTime(left);
+    });
   }
 
   if (mode === 'earliest') {
-    return [...items].sort((left, right) => commentTime(left) - commentTime(right));
+    return [...items].sort((left, right) => {
+      const moderationDiff = compareCommentModeration(left, right);
+      return moderationDiff || commentTime(left) - commentTime(right);
+    });
   }
 
   return [...items].sort((left, right) => {
+    const moderationDiff = compareCommentModeration(left, right);
+    if (moderationDiff) {
+      return moderationDiff;
+    }
+
     const upvotesDiff = (right.stats?.upvotes ?? 0) - (left.stats?.upvotes ?? 0);
     if (upvotesDiff) {
       return upvotesDiff;
@@ -214,6 +240,17 @@ function sortComments(
 
     return commentTime(right) - commentTime(left);
   });
+}
+
+function compareCommentModeration(
+  left: CommentNextComment,
+  right: CommentNextComment
+): number {
+  if (left.top !== right.top) {
+    return left.top ? -1 : 1;
+  }
+
+  return (left.priority ?? 0) - (right.priority ?? 0);
 }
 
 function commentTime(comment: CommentNextComment): number {
@@ -231,6 +268,20 @@ function scrollCommentsIntoView() {
       behavior: 'smooth',
     });
   });
+}
+
+function resolveAiMentionName(config?: CommentNextAiConfig): string {
+  const value =
+    config?.assistantMentionName ||
+    config?.assistantDisplayName ||
+    config?.assistantName ||
+    '';
+
+  if (!value.trim()) {
+    return '';
+  }
+
+  return value.trim().startsWith('@') ? value.trim() : `@${value.trim()}`;
 }
 
 function resolvePaginationItems(
@@ -317,10 +368,14 @@ function resolvePaginationItems(
           {loggedIn}
           {allowAnonymous}
           {showCaptcha}
+          {captchaType}
+          {captchaConfig}
           {demoData}
           {replySize}
           {showCommenterDevice}
           {aiConfig}
+          {reactionConfig}
+          {aiMentionName}
           {uploadConfig}
           {emotePacks}
         />

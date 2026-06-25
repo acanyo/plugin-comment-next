@@ -11,7 +11,7 @@ metadata:
     rbac.authorization.halo.run/display-name: "评论组件 Next 公开接口"
 rules:
   - apiGroups: [ "api.commentnext.xhhao.com" ]
-    resources: [ "captcha/generate" ]
+    resources: [ "captcha/generate", "captcha/altcha-challenge", "captcha/challenge" ]
     verbs: [ "get" ]
   - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "config" ]
@@ -28,11 +28,18 @@ rules:
   - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "ai/suggestions" ]
     verbs: [ "create" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "subject-reactions", "target-reactions" ]
+    verbs: [ "get", "list", "create" ]
   - nonResourceURLs:
+      - "/apis/api.commentnext.xhhao.com/v1alpha1/captcha/-/altcha-challenge"
+      - "/apis/api.commentnext.xhhao.com/v1alpha1/captcha/altcha/challenge"
       - "/apis/api.commentnext.xhhao.com/v1alpha1/uploads/images"
       - "/apis/api.commentnext.xhhao.com/v1alpha1/uploads/-/images"
       - "/apis/api.commentnext.xhhao.com/v1alpha1/ai/-/suggestions"
-    verbs: [ "create" ]
+      - "/apis/api.commentnext.xhhao.com/v1alpha1/subject-reactions"
+      - "/apis/api.commentnext.xhhao.com/v1alpha1/target-reactions"
+    verbs: [ "get", "list", "create" ]
 ---
 apiVersion: v1alpha1
 kind: Role
@@ -54,6 +61,22 @@ rules:
     verbs: [ "get", "list" ]
   - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "badgeprofiles" ]
+    verbs: [ "get", "list" ]
+---
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: comment-next-view-security-rules
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/module: "评论组件 Next"
+    rbac.authorization.halo.run/display-name: "查看黑灰名单"
+    rbac.authorization.halo.run/ui-permissions: |
+      [ "plugin:comment-next:security-rules:view" ]
+rules:
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "securityrules" ]
     verbs: [ "get", "list" ]
 ---
 apiVersion: v1alpha1
@@ -102,6 +125,24 @@ rules:
 apiVersion: v1alpha1
 kind: Role
 metadata:
+  name: comment-next-manage-security-rules
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/dependencies: |
+      [ "comment-next-view-security-rules" ]
+    rbac.authorization.halo.run/module: "评论组件 Next"
+    rbac.authorization.halo.run/display-name: "管理黑灰名单"
+    rbac.authorization.halo.run/ui-permissions: |
+      [ "plugin:comment-next:security-rules:manage" ]
+rules:
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "securityrules" ]
+    verbs: [ "create", "delete", "get", "list", "patch", "update" ]
+---
+apiVersion: v1alpha1
+kind: Role
+metadata:
   name: comment-next-manage-emotes
   labels:
     halo.run/role-template: "true"
@@ -116,3 +157,28 @@ rules:
   - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "emotegroups" ]
     verbs: [ "create", "delete", "get", "list", "patch", "update" ]
+---
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: comment-next-moderate-comments
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/module: "评论组件 Next"
+    rbac.authorization.halo.run/display-name: "管理评论精选、置顶、AI 拦截与 AI 回复"
+    rbac.authorization.halo.run/ui-permissions: |
+      [ "plugin:comment-next:comments:moderate" ]
+rules:
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "comments/moderation", "replies/moderation" ]
+    verbs: [ "update" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "ai/moderation-records" ]
+    verbs: [ "get", "list" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "ai/reply-records" ]
+    verbs: [ "get", "list", "create" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "aireplyrecords" ]
+    verbs: [ "get", "list" ]

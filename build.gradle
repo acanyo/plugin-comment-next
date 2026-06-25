@@ -32,6 +32,8 @@ dependencies {
     implementation platform('run.halo.tools.platform:plugin:2.25.0')
     compileOnly 'run.halo.app:api'
     compileOnly 'run.halo.aifoundation:api:1.0.0-SNAPSHOT'
+    implementation 'org.altcha:altcha:2.0.2'
+    implementation 'org.json:json:20240303'
 
     testImplementation 'run.halo.app:api'
     testImplementation 'run.halo.aifoundation:api:1.0.0-SNAPSHOT'

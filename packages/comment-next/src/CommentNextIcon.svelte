@@ -51,10 +51,16 @@ const icons: Record<string, string> = {
   shield:
     '<path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z"/><path d="m9 12 2 2 4-4"/>',
   star: '<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.2L5.8 21 7 14.2l-5-4.9 6.9-1z"/>',
+  pin: '<path d="M12 17v5"/><path d="M5 17h14"/><path d="M7 17 9 4h6l2 13"/><path d="M9 4h6"/>',
   crown: '<path d="m2 7 5 5 5-9 5 9 5-5-2 12H4z"/><path d="M4 19h16"/>',
   listChecks:
     '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
+  chevronRight: '<path d="m9 18 6-6-6-6"/>',
+  circleCheck:
+    '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  circleAlert:
+    '<circle cx="12" cy="12" r="10"/><path d="M12 8v5"/><path d="M12 16h.01"/>',
   x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   checkSquare:
     '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',

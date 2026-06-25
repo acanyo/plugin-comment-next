@@ -35,6 +35,20 @@ export default defineConfig({
           ),
           rename: { stripBase: true },
         },
+        {
+          src: 'node_modules/altcha/dist/main/altcha.i18n.min.js',
+          dest: fileURLToPath(
+            new URL('../../src/main/resources/static/vendor/altcha', import.meta.url)
+          ),
+          rename: { stripBase: true },
+        },
+        {
+          src: 'node_modules/cap-widget/cap.min.js',
+          dest: fileURLToPath(
+            new URL('../../src/main/resources/static/vendor/cap', import.meta.url)
+          ),
+          rename: { stripBase: true },
+        },
       ],
     }),
   ],

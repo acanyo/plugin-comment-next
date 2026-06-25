@@ -3,6 +3,7 @@ import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
 import { createComment } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextSecurityConfig,
   CommentNextUploadConfig,
 } from './services/config';
 import type { CommentNextComposerSubmitPayload } from './types/composer';
@@ -17,6 +18,8 @@ const {
   loggedIn = false,
   allowAnonymous = true,
   showCaptcha = false,
+  captchaType = 'ALPHANUMERIC',
+  captchaConfig,
   enablePrivate = false,
   loading = false,
   submitting = false,
@@ -36,6 +39,8 @@ const {
   loggedIn?: boolean;
   allowAnonymous?: boolean;
   showCaptcha?: boolean;
+  captchaType?: NonNullable<CommentNextSecurityConfig['captcha']>['type'];
+  captchaConfig?: CommentNextSecurityConfig['captcha'];
   enablePrivate?: boolean;
   loading?: boolean;
   submitting?: boolean;
@@ -83,6 +88,8 @@ function getSubjectDomId() {
   {loggedIn}
   {allowAnonymous}
   {showCaptcha}
+  {captchaType}
+  {captchaConfig}
   {enablePrivate}
   {loading}
   {submitting}

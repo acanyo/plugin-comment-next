@@ -12,5 +12,7 @@ public class CommentNextAiSuggestionRequest {
 
     private String variant;
 
+    private String subject;
+
     private String replyToName;
 }

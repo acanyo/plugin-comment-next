@@ -3,6 +3,7 @@ import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
 import { createReply } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextSecurityConfig,
   CommentNextUploadConfig,
 } from './services/config';
 import type { CommentNextComment } from './types/comment';
@@ -15,6 +16,8 @@ const {
   loggedIn = false,
   allowAnonymous = true,
   showCaptcha = false,
+  captchaType = 'ALPHANUMERIC',
+  captchaConfig,
   replyToName = '',
   aiConfig,
   uploadConfig,
@@ -28,6 +31,8 @@ const {
   loggedIn?: boolean;
   allowAnonymous?: boolean;
   showCaptcha?: boolean;
+  captchaType?: NonNullable<CommentNextSecurityConfig['captcha']>['type'];
+  captchaConfig?: CommentNextSecurityConfig['captcha'];
   replyToName?: string;
   aiConfig?: CommentNextAiConfig;
   uploadConfig?: CommentNextUploadConfig;
@@ -59,6 +64,8 @@ async function handleSubmit(payload: CommentNextComposerSubmitPayload) {
   {loggedIn}
   {allowAnonymous}
   {showCaptcha}
+  {captchaType}
+  {captchaConfig}
   {placeholder}
   {targetReady}
   {replyToName}
@@ -76,7 +83,6 @@ async function handleSubmit(payload: CommentNextComposerSubmitPayload) {
   enablePrivate={false}
   submitLabel="回复"
   loginLabel="登录后回复"
-  aiLabel="AI 回复"
   onSubmit={handleSubmit}
   onCreated={(reply) => onCreated(reply as CommentNextComment)}
 />

@@ -15,7 +15,7 @@ interface DetailedUserResponse {
       displayName?: string;
       avatar?: string;
     };
-  };
+  } | null;
   metadata?: {
     name?: string;
   };
@@ -26,23 +26,15 @@ interface DetailedUserResponse {
 }
 
 const ANONYMOUS_USER_NAME = 'anonymousUser';
-const CURRENT_USER_ENDPOINTS = [
-  '/apis/api.halo.run/v1alpha1/users/-',
-  '/apis/api.console.halo.run/v1alpha1/users/-',
-];
+const CURRENT_USER_ENDPOINT =
+  '/apis/api.console.halo.run/v1alpha1/users/-';
 
 export async function fetchCurrentUser(
   baseUrl = ''
 ): Promise<CurrentUser | undefined> {
-  for (const endpoint of CURRENT_USER_ENDPOINTS) {
-    const user = await fetchCurrentUserFrom(baseUrl, endpoint);
-
-    if (user) {
-      return user;
-    }
-  }
-
-  return undefined;
+  return fetchCurrentUserFrom(baseUrl, CURRENT_USER_ENDPOINT).catch(
+    () => undefined
+  );
 }
 
 async function fetchCurrentUserFrom(
@@ -64,7 +56,7 @@ async function fetchCurrentUserFrom(
   const user = data.user ?? data;
   const name = user?.metadata?.name ?? '';
 
-  if (!user || name === ANONYMOUS_USER_NAME) {
+  if (!user || !name || name === ANONYMOUS_USER_NAME) {
     return undefined;
   }
 

@@ -5,7 +5,9 @@ import CommentNextBadge from './CommentNextBadge.svelte';
 import CommentNextContent from './CommentNextContent.svelte';
 import CommentNextEnvironmentTags from './CommentNextEnvironmentTags.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
+import CommentNextReactionButton from './CommentNextReactionButton.svelte';
 import { upvoteCommentTarget } from './services/comments';
+import type { CommentNextReactionConfig } from './services/config';
 import type {
   CommentNextBadgeConfig,
   CommentNextComment,
@@ -27,6 +29,9 @@ const {
   replyToName = '',
   demoData = false,
   showCommenterDevice = true,
+  aiMentionName = '',
+  loggedIn = false,
+  reactionConfig,
   onReply = () => {},
 }: {
   baseUrl?: string;
@@ -35,6 +40,9 @@ const {
   replyToName?: string;
   demoData?: boolean;
   showCommenterDevice?: boolean;
+  aiMentionName?: string;
+  loggedIn?: boolean;
+  reactionConfig?: CommentNextReactionConfig;
   onReply?: (reply: CommentNextComment) => void;
 } = $props();
 
@@ -47,6 +55,9 @@ const environmentTags = $derived(
   getCommentEnvironmentTags({
     userAgent: reply.userAgent,
   })
+);
+const replyReactionEnabled = $derived(
+  Boolean(reactionConfig?.enabled && reactionConfig.replyEnabled !== false)
 );
 
 $effect(() => {
@@ -99,7 +110,9 @@ async function handleUpvote() {
 }
 </script>
 
-<article class="comment-next-reply-item">
+<article
+  class="comment-next-reply-item"
+>
   <div class="comment-next-reply-avatar">
     <CommentNextAvatar src={reply.author.avatar} alt={reply.author.displayName} size={28} />
   </div>
@@ -109,6 +122,22 @@ async function handleUpvote() {
       {#each badges as badge}
         <CommentNextBadge {badge} />
       {/each}
+      {#if reply.top || reply.featured}
+        <span class="comment-next-reply-flags" aria-label="回复状态">
+          {#if reply.top}
+            <span class="comment-next-reply-flag comment-next-reply-flag-pinned">
+              <CommentNextIcon name="pin" size={11} />
+              置顶
+            </span>
+          {/if}
+          {#if reply.featured}
+            <span class="comment-next-reply-flag comment-next-reply-flag-featured">
+              <CommentNextIcon name="star" size={11} />
+              精选
+            </span>
+          {/if}
+        </span>
+      {/if}
       {#if reply.approved === false}
         <span class="comment-next-reply-state">待审核</span>
       {/if}
@@ -126,18 +155,29 @@ async function handleUpvote() {
       {/if}
     </div>
 
-    <CommentNextContent content={reply.content} />
+    <CommentNextContent content={reply.content} {aiMentionName} />
 
     <div class="comment-next-reply-actions">
-      <button
-        class:comment-next-reply-action-liked={upvoted}
-        type="button"
-        aria-label="点赞回复"
-        onclick={handleUpvote}
-      >
-        <CommentNextIcon name={upvoted ? "heartFill" : "heart"} size={13} />
-        {upvotes}
-      </button>
+      {#if replyReactionEnabled}
+        <CommentNextReactionButton
+          {baseUrl}
+          targetType="REPLY"
+          name={reply.id}
+          {loggedIn}
+          config={reactionConfig}
+          {demoData}
+        />
+      {:else}
+        <button
+          class:comment-next-reply-action-liked={upvoted}
+          type="button"
+          aria-label="点赞回复"
+          onclick={handleUpvote}
+        >
+          <CommentNextIcon name={upvoted ? "heartFill" : "heart"} size={13} />
+          {upvotes}
+        </button>
+      {/if}
       <button type="button" onclick={() => onReply(reply)}>
         <CommentNextIcon name="reply" size={13} />
         回复
@@ -169,6 +209,22 @@ async function handleUpvote() {
 
   .comment-next-reply-author {
     --at-apply: max-w-40 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-[var(--comment-next-text-color,#172033)] font-[760];
+  }
+
+  .comment-next-reply-flags {
+    --at-apply: inline-flex flex-wrap items-center gap-1;
+  }
+
+  .comment-next-reply-flag {
+    --at-apply: inline-flex h-[1.125rem] items-center gap-0.5 rounded-full border border-solid px-1.5 text-[0.65rem] font-[760] leading-none;
+  }
+
+  .comment-next-reply-flag-pinned {
+    --at-apply: [border-color:var(--comment-next-pinned-border-color,rgb(252_211_77))] bg-[var(--comment-next-pinned-pill-bg-color,rgb(254_243_199))] text-[var(--comment-next-pinned-text-color,rgb(146_64_14))];
+  }
+
+  .comment-next-reply-flag-featured {
+    --at-apply: [border-color:var(--comment-next-featured-border-color,rgb(153_246_228))] bg-[var(--comment-next-featured-pill-bg-color,rgb(204_251_241))] text-[var(--comment-next-featured-text-color,rgb(15_118_110))];
   }
 
   .comment-next-reply-submeta,

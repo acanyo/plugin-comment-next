@@ -19,6 +19,7 @@ export interface GenerateCommentAiSuggestionOptions {
   mode: CommentNextAiMode | string;
   content: string;
   variant: 'comment' | 'reply';
+  subject?: string;
   replyToName?: string;
 }
 
@@ -53,6 +54,7 @@ export async function generateCommentAiSuggestion({
   mode,
   content,
   variant,
+  subject,
   replyToName,
 }: GenerateCommentAiSuggestionOptions): Promise<CommentNextAiSuggestionResult> {
   const response = await fetch(resolveApiUrl(baseUrl, AI_SUGGESTION_ENDPOINT), {
@@ -66,6 +68,7 @@ export async function generateCommentAiSuggestion({
       mode,
       content,
       variant,
+      subject,
       replyToName,
     }),
   });

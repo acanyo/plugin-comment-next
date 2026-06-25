@@ -13,6 +13,7 @@ import reactor.core.publisher.Mono;
 import run.halo.app.core.extension.content.Comment;
 import run.halo.app.core.extension.content.Reply;
 import run.halo.app.extension.ListResult;
+import run.halo.app.extension.MetadataOperator;
 
 @Component
 @RequiredArgsConstructor
@@ -29,6 +30,7 @@ class CommentNextCommentMapper {
         commentNode.set("spec", sanitizedCommentSpec(comment.getSpec()));
         commentNode.set("status", objectMapper.valueToTree(comment.getStatus()));
         commentNode.set("stats", statsNode(upvotes));
+        applyModerationState(commentNode, comment.getMetadata(), comment.getSpec());
 
         return authorService.resolve(comment.getSpec().getOwner(), badgeContext)
             .map(this::ownerNode)
@@ -43,6 +45,7 @@ class CommentNextCommentMapper {
         replyNode.set("spec", sanitizedReplySpec(reply.getSpec()));
         replyNode.set("status", objectMapper.valueToTree(reply.getStatus()));
         replyNode.set("stats", statsNode(upvotes));
+        applyModerationState(replyNode, reply.getMetadata(), reply.getSpec());
 
         return authorService.resolve(reply.getSpec().getOwner(), badgeContext)
             .map(this::ownerNode)
@@ -138,6 +141,19 @@ class CommentNextCommentMapper {
         var statsNode = objectMapper.createObjectNode();
         statsNode.put("upvote", Math.max(upvotes, 0));
         return statsNode;
+    }
+
+    private void applyModerationState(ObjectNode node, MetadataOperator metadata,
+        Comment.BaseCommentSpec spec) {
+        node.put("top", spec != null && Boolean.TRUE.equals(spec.getTop()));
+        node.put("priority", spec == null || spec.getPriority() == null ? 0 : spec.getPriority());
+        node.put("featured", isFeatured(metadata));
+    }
+
+    private boolean isFeatured(MetadataOperator metadata) {
+        var annotations = metadata == null ? null : metadata.getAnnotations();
+        return annotations != null
+            && Boolean.parseBoolean(annotations.get(CommentNextCommentAnnotations.FEATURED));
     }
 
     private String sha256(String value) {

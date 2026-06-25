@@ -16,6 +16,9 @@ export function createDemoCommentPage(): CommentNextCommentPage {
         '<p>这版评论框的方向很清楚，富文本和 AI 辅助如果能保持轻量，会比传统 Markdown 评论舒服很多。</p>',
       creationTime: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
       approved: true,
+      top: true,
+      featured: true,
+      priority: 0,
       userAgent:
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 26_3_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
       author: {

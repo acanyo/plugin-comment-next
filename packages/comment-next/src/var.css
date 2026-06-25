@@ -38,6 +38,12 @@ comment-widget {
   --comment-next-badge-admin-bg-color: rgb(239 246 255);
   --comment-next-badge-admin-border-color: rgb(191 219 254);
   --comment-next-badge-admin-color: rgb(37 99 235);
+  --comment-next-pinned-pill-bg-color: rgb(254 243 199);
+  --comment-next-pinned-border-color: rgb(252 211 77);
+  --comment-next-pinned-text-color: rgb(146 64 14);
+  --comment-next-featured-pill-bg-color: rgb(204 251 241);
+  --comment-next-featured-border-color: rgb(153 246 228);
+  --comment-next-featured-text-color: rgb(15 118 110);
   --comment-next-tooltip-bg-color: rgb(255 255 255 / 0.96);
   --comment-next-tooltip-border-color: rgb(226 232 240);
   --comment-next-tooltip-text-color: #172033;
@@ -118,6 +124,12 @@ comment-widget {
     --comment-next-badge-admin-bg-color: rgb(30 64 175);
     --comment-next-badge-admin-border-color: rgb(59, 130, 246);
     --comment-next-badge-admin-color: rgb(191 219 254);
+    --comment-next-pinned-pill-bg-color: rgb(69 47 13);
+    --comment-next-pinned-border-color: rgb(161 98 7);
+    --comment-next-pinned-text-color: rgb(253 230 138);
+    --comment-next-featured-pill-bg-color: rgb(19 78 74);
+    --comment-next-featured-border-color: rgb(20 184 166);
+    --comment-next-featured-text-color: rgb(153 246 228);
     --comment-next-badge-level-bg-color: #222b49;
     --comment-next-badge-level-border-color: #3d4b77;
     --comment-next-badge-level-color: #bac8ff;
@@ -206,6 +218,12 @@ comment-widget {
   --comment-next-badge-admin-bg-color: rgb(30 64 175);
   --comment-next-badge-admin-border-color: rgb(59, 130, 246);
   --comment-next-badge-admin-color: rgb(191 219 254);
+  --comment-next-pinned-pill-bg-color: rgb(69 47 13);
+  --comment-next-pinned-border-color: rgb(161 98 7);
+  --comment-next-pinned-text-color: rgb(253 230 138);
+  --comment-next-featured-pill-bg-color: rgb(19 78 74);
+  --comment-next-featured-border-color: rgb(20 184 166);
+  --comment-next-featured-text-color: rgb(153 246 228);
   --comment-next-badge-level-bg-color: #222b49;
   --comment-next-badge-level-border-color: #3d4b77;
   --comment-next-badge-level-color: #bac8ff;

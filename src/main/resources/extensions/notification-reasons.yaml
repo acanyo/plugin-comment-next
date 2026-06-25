@@ -1,0 +1,89 @@
+apiVersion: notification.halo.run/v1alpha1
+kind: ReasonType
+metadata:
+  name: comment-next-ai-review-intercepted-admin
+spec:
+  displayName: AI 拦截管理员通知
+  description: AI 恶意评论识别命中后发送给站点管理员或运营人员的通知
+  properties:
+    - name: targetUser
+      type: string
+      description: 通知目标用户名
+    - name: targetType
+      type: string
+      description: 拦截对象类型
+    - name: targetLabel
+      type: string
+      description: 拦截对象显示名称
+    - name: targetName
+      type: string
+      description: 评论或回复名称
+    - name: parentName
+      type: string
+      description: 所属评论名称
+      optional: true
+    - name: authorName
+      type: string
+      description: 评论人名称
+    - name: content
+      type: string
+      description: 评论内容
+    - name: reason
+      type: string
+      description: 拦截原因
+    - name: categories
+      type: string
+      description: 风险类型
+    - name: confidence
+      type: string
+      description: 置信度
+    - name: action
+      type: string
+      description: 处理策略
+    - name: manageUrl
+      type: string
+      description: 控制台拦截记录地址
+
+---
+apiVersion: notification.halo.run/v1alpha1
+kind: ReasonType
+metadata:
+  name: comment-next-ai-review-intercepted-commenter
+spec:
+  displayName: AI 拦截评论人通知
+  description: AI 恶意评论识别命中后发送给评论人的通知
+  properties:
+    - name: targetUser
+      type: string
+      description: 通知目标用户或匿名邮箱身份
+    - name: targetType
+      type: string
+      description: 拦截对象类型
+    - name: targetLabel
+      type: string
+      description: 拦截对象显示名称
+    - name: targetName
+      type: string
+      description: 评论或回复名称
+    - name: parentName
+      type: string
+      description: 所属评论名称
+      optional: true
+    - name: authorName
+      type: string
+      description: 评论人名称
+    - name: content
+      type: string
+      description: 评论内容
+    - name: reason
+      type: string
+      description: 拦截原因
+    - name: categories
+      type: string
+      description: 风险类型
+    - name: confidence
+      type: string
+      description: 置信度
+    - name: action
+      type: string
+      description: 处理策略

@@ -8,7 +8,6 @@ import static run.halo.app.extension.index.query.Queries.or;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -238,27 +237,39 @@ class CommentNextCommentService {
 
     private Comparator<Reply> replyComparator() {
         return Comparator
-            .comparing((Reply reply) -> creationTime(reply.getSpec()))
+            .comparing((Reply reply) -> !isTop(reply.getSpec()))
+            .thenComparingInt(reply -> priority(reply.getSpec()))
+            .thenComparing((Reply reply) -> creationTime(reply.getSpec()))
             .thenComparing(reply -> reply.getMetadata().getName());
     }
 
     private Comparator<Comment> hotCommentComparator(Map<String, Integer> upvotes) {
         return Comparator
-            .comparingInt((Comment comment) ->
-                upvotes.getOrDefault(comment.getMetadata().getName(), 0))
-            .reversed()
+            .comparing((Comment comment) -> !isTop(comment.getSpec()))
+            .thenComparingInt(comment -> priority(comment.getSpec()))
+            .thenComparing(Comparator.comparingInt((Comment comment) ->
+                upvotes.getOrDefault(comment.getMetadata().getName(), 0)).reversed())
             .thenComparing((Comment comment) -> creationTime(comment.getSpec()),
                 Comparator.reverseOrder())
             .thenComparing(comment -> comment.getMetadata().getName());
     }
 
-    private Collection<String> extensionNames(Collection<? extends run.halo.app.extension.Extension> items) {
+    private java.util.Collection<String> extensionNames(
+        java.util.Collection<? extends run.halo.app.extension.Extension> items) {
         return items.stream()
             .map(item -> item.getMetadata().getName())
             .toList();
     }
 
     private Instant creationTime(Comment.BaseCommentSpec spec) {
-        return spec.getCreationTime() == null ? Instant.EPOCH : spec.getCreationTime();
+        return spec == null || spec.getCreationTime() == null ? Instant.EPOCH : spec.getCreationTime();
+    }
+
+    private boolean isTop(Comment.BaseCommentSpec spec) {
+        return spec != null && Boolean.TRUE.equals(spec.getTop());
+    }
+
+    private int priority(Comment.BaseCommentSpec spec) {
+        return spec == null || spec.getPriority() == null ? 0 : spec.getPriority();
     }
 }

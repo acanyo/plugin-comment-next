@@ -4,6 +4,7 @@ import CommentNextBadge from './CommentNextBadge.svelte';
 import CommentNextContent from './CommentNextContent.svelte';
 import CommentNextEnvironmentTags from './CommentNextEnvironmentTags.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
+import CommentNextReactionButton from './CommentNextReactionButton.svelte';
 import CommentNextReplyItem from './CommentNextReplyItem.svelte';
 import CommentNextReplyComposer from './CommentNextReplyComposer.svelte';
 import CommentNextTooltip from './CommentNextTooltip.svelte';
@@ -13,6 +14,8 @@ import {
 } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextReactionConfig,
+  CommentNextSecurityConfig,
   CommentNextUploadConfig,
 } from './services/config';
 import type {
@@ -41,10 +44,14 @@ const {
   loggedIn = false,
   allowAnonymous = true,
   showCaptcha = false,
+  captchaType = 'ALPHANUMERIC',
+  captchaConfig,
   demoData = false,
   replySize = 10,
   showCommenterDevice = true,
   aiConfig,
+  reactionConfig,
+  aiMentionName = '',
   uploadConfig,
   emotePacks = [],
 }: {
@@ -56,10 +63,14 @@ const {
   loggedIn?: boolean;
   allowAnonymous?: boolean;
   showCaptcha?: boolean;
+  captchaType?: NonNullable<CommentNextSecurityConfig['captcha']>['type'];
+  captchaConfig?: CommentNextSecurityConfig['captcha'];
   demoData?: boolean;
   replySize?: number;
   showCommenterDevice?: boolean;
   aiConfig?: CommentNextAiConfig;
+  reactionConfig?: CommentNextReactionConfig;
+  aiMentionName?: string;
   uploadConfig?: CommentNextUploadConfig;
   emotePacks?: CommentNextEmotePack[];
 } = $props();
@@ -86,6 +97,9 @@ const hasMoreReplies = $derived(
   Boolean(replyPage?.hasNext) || replyCount > replies.length
 );
 const hasUnloadedReplies = $derived(replyCount > 0 && hasMoreReplies);
+const commentReactionEnabled = $derived(
+  Boolean(reactionConfig?.enabled && reactionConfig.commentEnabled !== false)
+);
 
 $effect(() => {
   if (previousCommentId !== comment.id) {
@@ -181,6 +195,8 @@ function closeReplyComposer() {
 function handleReplyCreated() {
   closeReplyComposer();
   void reloadReplies();
+  window.setTimeout(() => void reloadReplies(), 1800);
+  window.setTimeout(() => void reloadReplies(), 5200);
 }
 
 function resolveReplyToName(reply: CommentNextComment): string {
@@ -261,7 +277,10 @@ async function loadReplies({
 }
 </script>
 
-<article class:comment-next-comment-item-first={first} class="comment-next-comment-item">
+<article
+  class:comment-next-comment-item-first={first}
+  class="comment-next-comment-item"
+>
   <div class="comment-next-comment-avatar">
     {#if comment.author.website}
       <a href={comment.author.website} target="_blank" rel="noopener noreferrer nofollow ugc" aria-label={comment.author.displayName}>
@@ -293,6 +312,27 @@ async function loadReplies({
         {/each}
       </span>
 
+      {#if comment.top || comment.featured}
+        <span class="comment-next-comment-flags" aria-label="评论状态">
+          {#if comment.top}
+            <CommentNextTooltip text="这条评论已被置顶" align="start">
+              <span class="comment-next-comment-flag comment-next-comment-flag-pinned">
+                <CommentNextIcon name="pin" size={12} />
+                置顶
+              </span>
+            </CommentNextTooltip>
+          {/if}
+          {#if comment.featured}
+            <CommentNextTooltip text="这条评论已被站长精选" align="start">
+              <span class="comment-next-comment-flag comment-next-comment-flag-featured">
+                <CommentNextIcon name="star" size={12} />
+                精选
+              </span>
+            </CommentNextTooltip>
+          {/if}
+        </span>
+      {/if}
+
       {#if comment.private}
         <CommentNextTooltip text="只有评论者和管理员可见" align="start">
           <span class="comment-next-comment-state">
@@ -316,18 +356,29 @@ async function loadReplies({
       </div>
     {/if}
 
-    <CommentNextContent content={comment.content} />
+    <CommentNextContent content={comment.content} {aiMentionName} />
 
     <footer class="comment-next-comment-actions">
-      <button
-        class:comment-next-comment-action-liked={upvoted}
-        type="button"
-        aria-label="点赞"
-        onclick={handleLocalUpvote}
-      >
-        <CommentNextIcon name={upvoted ? "heartFill" : "heart"} size={15} />
-        <span>{upvotes}</span>
-      </button>
+      {#if commentReactionEnabled}
+        <CommentNextReactionButton
+          {baseUrl}
+          targetType="COMMENT"
+          name={comment.id}
+          {loggedIn}
+          config={reactionConfig}
+          {demoData}
+        />
+      {:else}
+        <button
+          class:comment-next-comment-action-liked={upvoted}
+          type="button"
+          aria-label="点赞"
+          onclick={handleLocalUpvote}
+        >
+          <CommentNextIcon name={upvoted ? "heartFill" : "heart"} size={15} />
+          <span>{upvotes}</span>
+        </button>
+      {/if}
       <button type="button" aria-label="回复" disabled={repliesLoading} onclick={handleReplyAction}>
         <span class:comment-next-comment-action-loading={repliesLoading}>
           <CommentNextIcon name={repliesLoading ? "loader" : "reply"} size={15} />
@@ -347,6 +398,8 @@ async function loadReplies({
           {loggedIn}
           {allowAnonymous}
           {showCaptcha}
+          {captchaType}
+          {captchaConfig}
           {aiConfig}
           {uploadConfig}
           {emotePacks}
@@ -366,6 +419,9 @@ async function loadReplies({
             {badgeConfig}
             {demoData}
             {showCommenterDevice}
+            {aiMentionName}
+            {loggedIn}
+            reactionConfig={reactionConfig}
             replyToName={resolveReplyToName(reply)}
             onReply={openQuoteReply}
           />
@@ -377,6 +433,8 @@ async function loadReplies({
                 {loggedIn}
                 {allowAnonymous}
                 {showCaptcha}
+                {captchaType}
+                {captchaConfig}
                 {aiConfig}
                 {uploadConfig}
                 {emotePacks}
@@ -442,6 +500,22 @@ async function loadReplies({
 
   .comment-next-comment-badges {
     --at-apply: inline-flex flex-wrap items-center gap-1;
+  }
+
+  .comment-next-comment-flags {
+    --at-apply: inline-flex flex-wrap items-center gap-1;
+  }
+
+  .comment-next-comment-flag {
+    --at-apply: inline-flex h-[1.25rem] items-center gap-1 rounded-full border border-solid px-1.5 text-[0.6875rem] font-[760] leading-none;
+  }
+
+  .comment-next-comment-flag-pinned {
+    --at-apply: [border-color:var(--comment-next-pinned-border-color,rgb(252_211_77))] bg-[var(--comment-next-pinned-pill-bg-color,rgb(254_243_199))] text-[var(--comment-next-pinned-text-color,rgb(146_64_14))];
+  }
+
+  .comment-next-comment-flag-featured {
+    --at-apply: [border-color:var(--comment-next-featured-border-color,rgb(153_246_228))] bg-[var(--comment-next-featured-pill-bg-color,rgb(204_251_241))] text-[var(--comment-next-featured-text-color,rgb(15_118_110))];
   }
 
   .comment-next-comment-submeta,

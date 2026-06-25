@@ -1,18 +1,27 @@
 <script lang="ts">
-import { sanitizeCommentHtml, sanitizeConsoleCommentHtml } from './utils/html';
+import {
+  highlightAssistantMentionHtml,
+  sanitizeCommentHtml,
+  sanitizeConsoleCommentHtml,
+} from './utils/html';
 
 const {
   content = '',
   allowImages = true,
+  aiMentionName = '',
 }: {
   content?: string;
   allowImages?: boolean;
+  aiMentionName?: string;
 } = $props();
 
 const safeContent = $derived(
-  allowImages
-    ? sanitizeCommentHtml(content)
-    : sanitizeConsoleCommentHtml(content)
+  highlightAssistantMentionHtml(
+    allowImages
+      ? sanitizeCommentHtml(content)
+      : sanitizeConsoleCommentHtml(content),
+    aiMentionName
+  )
 );
 </script>
 
@@ -23,6 +32,25 @@ const safeContent = $derived(
 <style>
   .comment-next-comment-content :global(p) {
     --at-apply: m-0;
+  }
+
+  .comment-next-comment-content {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+
+  .comment-next-comment-content :global(*) {
+    max-width: 100%;
+  }
+
+  .comment-next-comment-content :global(a),
+  .comment-next-comment-content :global(code),
+  .comment-next-comment-content :global(span) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .comment-next-comment-content :global(p + p),
@@ -43,17 +71,27 @@ const safeContent = $derived(
 
   .comment-next-comment-content :global(code) {
     --at-apply: rounded px-[0.28rem] py-[0.08rem] bg-[var(--comment-next-inline-code-bg-color,#eef2f4)] text-[0.88em] text-[var(--comment-next-text-color,#172033)] font-mono;
+    white-space: break-spaces;
   }
 
   .comment-next-comment-content :global(pre) {
     --at-apply: overflow-x-auto rounded-lg bg-[var(--comment-next-code-bg-color,#111827)] p-3 text-[#f9fafb];
+    max-width: 100%;
+    white-space: pre;
+    word-break: normal;
   }
 
   .comment-next-comment-content :global(pre code) {
     --at-apply: bg-transparent p-0 text-inherit;
+    white-space: pre;
+    word-break: normal;
   }
 
   .comment-next-comment-content :global(.comment-next-emote-image) {
     --at-apply: mx-0.5 inline-block max-h-18 max-w-36 align-middle object-contain;
+  }
+
+  .comment-next-comment-content :global(.comment-next-ai-mention) {
+    --at-apply: mx-0.5 inline-flex translate-y-[-0.04em] items-center rounded-md border border-solid [border-color:var(--comment-next-ai-border-color,rgb(191_219_254))] bg-[var(--comment-next-ai-bg-color,rgb(239_246_255))] px-1.5 py-0.5 text-[0.88em] text-[var(--comment-next-ai-color,rgb(59,130,246))] font-[760] leading-none;
   }
 </style>

@@ -20,7 +20,7 @@ export function autolinkUrls(root: HTMLElement): boolean {
 }
 
 export function getTextSelectionOffset(root: HTMLElement): number | undefined {
-  const selection = window.getSelection();
+  const selection = getSelectionForRoot(root);
 
   if (!selection || selection.rangeCount === 0) {
     return undefined;
@@ -44,7 +44,7 @@ export function restoreTextSelectionOffset(
   offset: number
 ): void {
   const range = document.createRange();
-  const selection = window.getSelection();
+  const selection = getSelectionForRoot(root);
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let currentOffset = 0;
   let currentNode = walker.nextNode();
@@ -69,6 +69,14 @@ export function restoreTextSelectionOffset(
   range.collapse(false);
   selection?.removeAllRanges();
   selection?.addRange(range);
+}
+
+function getSelectionForRoot(root: HTMLElement): Selection | null {
+  const rootNode = root.getRootNode();
+  const selectionHost = rootNode as { getSelection?: () => Selection | null };
+  const rootSelection = selectionHost.getSelection?.();
+
+  return rootSelection ?? window.getSelection();
 }
 
 function collectLinkableTextNodes(root: HTMLElement): Text[] {

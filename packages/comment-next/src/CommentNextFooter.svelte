@@ -1,30 +1,30 @@
 <script lang="ts">
 import { onMount, tick } from 'svelte';
+import CommentNextAiPanel from './CommentNextAiPanel.svelte';
 import CommentNextEmotePanel from './CommentNextEmotePanel.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
-import CommentNextImageCaptcha from './CommentNextImageCaptcha.svelte';
 import CommentNextTooltip from './CommentNextTooltip.svelte';
 import type {
   CommentNextEmoteItem,
   CommentNextEmotePack,
 } from './types/emote';
 
+type CommentNextComposerVariant = 'comment' | 'reply';
+
 const {
-  baseUrl = '',
   commandMenuOpen = false,
   loggedIn = false,
   allowAnonymous = true,
   enablePrivate = true,
-  showCaptcha = true,
-  captchaImage = '',
-  captchaCode = '',
-  captchaRefreshKey = 0,
   submitting = false,
   submitDisabled = false,
-  submitDisabledReason = '',
   submitLabel = '提交',
   loginLabel = '登录后评论',
-  aiLabel = 'AI 写作',
+  aiLabel = 'AI 助手',
+  aiAssistantName = '评论助手',
+  aiMode = 'polish',
+  aiLoading = false,
+  variant = 'comment',
   compact = false,
   showAi = true,
   showInsertTools = true,
@@ -33,27 +33,26 @@ const {
   imageUploading = false,
   imageAccept = 'image/*',
   emotePacks = [],
-  onCaptchaChange = () => {},
   onToggleCommandMenu = () => {},
+  onCloseCommandMenu = () => {},
+  onCommandModeSelect = () => {},
   onEmoteSelect = () => {},
   onImageUpload = () => {},
   onLogin = () => {},
 }: {
-  baseUrl?: string;
   commandMenuOpen?: boolean;
   loggedIn?: boolean;
   allowAnonymous?: boolean;
   enablePrivate?: boolean;
-  showCaptcha?: boolean;
-  captchaImage?: string;
-  captchaCode?: string;
-  captchaRefreshKey?: number;
   submitting?: boolean;
   submitDisabled?: boolean;
-  submitDisabledReason?: string;
   submitLabel?: string;
   loginLabel?: string;
   aiLabel?: string;
+  aiAssistantName?: string;
+  aiMode?: string;
+  aiLoading?: boolean;
+  variant?: CommentNextComposerVariant;
   compact?: boolean;
   showAi?: boolean;
   showInsertTools?: boolean;
@@ -62,8 +61,9 @@ const {
   imageUploading?: boolean;
   imageAccept?: string;
   emotePacks?: CommentNextEmotePack[];
-  onCaptchaChange?: (value: string) => void;
   onToggleCommandMenu?: () => void;
+  onCloseCommandMenu?: () => void;
+  onCommandModeSelect?: (mode: string) => void;
   onEmoteSelect?: (item: CommentNextEmoteItem) => void;
   onImageUpload?: (file: File) => Promise<void> | void;
   onLogin?: () => void;
@@ -92,16 +92,20 @@ onMount(() => {
   const handlePointerDown = (event: PointerEvent) => {
     const path = event.composedPath();
 
-    if (!emotePanelOpen || (footerElement && path.includes(footerElement))) {
+    if (footerElement && path.includes(footerElement)) {
       return;
     }
 
-    emotePanelOpen = false;
+    if (emotePanelOpen) {
+      emotePanelOpen = false;
+    }
+
   };
 
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') {
       emotePanelOpen = false;
+      onCloseCommandMenu();
     }
   };
 
@@ -133,6 +137,10 @@ function handleQuickActionClick() {
 }
 
 function handleInsertToolClick(key: string) {
+  if (commandMenuOpen) {
+    onCloseCommandMenu();
+  }
+
   if (key === 'smile') {
     if (!hasEmotePacks) {
       return;
@@ -160,6 +168,10 @@ function handleInsertToolClick(key: string) {
 function handleEmoteSelect(item: CommentNextEmoteItem) {
   onEmoteSelect(item);
   emotePanelOpen = false;
+}
+
+function handleCommandModeSelect(mode: string) {
+  onCommandModeSelect(mode);
 }
 
 function handleImageFileChange(event: Event) {
@@ -191,7 +203,13 @@ async function updateEmotePanelPosition() {
 
   await tick();
 
-  const trigger = footerElement.querySelector<HTMLButtonElement>(
+  const footer = footerElement;
+
+  if (!footer?.isConnected) {
+    return;
+  }
+
+  const trigger = footer.querySelector<HTMLButtonElement>(
     '[data-comment-next-tool="smile"]'
   );
 
@@ -226,11 +244,24 @@ async function updateEmotePanelPosition() {
   <div class="comment-next-footer-left">
     {#if showAi}
     <div class="comment-next-quick-actions">
+      {#if commandMenuOpen}
+        <CommentNextAiPanel
+          activeMode={aiMode}
+          loading={aiLoading}
+          {variant}
+          assistantName={aiAssistantName}
+          onModeSelect={handleCommandModeSelect}
+          onClose={onCloseCommandMenu}
+        />
+      {/if}
+
       <button
         class:comment-next-quick-button-active={commandMenuOpen}
         class="comment-next-quick-button"
         type="button"
-        aria-label="AI 写作"
+        aria-label={`打开${aiAssistantName}命令`}
+        aria-haspopup="menu"
+        aria-expanded={commandMenuOpen}
         onclick={handleQuickActionClick}
       >
         <CommentNextIcon name="sparkle" size={15} />
@@ -295,16 +326,6 @@ async function updateEmotePanelPosition() {
       </div>
     {/if}
 
-    {#if showCaptcha && allowAnonymous && !loggedIn}
-      <CommentNextImageCaptcha
-        {baseUrl}
-        image={captchaImage}
-        refreshKey={captchaRefreshKey}
-        value={captchaCode}
-        onChange={onCaptchaChange}
-      />
-    {/if}
-
     <button
       class="comment-next-submit-button"
       type={!loggedIn && !allowAnonymous ? "button" : "submit"}
@@ -347,6 +368,10 @@ async function updateEmotePanelPosition() {
     --at-apply: gap-2;
   }
 
+  .comment-next-quick-actions {
+    --at-apply: relative;
+  }
+
   .comment-next-footer-left {
     --at-apply: min-w-0 gap-2.5;
   }
@@ -374,7 +399,11 @@ async function updateEmotePanelPosition() {
   }
 
   .comment-next-quick-button {
-    --at-apply: inline-flex h-[2.125rem] w-auto min-w-[5.25rem] cursor-pointer items-center justify-center gap-[0.3rem] rounded-[0.5625rem] border border-solid [border-color:var(--comment-next-ai-border-color,rgb(191_219_254))] bg-[var(--comment-next-ai-bg-color,rgb(239_246_255))] px-3 py-0 text-sm text-[var(--comment-next-ai-color,rgb(59,130,246))] font-[720] transition-[background-color,color,border-color,box-shadow,transform] duration-140 ease-in-out;
+    --at-apply: inline-flex h-[2.125rem] w-auto max-w-36 min-w-[5.25rem] cursor-pointer items-center justify-center gap-[0.3rem] rounded-[0.5625rem] border border-solid [border-color:var(--comment-next-ai-border-color,rgb(191_219_254))] bg-[var(--comment-next-ai-bg-color,rgb(239_246_255))] px-3 py-0 text-sm text-[var(--comment-next-ai-color,rgb(59,130,246))] font-[720] transition-[background-color,color,border-color,box-shadow,transform] duration-140 ease-in-out;
+  }
+
+  .comment-next-quick-button span {
+    --at-apply: min-w-0 truncate;
   }
 
   .comment-next-quick-button:hover,
@@ -478,23 +507,45 @@ async function updateEmotePanelPosition() {
 
   @media (max-width: 780px) {
     .comment-next-footer {
-      --at-apply: flex-col items-stretch px-4 py-3.5;
-    }
-
-    .comment-next-submit-area {
-      --at-apply: w-full flex-wrap justify-between;
+      --at-apply: grid min-h-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5;
     }
 
     .comment-next-footer-left {
-      --at-apply: w-full flex-wrap;
+      --at-apply: min-w-0 flex-wrap gap-2;
     }
 
-    .comment-next-insert-tools {
-      --at-apply: overflow-x-auto;
+    .comment-next-submit-area {
+      --at-apply: min-w-0 justify-end gap-2;
     }
 
     .comment-next-insert-tools-region {
-      --at-apply: w-full;
+      --at-apply: w-auto;
+    }
+
+    .comment-next-insert-tools {
+      --at-apply: overflow-visible;
+    }
+
+    .comment-next-quick-button {
+      --at-apply: h-8 min-w-0 px-2.5 text-[0.8125rem];
+    }
+
+    .comment-next-submit-button {
+      --at-apply: h-8 min-w-18 px-3.5 text-sm;
+    }
+
+    .comment-next-private-chip {
+      --at-apply: h-8 px-2 text-[0.8125rem];
+    }
+  }
+
+  @media (max-width: 420px) {
+    .comment-next-footer {
+      --at-apply: grid-cols-1;
+    }
+
+    .comment-next-submit-area {
+      --at-apply: w-full justify-between;
     }
   }
 

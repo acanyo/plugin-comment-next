@@ -68,10 +68,20 @@ public class CommentCaptchaFilter implements AdditionalWebFilter {
                                                    ResponseStatusException e) {
         addHeaderIfAbsent(exchange.getResponse().getHeaders(), CAPTCHA_REQUIRED_HEADER, Boolean.TRUE.toString());
         exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+        if (!captchaConfig.getType().isLocalImage()) {
+            var problemDetail = toProblemDetail(e);
+            problemDetail.setProperty("captchaType", captchaConfig.getType());
+            var responseData = getResponseData(problemDetail);
+            addHeaderIfAbsent(exchange.getResponse().getHeaders(), HttpHeaders.CONTENT_TYPE, CONTENT_TYPE);
+            return exchange.getResponse()
+                .writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(responseData)));
+        }
+
         return captchaManager.generate(exchange, captchaConfig)
             .flatMap(captcha -> {
                 var problemDetail = toProblemDetail(e);
                 problemDetail.setProperty("captcha", captcha.imageBase64());
+                problemDetail.setProperty("captchaType", captcha.type());
                 var responseData = getResponseData(problemDetail);
                 addHeaderIfAbsent(exchange.getResponse().getHeaders(), HttpHeaders.CONTENT_TYPE, CONTENT_TYPE);
                 return exchange.getResponse()
@@ -91,14 +101,19 @@ public class CommentCaptchaFilter implements AdditionalWebFilter {
                                        SettingConfigGetter.CaptchaConfig captchaConfig) {
         var captchaCodeOpt = getCaptchaCode(exchange);
         var cookie = captchaCookieResolver.resolveCookie(exchange);
-        if (captchaCodeOpt.isEmpty() || cookie == null) {
+        if (captchaCodeOpt.isEmpty()
+            || (captchaConfig.getType().isLocalImage() && cookie == null)) {
             return sendCaptchaRequiredResponse(exchange, captchaConfig, new CaptchaCodeMissingException());
         }
-        return captchaManager.verify(cookie.getValue(), captchaCodeOpt.get(), captchaConfig.isIgnoreCase())
+        var captchaId = cookie == null ? "" : cookie.getValue();
+        return captchaManager.verify(captchaId, captchaCodeOpt.get(), captchaConfig, exchange)
             .flatMap(valid -> {
                 if (valid) {
+                    if (cookie == null) {
+                        return chain.filter(exchange);
+                    }
                     captchaCookieResolver.expireCookie(exchange);
-                    return chain.filter(exchange);
+                    return captchaManager.invalidate(cookie.getValue()).then(chain.filter(exchange));
                 }
                 return sendCaptchaRequiredResponse(exchange, captchaConfig, new InvalidCaptchaCodeException());
             });
@@ -133,6 +148,9 @@ public class CommentCaptchaFilter implements AdditionalWebFilter {
     ProblemDetail toProblemDetail(ResponseStatusException e) {
         var problemDetail = e.updateAndGetBody(null, Locale.getDefault());
         problemDetail.setTitle("Captcha Verification");
+        if (e instanceof CaptchaCodeMissingException) {
+            problemDetail.setDetail("请先完成验证码");
+        }
         return problemDetail;
     }
 

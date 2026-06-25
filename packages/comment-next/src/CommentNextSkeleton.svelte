@@ -2,12 +2,10 @@
 const {
   showAccountFields = true,
   loggedIn = false,
-  showCaptcha = false,
   enablePrivate = false,
 }: {
   showAccountFields?: boolean;
   loggedIn?: boolean;
-  showCaptcha?: boolean;
   enablePrivate?: boolean;
 } = $props();
 
@@ -59,9 +57,6 @@ const tools = Array.from({ length: 2 });
       {#if enablePrivate}
         <span class="comment-next-skeleton-chip"></span>
       {/if}
-      {#if showCaptcha}
-        <span class="comment-next-skeleton-captcha"></span>
-      {/if}
       <span class="comment-next-skeleton-submit"></span>
     </div>
   </div>
@@ -100,7 +95,6 @@ const tools = Array.from({ length: 2 });
   .comment-next-skeleton-ai-action,
   .comment-next-skeleton-tool,
   .comment-next-skeleton-chip,
-  .comment-next-skeleton-captcha,
   .comment-next-skeleton-submit {
     --at-apply: relative overflow-hidden bg-[var(--comment-next-skeleton-base-color,#edf2f5)];
   }
@@ -113,7 +107,6 @@ const tools = Array.from({ length: 2 });
   .comment-next-skeleton-ai-action::after,
   .comment-next-skeleton-tool::after,
   .comment-next-skeleton-chip::after,
-  .comment-next-skeleton-captcha::after,
   .comment-next-skeleton-submit::after {
     --at-apply: absolute inset-0 [background:linear-gradient(90deg,transparent,var(--comment-next-skeleton-highlight-color,rgb(255_255_255_/_0.78)),transparent)] -translate-x-full;
     animation: comment-next-skeleton-shimmer 1.35s ease-in-out infinite;
@@ -186,10 +179,6 @@ const tools = Array.from({ length: 2 });
     --at-apply: h-[1.625rem] w-12 rounded-full;
   }
 
-  .comment-next-skeleton-captcha {
-    --at-apply: h-8 w-[7.75rem] rounded-lg;
-  }
-
   .comment-next-skeleton-submit {
     --at-apply: h-9 w-[5.75rem] rounded-lg;
   }
@@ -237,7 +226,6 @@ const tools = Array.from({ length: 2 });
     .comment-next-skeleton-ai-action::after,
     .comment-next-skeleton-tool::after,
     .comment-next-skeleton-chip::after,
-    .comment-next-skeleton-captcha::after,
     .comment-next-skeleton-submit::after {
       --at-apply: animate-none;
     }

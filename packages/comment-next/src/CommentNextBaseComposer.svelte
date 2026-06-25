@@ -5,9 +5,11 @@ import {
   getDefaultAnonymousAvatarUrl,
 } from './avatar/weavatar';
 import CommentNextAccountFields from './CommentNextAccountFields.svelte';
+import CommentNextCaptchaDialog from './CommentNextCaptchaDialog.svelte';
 import CommentNextEditor from './CommentNextEditor.svelte';
 import CommentNextFooter from './CommentNextFooter.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
+import CommentNextNotice from './CommentNextNotice.svelte';
 import CommentNextSkeleton from './CommentNextSkeleton.svelte';
 import {
   generateCommentAiSuggestion,
@@ -20,8 +22,13 @@ import {
 } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextSecurityConfig,
   CommentNextUploadConfig,
 } from './services/config';
+import {
+  isLocalImageCaptcha,
+  type CommentNextCaptchaConfig,
+} from './services/captcha';
 import {
   getImageUploadErrorMessage,
   uploadCommentImage,
@@ -50,6 +57,7 @@ type CommentNextEditorRef = {
   insertText: (value: string) => void;
   replaceText: (value: string) => void;
   insertImage: (src: string, alt?: string) => void;
+  consumeCommandTrigger: () => void;
 };
 
 const {
@@ -57,6 +65,8 @@ const {
   loggedIn = false,
   allowAnonymous = true,
   showCaptcha = false,
+  captchaType = 'ALPHANUMERIC',
+  captchaConfig,
   enablePrivate = true,
   loading = false,
   submitting = false,
@@ -77,7 +87,8 @@ const {
   replyToName = '',
   submitLabel = '提交',
   loginLabel = '登录后评论',
-  aiLabel = 'AI 写作',
+  aiLabel = 'AI 助手',
+  aiAssistantName = '评论助手',
   showAi = true,
   showInsertTools = true,
   showAccountFields = true,
@@ -97,6 +108,8 @@ const {
   loggedIn?: boolean;
   allowAnonymous?: boolean;
   showCaptcha?: boolean;
+  captchaType?: NonNullable<CommentNextSecurityConfig['captcha']>['type'];
+  captchaConfig?: CommentNextCaptchaConfig;
   enablePrivate?: boolean;
   loading?: boolean;
   submitting?: boolean;
@@ -118,6 +131,7 @@ const {
   submitLabel?: string;
   loginLabel?: string;
   aiLabel?: string;
+  aiAssistantName?: string;
   showAi?: boolean;
   showInsertTools?: boolean;
   showAccountFields?: boolean;
@@ -150,6 +164,9 @@ let anonymousWebsite = $state('');
 let captchaCode = $state('');
 let captchaImage = $state('');
 let captchaRefreshKey = $state(0);
+let captchaDialogOpen = $state(false);
+let captchaDialogError = $state('');
+let externalCaptchaStarting = $state(false);
 let currentUser = $state<CurrentUser | undefined>();
 let anonymousAvatarUrl = $state(getDefaultAnonymousAvatarUrl());
 let composerElement = $state<HTMLFormElement | undefined>();
@@ -176,15 +193,30 @@ const anonymousMissingRequired = $derived(
 );
 const captchaRequired = $derived(!isLoggedIn && allowAnonymous && showCaptcha);
 const captchaMissingRequired = $derived(captchaRequired && !captchaCode.trim());
+const captchaMissingMessage = $derived(
+  isLocalImageCaptcha(captchaType) ? '请先填写验证码' : '请先完成验证'
+);
+const externalCaptchaRequired = $derived(
+  captchaRequired && !isLocalImageCaptcha(captchaType)
+);
+const resolvedSubmitLabel = $derived(
+  externalCaptchaStarting ? '验证中' : submitLabel
+);
 const imageUploadEnabled = $derived(resolveImageUploadEnabled());
 const imageAccept = 'image/*';
 const aiWritingEnabled = $derived(showAi && resolveAiWritingEnabled());
-const submitDisabledReason = $derived(
-  anonymousMissingRequired
-    ? '请先填写昵称和邮箱'
-    : captchaMissingRequired
-      ? '请先填写验证码'
-      : ''
+const resolvedAiLabel = $derived(
+  resolveTextOption(aiConfig?.buttonLabel, aiLabel, 'AI 助手')
+);
+const resolvedAiAssistantName = $derived(
+  resolveTextOption(
+    aiConfig?.assistantDisplayName || aiConfig?.assistantName,
+    aiAssistantName,
+    '评论助手'
+  )
+);
+const resolvedAiAssistantMentionName = $derived(
+  resolveMentionName(aiConfig?.assistantMentionName, resolvedAiAssistantName)
 );
 const editorTopRounded = $derived(!showHeader && !showAccountBar);
 
@@ -205,6 +237,9 @@ $effect(() => {
 $effect(() => {
   if (!captchaRequired) {
     captchaCode = '';
+    captchaDialogError = '';
+    captchaDialogOpen = false;
+    externalCaptchaStarting = false;
   }
 });
 
@@ -281,7 +316,16 @@ function handleLogin() {
 
 async function handleSubmit(event: SubmitEvent) {
   event.preventDefault();
+  await submitComposer({ allowCaptchaDialog: true });
+}
 
+async function submitComposer({
+  allowCaptchaDialog,
+  captchaCodeOverride,
+}: {
+  allowCaptchaDialog: boolean;
+  captchaCodeOverride?: string;
+}) {
   if (isSubmitting) {
     return;
   }
@@ -303,11 +347,6 @@ async function handleSubmit(event: SubmitEvent) {
     return;
   }
 
-  if (captchaMissingRequired) {
-    showSubmitMessage('请先填写验证码。');
-    return;
-  }
-
   const content = sanitizeCommentSubmitHtml(editorRef?.getHtml() || editorHtml);
 
   if (!hasContent(content)) {
@@ -318,12 +357,29 @@ async function handleSubmit(event: SubmitEvent) {
     return;
   }
 
-  const form = event.currentTarget as HTMLFormElement;
+  const resolvedCaptchaCode = captchaCodeOverride ?? captchaCode;
+  const captchaMissing = captchaRequired && !resolvedCaptchaCode.trim();
+
+  if (captchaMissing && allowCaptchaDialog) {
+    openCaptchaDialog();
+    return;
+  }
+
+  if (captchaMissing) {
+    showSubmitMessage(`${captchaMissingMessage}。`);
+    return;
+  }
+
+  const form = composerElement;
+  if (!form) {
+    showSubmitMessage(genericErrorMessage);
+    return;
+  }
   const formData = new FormData(form);
   const payload: CommentNextComposerSubmitPayload = {
     content,
     hidden: enablePrivate && isLoggedIn && formData.get('hidden') === 'on',
-    captchaCode,
+    captchaCode: resolvedCaptchaCode,
     owner: isLoggedIn
       ? undefined
       : {
@@ -342,6 +398,9 @@ async function handleSubmit(event: SubmitEvent) {
     editorRef?.reset();
     captchaCode = '';
     captchaImage = '';
+    captchaDialogError = '';
+    captchaDialogOpen = false;
+    externalCaptchaStarting = false;
     captchaRefreshKey += 1;
     showSubmitMessage(resolveSubmitSuccessMessage(result), 'success');
 
@@ -353,31 +412,87 @@ async function handleSubmit(event: SubmitEvent) {
   } catch (error) {
     if (error instanceof CommentNextCommentError) {
       if (error.captchaRequired) {
+        const message = getCommentSubmitErrorMessage(error);
         captchaCode = '';
         captchaImage = error.captchaImage ?? '';
         captchaRefreshKey += error.captchaImage ? 0 : 1;
+        captchaDialogError = message;
+        externalCaptchaStarting = false;
+        if (!isLocalImageCaptcha(captchaType)) {
+          captchaDialogOpen = false;
+          showSubmitMessage(message);
+          return;
+        }
+        captchaDialogOpen = true;
+        return;
       }
 
+      captchaDialogError = '';
+      captchaDialogOpen = false;
+      externalCaptchaStarting = false;
       showSubmitMessage(getCommentSubmitErrorMessage(error));
       return;
     }
 
     if (error instanceof Error && error.message) {
+      captchaDialogError = '';
+      captchaDialogOpen = false;
+      externalCaptchaStarting = false;
       showSubmitMessage(error.message);
       return;
     }
 
     console.error(error);
+    captchaDialogError = '';
+    captchaDialogOpen = false;
+    externalCaptchaStarting = false;
     showSubmitMessage(genericErrorMessage);
   } finally {
     localSubmitting = false;
   }
 }
 
+function openCaptchaDialog() {
+  if (isLocalImageCaptcha(captchaType) && !captchaImage) {
+    captchaRefreshKey += 1;
+  }
+
+  submitMessage = '';
+  captchaDialogError = '';
+  externalCaptchaStarting = externalCaptchaRequired;
+  captchaDialogOpen = true;
+}
+
+function handleCaptchaConfirm() {
+  if (!captchaCode.trim() || isSubmitting) {
+    return;
+  }
+
+  captchaDialogError = '';
+  void submitComposer({ allowCaptchaDialog: false });
+}
+
+function handleCaptchaVerified(value: string) {
+  const token = value.trim();
+  if (!token || isSubmitting) {
+    return;
+  }
+
+  captchaCode = token;
+  captchaDialogError = '';
+  captchaDialogOpen = false;
+  externalCaptchaStarting = false;
+  void submitComposer({
+    allowCaptchaDialog: false,
+    captchaCodeOverride: token,
+  });
+}
+
 function showSubmitMessage(
   message: string,
   type: 'error' | 'success' = 'error'
 ) {
+  externalCaptchaStarting = false;
   submitMessage = message;
   submitMessageType = type;
 }
@@ -507,6 +622,7 @@ async function handleAiModeSelect(mode: CommentNextAiMode | string) {
     return;
   }
 
+  editorRef?.consumeCommandTrigger();
   submitMessage = '';
   aiMode = nextMode;
   aiSuggestionMode = nextMode;
@@ -540,6 +656,7 @@ async function handleAiModeSelect(mode: CommentNextAiMode | string) {
       mode: nextMode,
       content,
       variant,
+      subject,
       replyToName,
     });
     aiSuggestionText = result.text;
@@ -583,6 +700,10 @@ function closeAiSuggestion() {
 }
 
 function normalizeAiMode(mode: CommentNextAiMode | string): CommentNextAiMode {
+  if (mode === 'reply' && variant !== 'reply') {
+    return 'polish';
+  }
+
   if (
     mode === 'polish' ||
     mode === 'expand' ||
@@ -608,11 +729,12 @@ function validateAiInput(mode: CommentNextAiMode, content: string): string {
     return `AI 输入内容不能超过 ${maxInputLength} 个字符。`;
   }
 
-  if (
-    mode !== 'reply' &&
-    !normalizedContent
-  ) {
+  if (mode !== 'reply' && mode !== 'summary' && !normalizedContent) {
     return '请先输入需要 AI 处理的内容。';
+  }
+
+  if (mode === 'summary' && !subject.trim()) {
+    return '缺少文章信息，无法总结文章评论。';
   }
 
   if (mode === 'reply' && !normalizedContent && !replyToName.trim()) {
@@ -693,6 +815,22 @@ function textFromHtml(html: string): string {
   template.innerHTML = html;
   return template.content.textContent?.trim() ?? '';
 }
+
+function resolveTextOption(
+  configuredValue: string | undefined,
+  propValue: string,
+  fallback: string
+): string {
+  return configuredValue?.trim() || propValue.trim() || fallback;
+}
+
+function resolveMentionName(
+  configuredValue: string | undefined,
+  displayName: string
+): string {
+  const value = configuredValue?.trim() || displayName.trim() || '评论助手';
+  return value.startsWith('@') ? value : `@${value}`;
+}
 </script>
 
 <form
@@ -708,7 +846,7 @@ function textFromHtml(html: string): string {
   onsubmit={handleSubmit}
 >
   {#if loading}
-    <CommentNextSkeleton showAccountFields={showAccountBar} loggedIn={isLoggedIn} {showCaptcha} {enablePrivate} />
+    <CommentNextSkeleton showAccountFields={showAccountBar} loggedIn={isLoggedIn} {enablePrivate} />
   {:else}
     {#if showHeader}
       <div class="comment-next-reply-composer-head">
@@ -751,6 +889,9 @@ function textFromHtml(html: string): string {
       {aiMode}
       suggestionText={aiSuggestionText}
       suggestionLoading={aiGenerating}
+      aiAssistantName={resolvedAiAssistantName}
+      aiAssistantMentionName={resolvedAiAssistantMentionName}
+      aiMentionEnabled={aiWritingEnabled}
       {allowImages}
       topRounded={editorTopRounded}
       onChange={(html) => {
@@ -758,38 +899,46 @@ function textFromHtml(html: string): string {
         onChange(html);
       }}
       onImagePaste={handleImagePaste}
+      onCommandMenuRequest={() => {
+        if (!aiWritingEnabled) {
+          return;
+        }
+
+        isAiPanelOpen = true;
+        showInlineSuggestion = false;
+        showSelectionTools = false;
+      }}
       onCloseAiPanel={() => (isAiPanelOpen = false)}
-      onModeSelect={handleAiModeSelect}
       onAcceptSuggestion={handleAcceptAiSuggestion}
       onInsertSuggestion={handleInsertAiSuggestion}
       onRewriteSuggestion={handleRewriteAiSuggestion}
       onRejectSuggestion={closeAiSuggestion}
     />
 
-    {#if submitMessage}
-      <p class:comment-next-submit-message-success={submitMessageType === "success"} class="comment-next-submit-message">
-        {submitMessage}
-      </p>
+    {#if externalCaptchaStarting || submitMessage}
+      <CommentNextNotice
+        compact={variant === "reply"}
+        message={externalCaptchaStarting ? "正在启动安全验证..." : submitMessage}
+        variant={externalCaptchaStarting ? "info" : submitMessageType}
+      />
     {/if}
 
     {#if showFooter}
       <CommentNextFooter
-        {baseUrl}
         {compact}
         commandMenuOpen={isAiPanelOpen}
         loggedIn={isLoggedIn}
         {allowAnonymous}
         {enablePrivate}
-        {showCaptcha}
-        {captchaImage}
-        {captchaCode}
-        {captchaRefreshKey}
         submitting={isSubmitting}
-        submitDisabled={anonymousMissingRequired || captchaMissingRequired}
-        submitDisabledReason={submitDisabledReason}
-        {submitLabel}
+        submitDisabled={anonymousMissingRequired || externalCaptchaStarting}
+        submitLabel={resolvedSubmitLabel}
         {loginLabel}
-        {aiLabel}
+        aiLabel={resolvedAiLabel}
+        aiAssistantName={resolvedAiAssistantName}
+        {aiMode}
+        aiLoading={aiGenerating}
+        {variant}
         showAi={aiWritingEnabled}
         {showInsertTools}
         {showSubmitArea}
@@ -797,12 +946,13 @@ function textFromHtml(html: string): string {
         {imageUploading}
         {imageAccept}
         {emotePacks}
-        onCaptchaChange={(value) => {
-          captchaCode = value;
-        }}
         onEmoteSelect={handleEmoteSelect}
         onImageUpload={handleImageUpload}
         onLogin={handleLogin}
+        onCloseCommandMenu={() => {
+          isAiPanelOpen = false;
+        }}
+        onCommandModeSelect={handleAiModeSelect}
         onToggleCommandMenu={() => {
           if (!aiWritingEnabled) {
             return;
@@ -813,6 +963,37 @@ function textFromHtml(html: string): string {
         }}
       />
     {/if}
+
+    <CommentNextCaptchaDialog
+      open={captchaDialogOpen}
+      {baseUrl}
+      type={captchaType}
+      {captchaConfig}
+      image={captchaImage}
+      value={captchaCode}
+      refreshKey={captchaRefreshKey}
+      error={captchaDialogError}
+      submitting={isSubmitting}
+      onChange={(value) => {
+        captchaCode = value;
+        if (value.trim()) {
+          captchaDialogError = '';
+        }
+      }}
+      onConfirm={handleCaptchaConfirm}
+      onVerified={handleCaptchaVerified}
+      onError={(message) => {
+        externalCaptchaStarting = false;
+        showSubmitMessage(message);
+      }}
+      onClose={() => {
+        if (!isSubmitting) {
+          captchaDialogError = '';
+          externalCaptchaStarting = false;
+          captchaDialogOpen = false;
+        }
+      }}
+    />
   {/if}
 </form>
 
@@ -865,18 +1046,6 @@ function textFromHtml(html: string): string {
 
   .comment-next-reply-composer-cancel:hover {
     --at-apply: text-[var(--comment-next-text-color,#172033)];
-  }
-
-  .comment-next-submit-message {
-    --at-apply: m-0 border-t [border-top-style:var(--comment-next-divider-style,dashed)] [border-top-color:var(--comment-next-divider-color,#d4dde8)] px-3.5 py-2.5 text-[0.8125rem] text-[var(--comment-next-error-color,#dc2626)] font-semibold;
-  }
-
-  .comment-next-reply-composer .comment-next-submit-message {
-    --at-apply: px-3 py-2;
-  }
-
-  .comment-next-submit-message-success {
-    --at-apply: text-[var(--comment-next-success-color,#16a34a)];
   }
 
   @media (prefers-reduced-motion: reduce) {

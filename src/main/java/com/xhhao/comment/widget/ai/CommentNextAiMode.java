@@ -9,7 +9,7 @@ enum CommentNextAiMode {
     EXPAND("expand", "补充观点", true),
     QUESTION("question", "提问角度", true),
     REPLY("reply", "生成回复", false),
-    SUMMARY("summary", "总结观点", true);
+    SUMMARY("summary", "总结文章评论", false);
 
     private final String key;
 

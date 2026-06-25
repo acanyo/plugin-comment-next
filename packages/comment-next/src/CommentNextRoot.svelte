@@ -3,6 +3,7 @@ import { onMount } from 'svelte';
 import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
 import CommentNextBox from './CommentNextBox.svelte';
 import CommentNextCommentList from './CommentNextCommentList.svelte';
+import CommentNextReactionBar from './CommentNextReactionBar.svelte';
 import { normalizeCommentNextEmotePacks } from './emotes/normalize';
 import {
   type CommentNextGlobalInfo,
@@ -92,6 +93,7 @@ const basicConfig = $derived(pluginConfig?.basic);
 const securityConfig = $derived(pluginConfig?.security);
 const aiConfig = $derived(pluginConfig?.ai);
 const uploadConfig = $derived(pluginConfig?.upload);
+const reactionConfig = $derived(pluginConfig?.reaction);
 const editorConfig = $derived(pluginConfig?.editor);
 const badgeConfig = $derived(pluginConfig?.badge);
 const resolvedAllowAnonymous = $derived(
@@ -100,6 +102,7 @@ const resolvedAllowAnonymous = $derived(
 const resolvedShowCaptcha = $derived(
   securityConfig?.captcha?.anonymousCommentCaptcha ?? showCaptcha
 );
+const resolvedCaptchaType = $derived(securityConfig?.captcha?.type ?? 'ALPHANUMERIC');
 const resolvedEnablePrivate = $derived(
   basicConfig?.enablePrivateComment ?? enablePrivate
 );
@@ -265,6 +268,18 @@ export function reset() {
   />
 {:else}
   <div class="comment-next-root grid w-full gap-4">
+    {#if configReady && reactionConfig?.enabled}
+      <CommentNextReactionBar
+        {baseUrl}
+        {group}
+        {kind}
+        {version}
+        {name}
+        {loggedIn}
+        config={reactionConfig}
+      />
+    {/if}
+
     <CommentNextBox
       {baseUrl}
       {group}
@@ -274,6 +289,8 @@ export function reset() {
       {loggedIn}
       allowAnonymous={resolvedAllowAnonymous}
       showCaptcha={resolvedShowCaptcha}
+      captchaType={resolvedCaptchaType}
+      captchaConfig={securityConfig?.captcha}
       enablePrivate={resolvedEnablePrivate}
       loading={loading || !configReady}
       {submitting}
@@ -296,6 +313,8 @@ export function reset() {
         {loggedIn}
         allowAnonymous={resolvedAllowAnonymous}
         showCaptcha={resolvedShowCaptcha}
+        captchaType={resolvedCaptchaType}
+        captchaConfig={securityConfig?.captcha}
         {demoData}
         pageSize={resolvedPageSize}
         replySize={resolvedReplySize}
@@ -303,6 +322,7 @@ export function reset() {
         showCommenterDevice={resolvedShowCommenterDevice}
         {badgeConfig}
         {aiConfig}
+        {reactionConfig}
         {uploadConfig}
         emotePacks={resolvedEmotePacks}
       />

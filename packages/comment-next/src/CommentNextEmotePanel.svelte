@@ -117,7 +117,13 @@ function handleSelect(item: CommentNextEmoteItem) {
     ...recentItemIds.filter((id) => id !== item.id),
   ].slice(0, MAX_RECENT_COUNT);
   saveRecentItemIds(recentItemIds);
-  onSelect(item);
+  emitSelect(item);
+}
+
+function emitSelect(item: CommentNextEmoteItem) {
+  if (typeof onSelect === 'function') {
+    onSelect(item);
+  }
 }
 
 function isEntryMatched(

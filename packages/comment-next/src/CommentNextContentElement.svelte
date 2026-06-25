@@ -25,6 +25,10 @@ const {
 <style>
   :host {
     display: block;
+    min-width: 0;
+    max-width: 100%;
     width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 </style>

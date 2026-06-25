@@ -1,4 +1,5 @@
 import type { CommentNextBadgeConfig } from '../types/comment';
+import type { CommentNextCaptchaConfig } from './captcha';
 import { resolveApiUrl } from './api';
 
 export interface CommentNextPluginConfig {
@@ -6,6 +7,7 @@ export interface CommentNextPluginConfig {
   security?: CommentNextSecurityConfig;
   ai?: CommentNextAiConfig;
   upload?: CommentNextUploadConfig;
+  reaction?: CommentNextReactionConfig;
   editor?: CommentNextEditorConfig;
   badge?: CommentNextBadgeConfig;
 }
@@ -24,14 +26,18 @@ export interface CommentNextBasicConfig {
 }
 
 export interface CommentNextSecurityConfig {
-  captcha?: {
-    anonymousCommentCaptcha?: boolean;
-  };
+  captcha?: CommentNextCaptchaConfig;
 }
 
 export interface CommentNextAiConfig {
   enabled?: boolean;
   allowAnonymous?: boolean;
+  mentionAutoReplyEnabled?: boolean;
+  assistantName?: string;
+  assistantUserName?: string;
+  assistantDisplayName?: string;
+  assistantMentionName?: string;
+  buttonLabel?: string;
   maxInputLength?: number;
   foundationAvailable?: boolean;
 }
@@ -48,6 +54,27 @@ export interface CommentNextUploadConfig {
   authenticatedProvider?: CommentNextImageUploadProvider;
   anonymousMaxSizeKb?: number;
   authenticatedMaxSizeKb?: number;
+}
+
+export interface CommentNextReactionConfig {
+  enabled?: boolean;
+  allowAnonymous?: boolean;
+  subjectEnabled?: boolean;
+  commentEnabled?: boolean;
+  replyEnabled?: boolean;
+  subjectPrompt?: string;
+  subjectItems?: CommentNextReactionOption[];
+  commentItems?: CommentNextReactionOption[];
+  items?: CommentNextReactionOption[];
+}
+
+export type CommentNextReactionOptionType = 'EMOJI' | 'IMAGE';
+
+export interface CommentNextReactionOption {
+  name?: string;
+  type?: CommentNextReactionOptionType;
+  value?: string;
+  label?: string;
 }
 
 export interface CommentNextEditorConfig {
