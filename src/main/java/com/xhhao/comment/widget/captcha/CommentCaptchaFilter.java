@@ -7,13 +7,13 @@ import java.util.Locale;
 import java.util.Optional;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xhhao.comment.utils.JsonUtils;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
-import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.http.converter.json.ProblemDetailJacksonMixin;
 import org.springframework.lang.NonNull;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
@@ -155,9 +155,8 @@ public class CommentCaptchaFilter implements AdditionalWebFilter {
     }
 
     static ObjectMapper createObjectMapper() {
-        return Jackson2ObjectMapperBuilder.json()
-            .mixIn(ProblemDetail.class, ProblemDetailJacksonMixin.class)
-            .build();
+        return JsonUtils.createObjectMapper()
+            .addMixIn(ProblemDetail.class, ProblemDetailJacksonMixin.class);
     }
 
     Mono<Boolean> isAnonymousCommenter(ServerWebExchange exchange) {
