@@ -1,5 +1,6 @@
 <script lang="ts">
 import CommentNextIcon from './CommentNextIcon.svelte';
+import { portalToBody } from './utils/portal';
 
 type CommentNextComposerVariant = 'comment' | 'reply';
 
@@ -8,6 +9,7 @@ const {
   loading = false,
   variant = 'comment',
   assistantName = '评论助手',
+  panelStyle = '',
   onModeSelect = () => {},
   onClose = () => {},
 }: {
@@ -15,6 +17,7 @@ const {
   loading?: boolean;
   variant?: CommentNextComposerVariant;
   assistantName?: string;
+  panelStyle?: string;
   onModeSelect?: (mode: string) => void;
   onClose?: () => void;
 } = $props();
@@ -63,10 +66,11 @@ const visibleCommands = $derived(
 );
 </script>
 
-<div class="comment-next-ai-panel-layer">
+<div use:portalToBody={{ style: panelStyle }} class="comment-next-ai-panel-layer">
   <div
     class="comment-next-ai-panel-backdrop"
     aria-hidden="true"
+    onclick={onClose}
   ></div>
 
   <div class="comment-next-ai-panel" role="dialog" aria-label={`${assistantName}命令`}>
@@ -104,7 +108,42 @@ const visibleCommands = $derived(
 
 <style>
   .comment-next-ai-panel-layer {
-    --at-apply: absolute bottom-[calc(100%+0.5rem)] left-0 z-60 w-[min(18.75rem,calc(100vw-2rem))];
+    --at-apply: fixed z-[2147482990] w-[min(17.25rem,calc(100vw-2rem))];
+    left: var(--comment-next-ai-panel-left, 1rem);
+    top: var(--comment-next-ai-panel-top, auto);
+    bottom: var(--comment-next-ai-panel-bottom, auto);
+    box-sizing: border-box;
+    font-family: var(
+      --comment-next-dialog-font-family,
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif
+    );
+    font-size: 14px;
+    line-height: 1.5;
+    letter-spacing: 0;
+    text-transform: none;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: auto;
+  }
+
+  .comment-next-ai-panel-layer,
+  .comment-next-ai-panel-layer *,
+  .comment-next-ai-panel-layer *::before,
+  .comment-next-ai-panel-layer *::after {
+    box-sizing: border-box;
+  }
+
+  .comment-next-ai-panel-layer button {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+    font: inherit;
+    letter-spacing: 0;
+    text-transform: none;
   }
 
   .comment-next-ai-panel-backdrop {
@@ -112,7 +151,7 @@ const visibleCommands = $derived(
   }
 
   .comment-next-ai-panel {
-    --at-apply: relative box-border w-full overflow-hidden rounded-[var(--comment-next-radius-lg,0.875rem)] border border-solid [border-color:var(--comment-next-menu-border-color,#d5dde7)] bg-[var(--comment-next-menu-bg-color,#ffffff)] p-1.5 text-[var(--comment-next-text-color,#172033)] shadow-[0_18px_42px_rgb(15_23_42_/_0.14),0_1px_0_rgb(255_255_255_/_0.82)_inset];
+    --at-apply: relative box-border max-h-[min(16rem,calc(100vh-2rem))] w-full overflow-auto rounded-lg border border-solid [border-color:var(--comment-next-menu-border-color,#d5dde7)] bg-[var(--comment-next-modal-bg-color,#ffffff)] p-1.5 text-[var(--comment-next-text-color,#172033)] shadow-[0_14px_34px_rgb(15_23_42_/_0.14),0_1px_0_rgb(255_255_255_/_0.82)_inset];
     animation: comment-next-ai-menu-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
@@ -122,7 +161,7 @@ const visibleCommands = $derived(
   }
 
   .comment-next-ai-panel-close {
-    --at-apply: absolute right-2 top-2 z-1 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 text-[var(--comment-next-muted-color,#667085)] font-inherit transition-[background-color,color,transform] duration-140 ease-in-out;
+    --at-apply: absolute right-1.5 top-1.5 z-1 inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-[var(--comment-next-muted-color,#667085)] font-inherit transition-[background-color,color,transform] duration-140 ease-in-out;
   }
 
   .comment-next-ai-panel-close:hover {
@@ -138,15 +177,15 @@ const visibleCommands = $derived(
   }
 
   .comment-next-ai-panel-command {
-    --at-apply: min-h-11 w-full cursor-pointer gap-2.5 rounded-[0.6875rem] border-0 bg-transparent px-2.5 py-2 text-left text-[var(--comment-next-text-color,#172033)] font-inherit transition-[background-color,color,transform] duration-140 ease-in-out;
+    --at-apply: min-h-10 w-full cursor-pointer gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[var(--comment-next-text-color,#172033)] font-inherit transition-[background-color,color,transform] duration-140 ease-in-out;
   }
 
   .comment-next-ai-panel-command:first-child {
-    --at-apply: pr-10;
+    --at-apply: pr-8;
   }
 
   .comment-next-ai-panel-command-icon {
-    --at-apply: inline-flex h-8 w-8 flex-none items-center justify-center rounded-lg text-[var(--comment-next-ai-color,rgb(59,130,246))];
+    --at-apply: inline-flex h-7 w-7 flex-none items-center justify-center rounded-md text-[var(--comment-next-ai-color,rgb(59,130,246))];
   }
 
   .comment-next-ai-panel-command-copy {
@@ -154,11 +193,11 @@ const visibleCommands = $derived(
   }
 
   .comment-next-ai-panel-command-label {
-    --at-apply: block truncate text-[0.875rem] font-[720] leading-tight;
+    --at-apply: block truncate text-[0.8125rem] font-[720] leading-tight;
   }
 
   .comment-next-ai-panel-command-hint {
-    --at-apply: mt-0.5 block truncate text-[0.75rem] text-[var(--comment-next-muted-color,#667085)] font-medium leading-tight;
+    --at-apply: mt-0.5 block truncate text-[0.71875rem] text-[var(--comment-next-muted-color,#667085)] font-medium leading-tight;
   }
 
   .comment-next-ai-panel-command:hover,
@@ -210,7 +249,10 @@ const visibleCommands = $derived(
 
   @media (max-width: 640px) {
     .comment-next-ai-panel-layer {
-      --at-apply: fixed inset-0 z-[9999] w-auto pointer-events-none;
+      --at-apply: inset-0 w-auto pointer-events-none;
+      left: 0;
+      top: 0;
+      bottom: 0;
     }
 
     .comment-next-ai-panel-backdrop {

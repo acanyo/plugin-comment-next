@@ -6,7 +6,7 @@ metadata:
     "store.halo.run/recommended-apps": '["app-acslk9nu"]'
 spec:
   enabled: true
-  requires: ">=2.22.0"
+  requires: ">=2.25.0"
   author:
     name: Handsome
     website: https://www.xhhao.com

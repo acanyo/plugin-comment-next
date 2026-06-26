@@ -6,6 +6,8 @@ import {
   type CommentNextReportReason,
   type CommentNextReportTargetType,
 } from './services/reports';
+import { notifyCommentNextModalOpen } from './utils/overlays';
+import { portalToBody } from './utils/portal';
 
 const reasonOptions: Array<{
   value: CommentNextReportReason;
@@ -65,6 +67,7 @@ const {
 let status = $state<'idle' | 'submitting' | 'reported' | 'error'>('idle');
 let previousKey = $state('');
 let dialogOpen = $state(false);
+let dialogElement = $state<HTMLDialogElement | null>(null);
 let reportReason = $state<CommentNextReportReason>('SPAM');
 let reportDescription = $state('');
 let errorMessage = $state('');
@@ -110,12 +113,31 @@ $effect(() => {
   }
 });
 
+$effect(() => {
+  const element = dialogElement;
+  if (!element) {
+    return;
+  }
+
+  if (dialogOpen) {
+    if (!element.open) {
+      element.showModal();
+    }
+    return;
+  }
+
+  if (element.open) {
+    element.close();
+  }
+});
+
 function handleReport() {
   if (!canReport || status === 'submitting' || status === 'reported') {
     return;
   }
 
   errorMessage = '';
+  notifyCommentNextModalOpen('report');
   dialogOpen = true;
 }
 
@@ -131,9 +153,35 @@ function closeDialog() {
   }
 }
 
-function handleOverlayClick(event: MouseEvent) {
-  if (event.target === event.currentTarget) {
+function handleDialogClick(event: MouseEvent) {
+  if (event.target !== event.currentTarget || !(event.currentTarget instanceof HTMLDialogElement)) {
+    return;
+  }
+
+  const rect = event.currentTarget.getBoundingClientRect();
+  const outsideDialog =
+    event.clientX < rect.left ||
+    event.clientX > rect.right ||
+    event.clientY < rect.top ||
+    event.clientY > rect.bottom;
+
+  if (outsideDialog) {
     closeDialog();
+  }
+}
+
+function handleDialogCancel(event: Event) {
+  if (status === 'submitting') {
+    event.preventDefault();
+    return;
+  }
+
+  dialogOpen = false;
+}
+
+function handleDialogClose() {
+  if (dialogOpen) {
+    dialogOpen = false;
   }
 }
 
@@ -202,10 +250,14 @@ async function submitReportForm() {
   </span>
 
   {#if dialogOpen}
-    <div
-      class="comment-next-report-dialog-overlay"
-      role="presentation"
-      onclick={handleOverlayClick}
+    <dialog
+      use:portalToBody
+      bind:this={dialogElement}
+      class="comment-next-report-dialog-shell"
+      aria-labelledby="comment-next-report-dialog-title"
+      onclick={handleDialogClick}
+      oncancel={handleDialogCancel}
+      onclose={handleDialogClose}
     >
       <div
         class="comment-next-report-dialog"
@@ -294,7 +346,7 @@ async function submitReportForm() {
           </button>
         </footer>
       </div>
-    </div>
+    </dialog>
   {/if}
 {/if}
 
@@ -337,13 +389,56 @@ async function submitReportForm() {
     --at-apply: translate-y-px;
   }
 
-  .comment-next-report-dialog-overlay {
-    --at-apply: fixed inset-0 z-[2147483000] flex items-center justify-center bg-[rgba(15,23,42,0.38)] px-4 py-6;
+  .comment-next-report-dialog-shell {
+    --at-apply: fixed inset-0 z-[2147483000] m-auto h-fit w-[min(30rem,calc(100vw-2rem))] max-w-none overflow-visible border-0 bg-transparent p-0 text-[var(--comment-next-text-color,#172033)];
+    box-sizing: border-box;
+    isolation: isolate;
+    font-family: var(
+      --comment-next-dialog-font-family,
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif
+    );
+    font-size: 14px;
+    line-height: 1.5;
+    letter-spacing: 0;
+    text-transform: none;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: auto;
+  }
+
+  .comment-next-report-dialog-shell::backdrop {
+    background: rgb(15 23 42 / 0.38);
+    backdrop-filter: blur(1px);
+  }
+
+  .comment-next-report-dialog-shell,
+  .comment-next-report-dialog-shell *,
+  .comment-next-report-dialog-shell *::before,
+  .comment-next-report-dialog-shell *::after {
     box-sizing: border-box;
   }
 
+  .comment-next-report-dialog-shell button,
+  .comment-next-report-dialog-shell input,
+  .comment-next-report-dialog-shell textarea {
+    font: inherit;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .comment-next-report-dialog-shell button,
+  .comment-next-report-dialog-shell textarea {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
   .comment-next-report-dialog {
-    --at-apply: w-full max-w-[30rem] box-border rounded-[8px] border border-solid bg-[var(--comment-next-bg-color,#fff)] p-4 shadow-[0_24px_60px_rgba(15,23,42,0.22)];
+    --at-apply: w-full box-border rounded-[8px] border border-solid bg-[var(--comment-next-bg-color,#fff)] p-4 shadow-[0_24px_60px_rgba(15,23,42,0.22)];
     border-color: var(--comment-next-border-subtle-color, #e7ecf2);
     color: var(--comment-next-text-color, #172033);
   }
@@ -362,6 +457,7 @@ async function submitReportForm() {
 
   .comment-next-report-dialog-close {
     --at-apply: inline-flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-[6px] border-0 bg-transparent p-0 text-[var(--comment-next-muted-color,#6b7687)] transition-[background-color,color] duration-140;
+    box-shadow: none;
   }
 
   .comment-next-report-dialog-close:hover {
@@ -383,8 +479,28 @@ async function submitReportForm() {
     border-color: var(--comment-next-primary-color, rgb(59, 130, 246));
   }
 
-  .comment-next-report-reason input {
-    --at-apply: mt-0.5 h-3.5 w-3.5 flex-none accent-[var(--comment-next-primary-color,rgb(59,130,246))];
+  .comment-next-report-reason input[type="radio"] {
+    --at-apply: mt-0.5 h-3.5 w-3.5 flex-none rounded-full border border-solid bg-[var(--comment-next-bg-color,#fff)] p-0 outline-none transition-[border-color,box-shadow,background-color] duration-140;
+    appearance: none;
+    -webkit-appearance: none;
+    border-color: var(--comment-next-border-color, #d7dee8);
+    box-shadow: 0 0 0 1px rgb(15 23 42 / 0.02);
+  }
+
+  .comment-next-report-reason input[type="radio"]:checked {
+    border-color: var(--comment-next-primary-color, rgb(59, 130, 246));
+    background:
+      radial-gradient(
+        circle at center,
+        var(--comment-next-primary-color, rgb(59, 130, 246)) 0 42%,
+        transparent 46%
+      ),
+      var(--comment-next-bg-color, #fff);
+    box-shadow: 0 0 0 3px var(--comment-next-primary-ring-color, rgb(59 130 246 / 0.12));
+  }
+
+  .comment-next-report-reason input[type="radio"]:focus-visible {
+    box-shadow: 0 0 0 3px var(--comment-next-primary-ring-color, rgb(59 130 246 / 0.16));
   }
 
   .comment-next-report-reason span {
@@ -410,6 +526,12 @@ async function submitReportForm() {
   .comment-next-report-description textarea {
     --at-apply: min-h-[6rem] w-full box-border resize-y rounded-[7px] border border-solid bg-[var(--comment-next-input-bg-color,#fff)] px-3 py-2 text-[0.875rem] text-[var(--comment-next-text-color,#172033)] font-inherit leading-6 outline-none transition-[border-color,box-shadow] duration-140;
     border-color: var(--comment-next-border-color, #d7dee8);
+    box-shadow: none;
+  }
+
+  .comment-next-report-description textarea::placeholder {
+    color: var(--comment-next-placeholder-color, #8b96a7);
+    opacity: 1;
   }
 
   .comment-next-report-description textarea:focus {
@@ -431,6 +553,7 @@ async function submitReportForm() {
 
   .comment-next-report-dialog-actions button {
     --at-apply: inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-[7px] border border-solid px-3.5 py-0 text-sm font-[700] font-inherit transition-[background-color,border-color,color,opacity] duration-140;
+    box-shadow: none;
   }
 
   .comment-next-report-dialog-actions button:disabled {
@@ -455,8 +578,8 @@ async function submitReportForm() {
   }
 
   @media (max-width: 640px) {
-    .comment-next-report-dialog-overlay {
-      --at-apply: items-end px-3 py-3;
+    .comment-next-report-dialog-shell {
+      --at-apply: inset-x-3 bottom-3 top-auto w-auto;
     }
 
     .comment-next-report-dialog {

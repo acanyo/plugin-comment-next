@@ -136,6 +136,35 @@ export function insertImage(src: string, alt = '') {
   insertNodeAtCaret(image, document.createTextNode(' '));
 }
 
+export function replaceImageSrc(
+  sourceSrc: string,
+  targetSrc: string,
+  alt?: string
+) {
+  if (!allowImages || !sourceSrc || !targetSrc || !editorElement) {
+    return;
+  }
+
+  let replaced = false;
+
+  for (const image of Array.from(editorElement.querySelectorAll('img'))) {
+    if (image.getAttribute('src') !== sourceSrc) {
+      continue;
+    }
+
+    image.src = targetSrc;
+    image.setAttribute('src', targetSrc);
+    if (alt) {
+      image.alt = alt;
+    }
+    replaced = true;
+  }
+
+  if (replaced) {
+    onChange(getHtml());
+  }
+}
+
 export function insertHtml(value: string) {
   if (!value || !editorElement) {
     return;

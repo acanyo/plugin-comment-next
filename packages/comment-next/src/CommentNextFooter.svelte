@@ -8,6 +8,7 @@ import type {
   CommentNextEmoteItem,
   CommentNextEmotePack,
 } from './types/emote';
+import { COMMENT_NEXT_MODAL_OPEN_EVENT } from './utils/overlays';
 
 type CommentNextComposerVariant = 'comment' | 'reply';
 
@@ -75,9 +76,11 @@ const insertTools = [
 ];
 
 let footerElement = $state<HTMLDivElement | undefined>();
+let aiButtonElement = $state<HTMLButtonElement | undefined>();
 let imageInputElement = $state<HTMLInputElement | undefined>();
 let emotePanelOpen = $state(false);
 let emotePanelStyle = $state('');
+let aiPanelStyle = $state('');
 let isMobileViewport = $state(false);
 
 const hasEmotePacks = $derived(emotePacks.some((pack) => pack.items.length));
@@ -108,6 +111,10 @@ onMount(() => {
     if (emotePanelOpen && floatingEmotePanel) {
       void updateEmotePanelPosition();
     }
+
+    if (commandMenuOpen) {
+      void updateAiPanelPosition();
+    }
   };
 
   const handlePointerDown = (event: PointerEvent) => {
@@ -129,11 +136,16 @@ onMount(() => {
       onCloseCommandMenu();
     }
   };
+  const handleModalOpen = () => {
+    emotePanelOpen = false;
+    onCloseCommandMenu();
+  };
 
   syncMobileViewport();
   mobileMedia.addEventListener('change', syncMobileViewport);
   document.addEventListener('pointerdown', handlePointerDown, true);
   document.addEventListener('keydown', handleKeyDown);
+  window.addEventListener(COMMENT_NEXT_MODAL_OPEN_EVENT, handleModalOpen);
   window.addEventListener('resize', handleViewportChange);
   window.addEventListener('scroll', handleViewportChange, true);
 
@@ -141,6 +153,7 @@ onMount(() => {
     mobileMedia.removeEventListener('change', syncMobileViewport);
     document.removeEventListener('pointerdown', handlePointerDown, true);
     document.removeEventListener('keydown', handleKeyDown);
+    window.removeEventListener(COMMENT_NEXT_MODAL_OPEN_EVENT, handleModalOpen);
     window.removeEventListener('resize', handleViewportChange);
     window.removeEventListener('scroll', handleViewportChange, true);
   };
@@ -159,8 +172,18 @@ $effect(() => {
   emotePanelStyle = '';
 });
 
+$effect(() => {
+  if (commandMenuOpen) {
+    void updateAiPanelPosition();
+    return;
+  }
+
+  aiPanelStyle = '';
+});
+
 function handleQuickActionClick() {
   emotePanelOpen = false;
+  void updateAiPanelPosition();
   onToggleCommandMenu();
 }
 
@@ -199,6 +222,7 @@ function handleEmoteSelect(item: CommentNextEmoteItem) {
 }
 
 function handleCommandModeSelect(mode: string) {
+  onCloseCommandMenu();
   onCommandModeSelect(mode);
 }
 
@@ -266,6 +290,42 @@ async function updateEmotePanelPosition() {
     `--comment-next-emote-fixed-max-height:${panelHeight}px`,
   ].join(';');
 }
+
+async function updateAiPanelPosition() {
+  if (typeof window === 'undefined' || !aiButtonElement) {
+    return;
+  }
+
+  await tick();
+
+  const trigger = aiButtonElement;
+
+  if (!trigger?.isConnected) {
+    return;
+  }
+
+  const rect = trigger.getBoundingClientRect();
+  const viewportPadding = 16;
+  const gap = 8;
+  const panelWidth = Math.min(276, window.innerWidth - viewportPadding * 2);
+  const panelHeightEstimate = 204;
+  const maxLeft = window.innerWidth - panelWidth - viewportPadding;
+  const left = Math.min(Math.max(viewportPadding, rect.left), maxLeft);
+  const hasEnoughSpaceBelow =
+    window.innerHeight - rect.bottom >= panelHeightEstimate + viewportPadding + gap;
+  const top = hasEnoughSpaceBelow
+    ? rect.bottom + gap
+    : Math.min(
+        window.innerHeight - viewportPadding - panelHeightEstimate,
+        rect.top - gap - panelHeightEstimate
+      );
+
+  aiPanelStyle = [
+    `--comment-next-ai-panel-left:${Math.max(viewportPadding, left)}px`,
+    `--comment-next-ai-panel-top:${Math.max(viewportPadding, top)}px`,
+    `--comment-next-ai-panel-bottom:auto`,
+  ].join(';');
+}
 </script>
 
 <div bind:this={footerElement} class:comment-next-footer-compact={compact} class="comment-next-footer">
@@ -278,12 +338,14 @@ async function updateEmotePanelPosition() {
           loading={aiLoading}
           {variant}
           assistantName={aiAssistantName}
+          panelStyle={aiPanelStyle}
           onModeSelect={handleCommandModeSelect}
           onClose={onCloseCommandMenu}
         />
       {/if}
 
       <button
+        bind:this={aiButtonElement}
         class:comment-next-quick-button-active={commandMenuOpen}
         class="comment-next-quick-button"
         type="button"

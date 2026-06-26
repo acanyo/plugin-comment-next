@@ -26,6 +26,9 @@ comment-widget {
 
   --comment-next-bg-color: var(--halo-cw-muted-3-color, #ffffff);
   --comment-next-surface-bg-color: var(--halo-cw-muted-3-color, #ffffff);
+  --comment-next-modal-bg-color: #ffffff;
+  --comment-next-modal-input-bg-color: #ffffff;
+  --comment-next-modal-backdrop-color: rgb(2 6 23 / 0.68);
   --comment-next-box-bg: transparent;
   --comment-next-toolbar-bg-color: var(--halo-cw-muted-3-color, #ffffff);
   --comment-next-editor-bg-color: var(--halo-cw-muted-3-color, #ffffff);
@@ -130,6 +133,9 @@ comment-widget {
 
     --comment-next-bg-color: var(--halo-cw-muted-3-color, #18181b);
     --comment-next-surface-bg-color: var(--halo-cw-muted-3-color, #18181b);
+    --comment-next-modal-bg-color: #18181b;
+    --comment-next-modal-input-bg-color: #202025;
+    --comment-next-modal-backdrop-color: rgb(0 0 0 / 0.74);
     --comment-next-box-bg: transparent;
     --comment-next-toolbar-bg-color: var(--halo-cw-muted-3-color, #18181b);
     --comment-next-editor-bg-color: var(--halo-cw-muted-3-color, #18181b);
@@ -237,6 +243,9 @@ comment-widget {
 
   --comment-next-bg-color: var(--halo-cw-muted-3-color, #18181b);
   --comment-next-surface-bg-color: var(--halo-cw-muted-3-color, #18181b);
+  --comment-next-modal-bg-color: #18181b;
+  --comment-next-modal-input-bg-color: #202025;
+  --comment-next-modal-backdrop-color: rgb(0 0 0 / 0.74);
   --comment-next-box-bg: transparent;
   --comment-next-toolbar-bg-color: var(--halo-cw-muted-3-color, #18181b);
   --comment-next-editor-bg-color: var(--halo-cw-muted-3-color, #18181b);
@@ -352,6 +361,9 @@ comment-widget {
 
   --comment-next-bg-color: var(--halo-cw-muted-3-color, #ffffff);
   --comment-next-surface-bg-color: var(--halo-cw-muted-3-color, #ffffff);
+  --comment-next-modal-bg-color: #ffffff;
+  --comment-next-modal-input-bg-color: #ffffff;
+  --comment-next-modal-backdrop-color: rgb(2 6 23 / 0.68);
   --comment-next-box-bg: transparent;
   --comment-next-toolbar-bg-color: var(--halo-cw-muted-3-color, #ffffff);
   --comment-next-editor-bg-color: var(--halo-cw-muted-3-color, #ffffff);

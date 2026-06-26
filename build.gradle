@@ -47,6 +47,9 @@ test {
 
 node {
     nodeProjectDir = file("${project.projectDir}")
+    version = "22.12.0"
+    pnpmVersion = "10.20.0"
+    download = true
 }
 
 tasks.register('buildCommentNext', PnpmTask) {
@@ -64,7 +67,8 @@ tasks.register('buildFrontend') {
 }
 
 tasks.register('installDepsForUI', PnpmTask) {
-    args = ['install']
+    args = ['install', '--config.confirmModulesPurge=false']
+    environment.put("CI", "true")
 }
 
 build {

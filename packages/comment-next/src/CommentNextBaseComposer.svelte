@@ -1,5 +1,5 @@
 <script lang="ts">
-import { onMount } from 'svelte';
+import { onDestroy, onMount } from 'svelte';
 import {
   getAnonymousAvatarUrl,
   getDefaultAnonymousAvatarUrl,
@@ -30,6 +30,7 @@ import {
   type CommentNextCaptchaConfig,
 } from './services/captcha';
 import {
+  CommentNextUploadError,
   getImageUploadErrorMessage,
   uploadCommentImage,
 } from './services/uploads';
@@ -46,6 +47,10 @@ import {
   inferImageContentType,
   isImageContentType,
 } from './utils/image-files';
+import {
+  COMMENT_NEXT_MODAL_OPEN_EVENT,
+  notifyCommentNextModalOpen,
+} from './utils/overlays';
 
 type CommentNextComposerVariant = 'comment' | 'reply';
 
@@ -57,7 +62,13 @@ type CommentNextEditorRef = {
   insertText: (value: string) => void;
   replaceText: (value: string) => void;
   insertImage: (src: string, alt?: string) => void;
+  replaceImageSrc: (sourceSrc: string, targetSrc: string, alt?: string) => void;
   consumeCommandTrigger: () => void;
+};
+
+type PendingImageUpload = {
+  src: string;
+  file: File;
 };
 
 const {
@@ -176,6 +187,7 @@ let localSubmitting = $state(false);
 let imageUploading = $state(false);
 let submitMessage = $state('');
 let submitMessageType = $state<'error' | 'success'>('error');
+const pendingImageUploads = new Map<string, PendingImageUpload>();
 
 const isLoggedIn = $derived(Boolean(currentUser) || loggedIn);
 const isSubmitting = $derived(submitting || localSubmitting);
@@ -200,7 +212,7 @@ const externalCaptchaRequired = $derived(
   captchaRequired && !isLocalImageCaptcha(captchaType)
 );
 const resolvedSubmitLabel = $derived(
-  externalCaptchaStarting ? '验证中' : submitLabel
+  externalCaptchaStarting ? '验证中' : imageUploading ? '上传图片中' : submitLabel
 );
 const imageUploadEnabled = $derived(resolveImageUploadEnabled());
 const imageAccept = 'image/*';
@@ -219,6 +231,18 @@ const resolvedAiAssistantMentionName = $derived(
   resolveMentionName(aiConfig?.assistantMentionName, resolvedAiAssistantName)
 );
 const editorTopRounded = $derived(!showHeader && !showAccountBar);
+
+onMount(() => {
+  const handleModalOpen = () => {
+    closeFloatingPanels();
+  };
+
+  window.addEventListener(COMMENT_NEXT_MODAL_OPEN_EVENT, handleModalOpen);
+
+  return () => {
+    window.removeEventListener(COMMENT_NEXT_MODAL_OPEN_EVENT, handleModalOpen);
+  };
+});
 
 $effect(() => {
   isAiPanelOpen = commandMenuOpen;
@@ -297,6 +321,10 @@ onMount(() => {
   };
 });
 
+onDestroy(() => {
+  clearPendingImageUploads();
+});
+
 export function focus() {
   editorRef?.focus();
 }
@@ -304,6 +332,7 @@ export function focus() {
 export function reset() {
   editorRef?.reset();
   editorHtml = '';
+  clearPendingImageUploads();
   onChange('');
 }
 
@@ -312,6 +341,11 @@ function handleLogin() {
   window.location.href = `/login?redirect_uri=${encodeURIComponent(
     window.location.pathname + redirectHash
   )}`;
+}
+
+function closeFloatingPanels() {
+  isAiPanelOpen = false;
+  showSelectionTools = false;
 }
 
 async function handleSubmit(event: SubmitEvent) {
@@ -347,9 +381,9 @@ async function submitComposer({
     return;
   }
 
-  const content = sanitizeCommentSubmitHtml(editorRef?.getHtml() || editorHtml);
+  const rawContent = editorRef?.getHtml() || editorHtml;
 
-  if (!hasContent(content)) {
+  if (!hasContent(rawContent)) {
     showSubmitMessage(
       variant === 'reply' ? '请先输入回复内容。' : '请先输入评论内容。'
     );
@@ -376,26 +410,37 @@ async function submitComposer({
     return;
   }
   const formData = new FormData(form);
-  const payload: CommentNextComposerSubmitPayload = {
-    content,
-    hidden: enablePrivate && isLoggedIn && formData.get('hidden') === 'on',
-    captchaCode: resolvedCaptchaCode,
-    owner: isLoggedIn
-      ? undefined
-      : {
-          displayName: anonymousDisplayName.trim(),
-          email: anonymousEmail.trim(),
-          website: anonymousWebsite.trim(),
-        },
-  };
 
   try {
     localSubmitting = true;
+    const content = await prepareContentForSubmit(rawContent);
+
+    if (!hasContent(content)) {
+      showSubmitMessage(
+        variant === 'reply' ? '请先输入回复内容。' : '请先输入评论内容。'
+      );
+      editorRef?.focus();
+      return;
+    }
+
+    const payload: CommentNextComposerSubmitPayload = {
+      content,
+      hidden: enablePrivate && isLoggedIn && formData.get('hidden') === 'on',
+      captchaCode: resolvedCaptchaCode,
+      owner: isLoggedIn
+        ? undefined
+        : {
+            displayName: anonymousDisplayName.trim(),
+            email: anonymousEmail.trim(),
+            website: anonymousWebsite.trim(),
+          },
+    };
 
     const result = await onSubmit(payload);
 
     storeAnonymousAccount();
     editorRef?.reset();
+    clearPendingImageUploads();
     captchaCode = '';
     captchaImage = '';
     captchaDialogError = '';
@@ -423,6 +468,7 @@ async function submitComposer({
           showSubmitMessage(message);
           return;
         }
+        notifyCommentNextModalOpen('captcha');
         captchaDialogOpen = true;
         return;
       }
@@ -431,6 +477,14 @@ async function submitComposer({
       captchaDialogOpen = false;
       externalCaptchaStarting = false;
       showSubmitMessage(getCommentSubmitErrorMessage(error));
+      return;
+    }
+
+    if (error instanceof CommentNextUploadError) {
+      captchaDialogError = '';
+      captchaDialogOpen = false;
+      externalCaptchaStarting = false;
+      showSubmitMessage(getImageUploadErrorMessage(error));
       return;
     }
 
@@ -457,6 +511,7 @@ function openCaptchaDialog() {
     captchaRefreshKey += 1;
   }
 
+  notifyCommentNextModalOpen('captcha');
   submitMessage = '';
   captchaDialogError = '';
   externalCaptchaStarting = externalCaptchaRequired;
@@ -586,16 +641,13 @@ async function handleImageUpload(file: File) {
     return;
   }
 
-  try {
-    imageUploading = true;
-    const result = await uploadCommentImage({ baseUrl, file });
-    editorRef?.insertImage(result.url, result.filename || file.name);
-    showSubmitMessage('图片上传成功，可继续编辑评论。', 'success');
-  } catch (error) {
-    showSubmitMessage(getImageUploadErrorMessage(error));
-  } finally {
-    imageUploading = false;
-  }
+  const src = URL.createObjectURL(file);
+  pendingImageUploads.set(src, {
+    src,
+    file,
+  });
+  editorRef?.insertImage(src, file.name || '图片');
+  showSubmitMessage('图片已添加，将在提交评论时上传。', 'success');
 }
 
 async function handleImagePaste(files: File[]) {
@@ -603,8 +655,8 @@ async function handleImagePaste(files: File[]) {
     return;
   }
 
-  if (imageUploading) {
-    showSubmitMessage('图片正在上传中，请稍后再试。');
+  if (isSubmitting) {
+    showSubmitMessage('正在提交中，请稍后再试。');
     return;
   }
 
@@ -613,6 +665,106 @@ async function handleImagePaste(files: File[]) {
   for (const file of files) {
     await handleImageUpload(file);
   }
+}
+
+async function prepareContentForSubmit(rawContent: string): Promise<string> {
+  await uploadPendingImagesForSubmit(rawContent);
+  return sanitizeCommentSubmitHtml(editorRef?.getHtml() || editorHtml);
+}
+
+async function uploadPendingImagesForSubmit(rawContent: string): Promise<void> {
+  const referencedUploads = getReferencedPendingImageUploads(rawContent);
+
+  if (!referencedUploads.length) {
+    pruneUnusedPendingImages(rawContent);
+    return;
+  }
+
+  imageUploading = true;
+
+  try {
+    for (const pendingUpload of referencedUploads) {
+      const result = await uploadCommentImage({
+        baseUrl,
+        file: pendingUpload.file,
+      });
+      const uploadedUrl = result.url;
+
+      editorRef?.replaceImageSrc(
+        pendingUpload.src,
+        uploadedUrl,
+        result.filename || pendingUpload.file.name || '图片'
+      );
+      revokePendingImageUpload(pendingUpload.src);
+    }
+  } finally {
+    imageUploading = false;
+  }
+}
+
+function getReferencedPendingImageUploads(html: string): PendingImageUpload[] {
+  if (!pendingImageUploads.size) {
+    return [];
+  }
+
+  const referencedSrcs = getImageSrcs(html);
+
+  return Array.from(pendingImageUploads.values()).filter((pendingUpload) =>
+    referencedSrcs.has(pendingUpload.src)
+  );
+}
+
+function pruneUnusedPendingImages(html: string) {
+  if (!pendingImageUploads.size) {
+    return;
+  }
+
+  const referencedSrcs = getImageSrcs(html);
+
+  for (const pendingUpload of Array.from(pendingImageUploads.values())) {
+    if (!referencedSrcs.has(pendingUpload.src)) {
+      revokePendingImageUpload(pendingUpload.src);
+    }
+  }
+}
+
+function getImageSrcs(html: string): Set<string> {
+  const srcs = new Set<string>();
+
+  if (!html.trim()) {
+    return srcs;
+  }
+
+  const template = document.createElement('template');
+  template.innerHTML = html;
+
+  for (const image of Array.from(template.content.querySelectorAll('img[src]'))) {
+    const src = image.getAttribute('src');
+    if (src) {
+      srcs.add(src);
+    }
+  }
+
+  return srcs;
+}
+
+function revokePendingImageUpload(src: string) {
+  const pendingUpload = pendingImageUploads.get(src);
+
+  if (!pendingUpload) {
+    return;
+  }
+
+  URL.revokeObjectURL(pendingUpload.src);
+  pendingImageUploads.delete(src);
+}
+
+function clearPendingImageUploads() {
+  for (const pendingUpload of Array.from(pendingImageUploads.values())) {
+    URL.revokeObjectURL(pendingUpload.src);
+  }
+
+  pendingImageUploads.clear();
 }
 
 async function handleAiModeSelect(mode: CommentNextAiMode | string) {
@@ -896,6 +1048,7 @@ function resolveMentionName(
       topRounded={editorTopRounded}
       onChange={(html) => {
         editorHtml = html;
+        pruneUnusedPendingImages(html);
         onChange(html);
       }}
       onImagePaste={handleImagePaste}
