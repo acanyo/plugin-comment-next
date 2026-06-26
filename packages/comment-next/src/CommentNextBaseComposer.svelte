@@ -1000,6 +1000,8 @@ function resolveMentionName(
 <style>
   .comment-next-composer {
     --at-apply: relative box-border w-full overflow-visible border border-solid [border-color:var(--comment-next-border-color,#d5dde7)] rounded-[var(--comment-next-radius-lg,0.875rem)] [background:var(--comment-next-box-bg,transparent,var(--comment-next-bg-color,#ffffff))] text-[var(--comment-next-text-color,#172033)] shadow-[0_12px_30px_rgb(15_23_42_/_0.04),0_1px_0_rgb(255_255_255_/_0.48)_inset] transition-[border-color,box-shadow,transform] duration-140 ease-in-out;
+    max-width: 100%;
+    min-width: 0;
     font-family: var(
       --comment-next-font-family,
       ui-sans-serif,
@@ -1012,8 +1014,15 @@ function resolveMentionName(
   }
 
   .comment-next-reply-composer {
-    --comment-next-editor-min-height: 6.75rem;
-    --at-apply: shadow-[0_10px_24px_rgb(15_23_42_/_0.04),0_1px_0_rgb(255_255_255_/_0.42)_inset];
+    --comment-next-editor-min-height: 4.5rem;
+    --comment-next-editor-mobile-min-height: 4.5rem;
+    --comment-next-editor-padding: 0.875rem 1rem 1rem;
+    --comment-next-editor-mobile-padding: 0.875rem 1rem 1rem;
+    --at-apply: [border-color:var(--comment-next-border-subtle-color,#e7ecf2)] shadow-none;
+  }
+
+  .comment-next-reply-composer:focus-within {
+    --at-apply: [border-color:var(--comment-next-focus-border-color,#aeb9c6)] shadow-[0_0_0_2px_var(--comment-next-focus-shadow-color,rgb(59_130_246_/_0.14))];
   }
 
   .comment-next-composer:focus-within {
@@ -1029,7 +1038,7 @@ function resolveMentionName(
   }
 
   .comment-next-reply-composer-head {
-    --at-apply: flex items-center justify-between gap-3 border-b [border-bottom-style:var(--comment-next-divider-style,dashed)] [border-bottom-color:var(--comment-next-divider-color,#d4dde8)] px-3 py-2.5 text-[0.8125rem] text-[var(--comment-next-muted-color,#6b7687)] font-[650];
+    --at-apply: flex min-h-10 items-center justify-between gap-3 border-b [border-bottom-style:var(--comment-next-divider-style,dashed)] [border-bottom-color:var(--comment-next-divider-color,#d4dde8)] px-3 py-1.5 text-[0.8125rem] text-[var(--comment-next-muted-color,#6b7687)] font-[650];
   }
 
   .comment-next-reply-composer-target {

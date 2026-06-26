@@ -94,6 +94,7 @@ const securityConfig = $derived(pluginConfig?.security);
 const aiConfig = $derived(pluginConfig?.ai);
 const uploadConfig = $derived(pluginConfig?.upload);
 const reactionConfig = $derived(pluginConfig?.reaction);
+const reportConfig = $derived(pluginConfig?.report);
 const editorConfig = $derived(pluginConfig?.editor);
 const badgeConfig = $derived(pluginConfig?.badge);
 const resolvedAllowAnonymous = $derived(
@@ -323,6 +324,7 @@ export function reset() {
         {badgeConfig}
         {aiConfig}
         {reactionConfig}
+        {reportConfig}
         {uploadConfig}
         emotePacks={resolvedEmotePacks}
       />
@@ -333,5 +335,8 @@ export function reset() {
 <style>
   .comment-next-root {
     --at-apply: grid w-full gap-4;
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
   }
 </style>

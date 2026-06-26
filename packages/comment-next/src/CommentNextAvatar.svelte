@@ -46,7 +46,7 @@ function getPlaceholderText(value: string): string {
 >
   {#if src && !failed}
     <img
-      class="comment-next-avatar-image block h-full w-full object-cover"
+      class="comment-next-avatar-image block object-cover"
       {src}
       {alt}
       loading="lazy"
@@ -62,14 +62,36 @@ function getPlaceholderText(value: string): string {
 
 <style>
   .comment-next-avatar {
+    --comment-next-avatar-effective-size: var(
+      --comment-next-avatar-instance-size,
+      var(--comment-next-avatar-size, var(--halo-cw-avatar-size, 36px))
+    );
+    box-sizing: border-box;
+    flex: 0 0 var(--comment-next-avatar-effective-size);
     width: var(
-      --halo-cw-avatar-size,
-      var(--comment-next-avatar-size, var(--comment-next-avatar-instance-size, 36px))
+      --comment-next-avatar-effective-size
     );
     height: var(
-      --halo-cw-avatar-size,
-      var(--comment-next-avatar-size, var(--comment-next-avatar-instance-size, 36px))
+      --comment-next-avatar-effective-size
     );
+    min-width: var(--comment-next-avatar-effective-size);
+    min-height: var(--comment-next-avatar-effective-size);
+    max-width: var(--comment-next-avatar-effective-size);
+    max-height: var(--comment-next-avatar-effective-size);
+    aspect-ratio: 1 / 1;
     border-radius: var(--comment-next-avatar-rounded, var(--halo-cw-avatar-rounded, 9999px));
+  }
+
+  .comment-next-avatar-image {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    min-width: 100%;
+    min-height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    flex: 0 0 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: inherit;
   }
 </style>

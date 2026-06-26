@@ -1,10 +1,14 @@
 package com.xhhao.comment.widget.comment;
 
+import com.xhhao.comment.widget.SettingConfigGetter;
 import com.xhhao.comment.widget.interaction.CommentNextReactionRequest;
 import com.xhhao.comment.widget.interaction.CommentNextReactionService;
+import com.xhhao.comment.widget.report.CommentNextReportRequest;
+import com.xhhao.comment.widget.report.CommentNextReportRecordQuery;
+import com.xhhao.comment.widget.report.CommentNextReportService;
 import java.time.Duration;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.ResponseCookie;
 import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Component;
@@ -15,14 +19,28 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 import run.halo.app.core.extension.endpoint.CustomEndpoint;
 import run.halo.app.extension.GroupVersion;
+import run.halo.app.extension.ReactiveExtensionClient;
 
 @Component
-@RequiredArgsConstructor
 public class CommentNextCommentEndpoint implements CustomEndpoint {
 
     private final CommentNextCommentService commentService;
 
     private final CommentNextReactionService reactionService;
+
+    private final CommentNextReportService reportService;
+
+    public CommentNextCommentEndpoint(CommentNextCommentService commentService,
+                                      CommentNextReactionService reactionService,
+                                      ObjectProvider<CommentNextReportService> reportServiceProvider,
+                                      ReactiveExtensionClient client,
+                                      SettingConfigGetter settingConfigGetter) {
+        this.commentService = commentService;
+        this.reactionService = reactionService;
+        this.reportService = reportServiceProvider.getIfAvailable(
+            () -> new CommentNextReportService(client, settingConfigGetter)
+        );
+    }
 
     @Override
     public RouterFunction<ServerResponse> endpoint() {
@@ -34,6 +52,8 @@ public class CommentNextCommentEndpoint implements CustomEndpoint {
             .POST("target-reactions", this::toggleReaction)
             .GET("subject-reactions", this::subjectReactionSummary)
             .POST("subject-reactions", this::toggleSubjectReaction)
+            .GET("report-records", this::listReportRecords)
+            .POST("target-reports", this::reportTarget)
             .build();
     }
 
@@ -66,6 +86,11 @@ public class CommentNextCommentEndpoint implements CustomEndpoint {
         return toggleReaction(request);
     }
 
+    private Mono<ServerResponse> listReportRecords(ServerRequest request) {
+        return reportService.listRecords(new CommentNextReportRecordQuery(request))
+            .flatMap(records -> ServerResponse.ok().bodyValue(records));
+    }
+
     private Mono<ServerResponse> toggleReaction(ServerRequest request) {
         var anonymousId = anonymousId(request);
         var nextAnonymousId = StringUtils.hasText(anonymousId)
@@ -80,6 +105,19 @@ public class CommentNextCommentEndpoint implements CustomEndpoint {
             .flatMap(summary -> ServerResponse.ok()
                 .cookie(reactionCookie(request, nextAnonymousId))
                 .bodyValue(summary));
+    }
+
+    private Mono<ServerResponse> reportTarget(ServerRequest request) {
+        var anonymousId = reportAnonymousId(request);
+        var nextAnonymousId = StringUtils.hasText(anonymousId)
+            ? anonymousId
+            : UUID.randomUUID().toString();
+
+        return request.bodyToMono(CommentNextReportRequest.class)
+            .flatMap(reportRequest -> reportService.report(reportRequest, nextAnonymousId))
+            .flatMap(result -> ServerResponse.ok()
+                .cookie(reportCookie(request, nextAnonymousId))
+                .bodyValue(result));
     }
 
     private CommentNextReactionRequest reactionRequestFromQuery(ServerRequest request) {
@@ -102,9 +140,25 @@ public class CommentNextCommentEndpoint implements CustomEndpoint {
         return cookie == null ? "" : cookie.getValue();
     }
 
+    private String reportAnonymousId(ServerRequest request) {
+        var cookie = request.cookies().getFirst(CommentNextReportService.ANONYMOUS_COOKIE_NAME);
+        return cookie == null ? "" : cookie.getValue();
+    }
+
     private ResponseCookie reactionCookie(ServerRequest request, String value) {
         var secure = "https".equalsIgnoreCase(request.uri().getScheme());
         return ResponseCookie.from(CommentNextReactionService.ANONYMOUS_COOKIE_NAME, value)
+            .path("/")
+            .httpOnly(true)
+            .secure(secure)
+            .sameSite("Lax")
+            .maxAge(Duration.ofDays(365))
+            .build();
+    }
+
+    private ResponseCookie reportCookie(ServerRequest request, String value) {
+        var secure = "https".equalsIgnoreCase(request.uri().getScheme());
+        return ResponseCookie.from(CommentNextReportService.ANONYMOUS_COOKIE_NAME, value)
             .path("/")
             .httpOnly(true)
             .secure(secure)

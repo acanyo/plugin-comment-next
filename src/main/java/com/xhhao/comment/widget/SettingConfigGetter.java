@@ -41,6 +41,11 @@ public interface SettingConfigGetter {
     /**
      * Never {@link Mono#empty()}.
      */
+    Mono<ReportConfig> getReportConfig();
+
+    /**
+     * Never {@link Mono#empty()}.
+     */
     Mono<AiConfig> getAiConfig();
 
     /**
@@ -351,6 +356,38 @@ public interface SettingConfigGetter {
         private String type = "EMOJI";
         private String value;
         private String label;
+    }
+
+    @Data
+    @Accessors(chain = true)
+    class ReportConfig {
+        public static final String GROUP = "report";
+
+        private boolean enabled;
+
+        private boolean allowAnonymous = true;
+
+        private boolean commentEnabled = true;
+
+        private boolean replyEnabled = true;
+
+        private boolean autoPendingEnabled = true;
+
+        private int autoPendingThreshold = 3;
+
+        public int normalizedAutoPendingThreshold() {
+            return Math.max(1, autoPendingThreshold);
+        }
+
+        public static ReportConfig empty() {
+            return new ReportConfig()
+                .setEnabled(false)
+                .setAllowAnonymous(true)
+                .setCommentEnabled(true)
+                .setReplyEnabled(true)
+                .setAutoPendingEnabled(true)
+                .setAutoPendingThreshold(3);
+        }
     }
 
     @Data

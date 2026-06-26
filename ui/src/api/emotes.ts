@@ -126,18 +126,24 @@ export async function deleteEmoteGroup(name: string): Promise<void> {
   await axiosInstance.delete(`${EMOTE_GROUPS_ENDPOINT}/${name}`);
 }
 
-export async function fetchDefaultEmotePacks(): Promise<RawEmotePacks> {
-  const response = await fetch(DEFAULT_EMOTE_SOURCE_URL, {
+export async function fetchEmotePacksFromUrl(
+  sourceUrl = DEFAULT_EMOTE_SOURCE_URL
+): Promise<RawEmotePacks> {
+  const response = await fetch(sourceUrl, {
     headers: {
       Accept: 'application/json',
     },
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch default emotes: ${response.status}`);
+    throw new Error(`Failed to fetch emotes from source: ${response.status}`);
   }
 
   return parseRawEmotePacks(await response.text());
+}
+
+export async function fetchDefaultEmotePacks(): Promise<RawEmotePacks> {
+  return fetchEmotePacksFromUrl(DEFAULT_EMOTE_SOURCE_URL);
 }
 
 export function parseRawEmotePacks(value: string): RawEmotePacks {

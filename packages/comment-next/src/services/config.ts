@@ -8,6 +8,7 @@ export interface CommentNextPluginConfig {
   ai?: CommentNextAiConfig;
   upload?: CommentNextUploadConfig;
   reaction?: CommentNextReactionConfig;
+  report?: CommentNextReportConfig;
   editor?: CommentNextEditorConfig;
   badge?: CommentNextBadgeConfig;
 }
@@ -75,6 +76,15 @@ export interface CommentNextReactionOption {
   type?: CommentNextReactionOptionType;
   value?: string;
   label?: string;
+}
+
+export interface CommentNextReportConfig {
+  enabled?: boolean;
+  allowAnonymous?: boolean;
+  commentEnabled?: boolean;
+  replyEnabled?: boolean;
+  autoPendingEnabled?: boolean;
+  autoPendingThreshold?: number;
 }
 
 export interface CommentNextEditorConfig {

@@ -190,5 +190,8 @@ function getContentLength(html: string): number {
 <style>
   :host {
     --at-apply: block w-full;
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
   }
 </style>

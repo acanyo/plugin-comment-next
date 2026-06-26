@@ -65,6 +65,7 @@ export interface CommentNextComment {
   featured?: boolean;
   priority?: number;
   quoteReplyId?: string;
+  replyToName?: string;
   userAgent?: string;
   author: CommentNextAuthor;
   stats?: CommentNextCommentStats;

@@ -50,7 +50,7 @@ function typeText(type: string) {
 }
 
 function sourceText(type: string) {
-  return type === 'DEFAULT' ? '默认源' : '自定义';
+  return type === 'DEFAULT' ? '默认源' : '自定义源';
 }
 
 function padDateValue(value: number): string {

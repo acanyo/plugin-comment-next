@@ -46,6 +46,12 @@ public class SettingConfigGetterImpl implements SettingConfigGetter {
     }
 
     @Override
+    public Mono<ReportConfig> getReportConfig() {
+        return settingFetcher.fetch(ReportConfig.GROUP, ReportConfig.class)
+            .defaultIfEmpty(ReportConfig.empty());
+    }
+
+    @Override
     public Mono<AiConfig> getAiConfig() {
         var aiConfig = settingFetcher.fetch(AiConfig.GROUP, AiConfig.class)
             .map(Optional::of)

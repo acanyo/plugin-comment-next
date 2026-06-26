@@ -15,7 +15,7 @@ spec:
   repo: https://github.com/acanyo/plugin-comment-next
   issues: https://github.com/acanyo/plugin-comment-next/issues
   displayName: "评论组件 Next"
-  description: "以 AI 辅助写作为核心，为 Halo 提供现代化富文本评论体验，支持验证码、评论列表与用户徽章。"
+  description: "为 Halo 提供现代化评论体验，支持富文本评论、图片上传、验证码、表情回应、举报、黑灰名单、精选/置顶、评论徽章与 AI 助手。"
   configMapName: plugin-comment-next-configmap
   settingName: plugin-comment-next-settings
   pluginDependencies:

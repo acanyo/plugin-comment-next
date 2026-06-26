@@ -5,6 +5,7 @@ import CommentNextContent from './CommentNextContent.svelte';
 import CommentNextEnvironmentTags from './CommentNextEnvironmentTags.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import CommentNextReactionButton from './CommentNextReactionButton.svelte';
+import CommentNextReportButton from './CommentNextReportButton.svelte';
 import CommentNextReplyItem from './CommentNextReplyItem.svelte';
 import CommentNextReplyComposer from './CommentNextReplyComposer.svelte';
 import CommentNextTooltip from './CommentNextTooltip.svelte';
@@ -14,6 +15,7 @@ import {
 } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextReportConfig,
   CommentNextReactionConfig,
   CommentNextSecurityConfig,
   CommentNextUploadConfig,
@@ -51,6 +53,7 @@ const {
   showCommenterDevice = true,
   aiConfig,
   reactionConfig,
+  reportConfig,
   aiMentionName = '',
   uploadConfig,
   emotePacks = [],
@@ -70,6 +73,7 @@ const {
   showCommenterDevice?: boolean;
   aiConfig?: CommentNextAiConfig;
   reactionConfig?: CommentNextReactionConfig;
+  reportConfig?: CommentNextReportConfig;
   aiMentionName?: string;
   uploadConfig?: CommentNextUploadConfig;
   emotePacks?: CommentNextEmotePack[];
@@ -82,6 +86,7 @@ let replyComposerOpen = $state(false);
 let quoteReply = $state<CommentNextComment | undefined>();
 let replies = $state<CommentNextComment[]>([]);
 let replyPage = $state<CommentNextPageInfo | undefined>();
+let replyAuthors = $state<Record<string, string>>({});
 let repliesLoading = $state(false);
 let repliesError = $state('');
 
@@ -118,6 +123,7 @@ $effect(() => {
     quoteReply = undefined;
     replies = comment.replies ?? [];
     replyPage = comment.replyPage;
+    replyAuthors = buildReplyAuthorMap(replies);
     repliesError = '';
   }
 });
@@ -183,6 +189,7 @@ function openQuoteReply(reply: CommentNextComment) {
     return;
   }
 
+  rememberReplyAuthor(reply);
   quoteReply = reply;
   replyComposerOpen = true;
 }
@@ -192,7 +199,20 @@ function closeReplyComposer() {
   quoteReply = undefined;
 }
 
-function handleReplyCreated() {
+function handleReplyCreated(reply?: CommentNextComment) {
+  if (reply?.id) {
+    const existed = replies.some((item) => item.id === reply.id);
+    replies = upsertReply(replies, reply);
+    replyAuthors = {
+      ...replyAuthors,
+      ...buildReplyAuthorMap(replies),
+      [reply.id]: reply.author.displayName,
+    };
+    if (!existed) {
+      replyPage = incrementReplyTotal(replyPage, replies.length);
+    }
+  }
+
   closeReplyComposer();
   void reloadReplies();
   window.setTimeout(() => void reloadReplies(), 1800);
@@ -205,9 +225,65 @@ function resolveReplyToName(reply: CommentNextComment): string {
   }
 
   return (
+    reply.replyToName ||
+    replyAuthors[reply.quoteReplyId] ||
     replies.find((item) => item.id === reply.quoteReplyId)?.author.displayName ||
-    comment.author.displayName
+    ''
   );
+}
+
+function rememberReplyAuthor(reply: CommentNextComment) {
+  if (!reply.id || !reply.author.displayName) {
+    return;
+  }
+
+  replyAuthors = {
+    ...replyAuthors,
+    [reply.id]: reply.author.displayName,
+  };
+}
+
+function buildReplyAuthorMap(items: CommentNextComment[]): Record<string, string> {
+  return items.reduce<Record<string, string>>((result, item) => {
+    if (item.id && item.author.displayName) {
+      result[item.id] = item.author.displayName;
+    }
+    return result;
+  }, {});
+}
+
+function upsertReply(
+  items: CommentNextComment[],
+  reply: CommentNextComment
+): CommentNextComment[] {
+  if (items.some((item) => item.id === reply.id)) {
+    return items.map((item) => (item.id === reply.id ? reply : item));
+  }
+
+  return [...items, reply];
+}
+
+function incrementReplyTotal(
+  pageInfo: CommentNextPageInfo | undefined,
+  fallbackTotal: number
+): CommentNextPageInfo {
+  if (!pageInfo) {
+    return {
+      page: 1,
+      size: replySize,
+      total: fallbackTotal,
+      totalPages: 1,
+      hasNext: false,
+      hasPrevious: false,
+    };
+  }
+
+  const total = Math.max(pageInfo.total + 1, fallbackTotal);
+  return {
+    ...pageInfo,
+    total,
+    totalPages: Math.max(Math.ceil(total / Math.max(pageInfo.size, 1)), 1),
+  };
 }
 
 async function loadRemainingReplies() {
@@ -258,6 +334,10 @@ async function loadReplies({
     });
 
     replies = append ? [...replies, ...data.items] : data.items;
+    replyAuthors = {
+      ...replyAuthors,
+      ...buildReplyAuthorMap(replies),
+    };
     replyPage = {
       page: data.page,
       size: data.size,
@@ -388,6 +468,14 @@ async function loadReplies({
           <span>{replyCount}</span>
         {/if}
       </button>
+      <CommentNextReportButton
+        {baseUrl}
+        targetType="COMMENT"
+        name={comment.id}
+        {loggedIn}
+        config={reportConfig}
+        {demoData}
+      />
     </footer>
 
     {#if replyComposerOpen && !quoteReply}
@@ -422,6 +510,7 @@ async function loadReplies({
             {aiMentionName}
             {loggedIn}
             reactionConfig={reactionConfig}
+            reportConfig={reportConfig}
             replyToName={resolveReplyToName(reply)}
             onReply={openQuoteReply}
           />
@@ -468,6 +557,9 @@ async function loadReplies({
 <style>
   .comment-next-comment-item {
     --at-apply: relative grid grid-cols-[2.625rem_minmax(0,1fr)] gap-3.5 py-[1.125rem] px-0;
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .comment-next-comment-item:not(.comment-next-comment-item-first) {
@@ -475,15 +567,17 @@ async function loadReplies({
   }
 
   .comment-next-comment-avatar {
-    --at-apply: pt-0.5;
+    --at-apply: w-[2.625rem] min-w-0 justify-self-start self-start pt-0.5 leading-none;
   }
 
   .comment-next-comment-avatar a {
-    --at-apply: inline-flex rounded-full text-inherit no-underline;
+    --at-apply: inline-flex h-fit w-fit flex-none items-center justify-center rounded-full text-inherit no-underline leading-none;
   }
 
   .comment-next-comment-main {
     --at-apply: min-w-0;
+    box-sizing: border-box;
+    max-width: 100%;
   }
 
   .comment-next-comment-meta {
@@ -558,14 +652,21 @@ async function loadReplies({
 
   .comment-next-replies {
     --at-apply: relative ml-0.5 mt-3.5 rounded-none border-l border-l-dashed [border-left-color:var(--comment-next-reply-guide-color,#c8d8ee)] bg-transparent py-0.5 pl-4 pr-0;
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .comment-next-reply-composer-slot {
     --at-apply: mt-3.5;
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .comment-next-reply-composer-slot-nested {
     --at-apply: ml-[2.375rem] mr-0 mb-3.5 mt-1;
+    max-width: calc(100% - 2.375rem);
   }
 
   .comment-next-replies-message {
@@ -595,6 +696,7 @@ async function loadReplies({
 
     .comment-next-reply-composer-slot-nested {
       --at-apply: ml-0;
+      max-width: 100%;
     }
 
     .comment-next-replies {

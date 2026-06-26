@@ -8,6 +8,7 @@ import { createDemoCommentPage, demoBadgeConfig } from './demo/comments';
 import { fetchCommentPage } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextReportConfig,
   CommentNextReactionConfig,
   CommentNextSecurityConfig,
   CommentNextUploadConfig,
@@ -38,6 +39,7 @@ const {
   badgeConfig: configuredBadgeConfig,
   aiConfig,
   reactionConfig,
+  reportConfig,
   uploadConfig,
   emotePacks = [],
 }: {
@@ -59,6 +61,7 @@ const {
   badgeConfig?: CommentNextBadgeConfig;
   aiConfig?: CommentNextAiConfig;
   reactionConfig?: CommentNextReactionConfig;
+  reportConfig?: CommentNextReportConfig;
   uploadConfig?: CommentNextUploadConfig;
   emotePacks?: CommentNextEmotePack[];
 } = $props();
@@ -375,6 +378,7 @@ function resolvePaginationItems(
           {showCommenterDevice}
           {aiConfig}
           {reactionConfig}
+          {reportConfig}
           {aiMentionName}
           {uploadConfig}
           {emotePacks}
@@ -440,6 +444,8 @@ function resolvePaginationItems(
 <style>
   .comment-next-comments {
     --at-apply: box-border w-full text-[var(--comment-next-text-color,#172033)];
+    max-width: 100%;
+    min-width: 0;
     font-family: var(
       --comment-next-font-family,
       ui-sans-serif,
@@ -497,6 +503,8 @@ function resolvePaginationItems(
 
   .comment-next-comments-list {
     --at-apply: grid;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .comment-next-comments-empty {

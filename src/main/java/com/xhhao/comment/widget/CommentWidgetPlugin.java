@@ -6,6 +6,7 @@ import com.xhhao.comment.widget.badge.CommentNextBadgeProfile;
 import com.xhhao.comment.widget.ai.CommentNextAiReplyRecord;
 import com.xhhao.comment.widget.emote.CommentNextEmoteGroup;
 import com.xhhao.comment.widget.interaction.CommentNextReaction;
+import com.xhhao.comment.widget.report.CommentNextReport;
 import com.xhhao.comment.widget.security.CommentNextSecurityRule;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -38,6 +39,7 @@ public class CommentWidgetPlugin extends BasePlugin {
         registerEmoteGroup();
         registerSecurityRule();
         registerReaction();
+        registerReport();
         registerAiReplyRecord();
     }
 
@@ -175,6 +177,26 @@ public class CommentWidgetPlugin extends BasePlugin {
         });
     }
 
+    private void registerReport() {
+        schemeManager.register(CommentNextReport.class, indexSpecs -> {
+            indexSpecs.add(IndexSpecs.<CommentNextReport, String>single("spec.targetType",
+                    String.class)
+                .indexFunc(report -> Optional.ofNullable(report.getSpec())
+                    .map(CommentNextReport.Spec::getTargetType)
+                    .orElse(null)));
+            indexSpecs.add(IndexSpecs.<CommentNextReport, String>single("spec.targetName",
+                    String.class)
+                .indexFunc(report -> Optional.ofNullable(report.getSpec())
+                    .map(CommentNextReport.Spec::getTargetName)
+                    .orElse(null)));
+            indexSpecs.add(IndexSpecs.<CommentNextReport, String>single("spec.identityHash",
+                    String.class)
+                .indexFunc(report -> Optional.ofNullable(report.getSpec())
+                    .map(CommentNextReport.Spec::getIdentityHash)
+                    .orElse(null)));
+        });
+    }
+
     private void registerAiReplyRecord() {
         schemeManager.register(CommentNextAiReplyRecord.class, indexSpecs -> {
             indexSpecs.add(IndexSpecs.<CommentNextAiReplyRecord, String>single("spec.targetType",
@@ -208,6 +230,7 @@ public class CommentWidgetPlugin extends BasePlugin {
     @Override
     public void stop() {
         unregister(CommentNextAiReplyRecord.class);
+        unregister(CommentNextReport.class);
         unregister(CommentNextReaction.class);
         unregister(CommentNextSecurityRule.class);
         unregister(CommentNextEmoteGroup.class);

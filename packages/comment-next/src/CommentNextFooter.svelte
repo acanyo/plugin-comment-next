@@ -78,12 +78,33 @@ let footerElement = $state<HTMLDivElement | undefined>();
 let imageInputElement = $state<HTMLInputElement | undefined>();
 let emotePanelOpen = $state(false);
 let emotePanelStyle = $state('');
+let isMobileViewport = $state(false);
 
 const hasEmotePacks = $derived(emotePacks.some((pack) => pack.items.length));
-const floatingEmotePanel = $derived(compact || !showSubmitArea);
+const visibleInsertTools = $derived(
+  insertTools.filter((tool) => {
+    if (tool.key === 'smile') {
+      return hasEmotePacks;
+    }
+
+    if (tool.key === 'image') {
+      return imageUploadEnabled || imageUploading;
+    }
+
+    return true;
+  })
+);
+const hasVisibleInsertTools = $derived(visibleInsertTools.length > 0);
+const floatingEmotePanel = $derived(compact || !showSubmitArea || isMobileViewport);
 
 onMount(() => {
+  const mobileMedia = window.matchMedia('(max-width: 780px)');
+  const syncMobileViewport = () => {
+    isMobileViewport = mobileMedia.matches;
+  };
   const handleViewportChange = () => {
+    syncMobileViewport();
+
     if (emotePanelOpen && floatingEmotePanel) {
       void updateEmotePanelPosition();
     }
@@ -109,12 +130,15 @@ onMount(() => {
     }
   };
 
+  syncMobileViewport();
+  mobileMedia.addEventListener('change', syncMobileViewport);
   document.addEventListener('pointerdown', handlePointerDown, true);
   document.addEventListener('keydown', handleKeyDown);
   window.addEventListener('resize', handleViewportChange);
   window.addEventListener('scroll', handleViewportChange, true);
 
   return () => {
+    mobileMedia.removeEventListener('change', syncMobileViewport);
     document.removeEventListener('pointerdown', handlePointerDown, true);
     document.removeEventListener('keydown', handleKeyDown);
     window.removeEventListener('resize', handleViewportChange);
@@ -123,6 +147,10 @@ onMount(() => {
 });
 
 $effect(() => {
+  if (!hasEmotePacks) {
+    emotePanelOpen = false;
+  }
+
   if (emotePanelOpen && floatingEmotePanel) {
     void updateEmotePanelPosition();
     return;
@@ -271,6 +299,7 @@ async function updateEmotePanelPosition() {
     {/if}
 
     {#if showInsertTools}
+    {#if hasVisibleInsertTools}
     <div class="comment-next-insert-tools-region">
       {#if emotePanelOpen && hasEmotePacks}
         <CommentNextEmotePanel
@@ -282,6 +311,7 @@ async function updateEmotePanelPosition() {
       {/if}
 
       <div class="comment-next-insert-tools" aria-label="插入工具栏">
+        {#if imageUploadEnabled || imageUploading}
         <input
           bind:this={imageInputElement}
           class="comment-next-upload-input"
@@ -289,7 +319,8 @@ async function updateEmotePanelPosition() {
           accept={imageAccept}
           onchange={handleImageFileChange}
         />
-        {#each insertTools as tool}
+        {/if}
+        {#each visibleInsertTools as tool}
           <button
             class:comment-next-tool-button-active={(tool.key === "smile" && emotePanelOpen) || (tool.key === "image" && imageUploading)}
             class="comment-next-tool-button"
@@ -306,6 +337,7 @@ async function updateEmotePanelPosition() {
         {/each}
       </div>
     </div>
+    {/if}
     {/if}
 
   </div>
@@ -350,6 +382,8 @@ async function updateEmotePanelPosition() {
 <style>
   .comment-next-footer {
     --at-apply: flex min-h-14 box-border items-center justify-between gap-3 border-t [border-top-style:var(--comment-next-divider-style,dashed)] [border-top-color:var(--comment-next-divider-color,#d4dde8)] rounded-b-[var(--comment-next-radius-lg,0.875rem)] [background:var(--comment-next-footer-surface-bg,transparent,var(--comment-next-footer-bg-color,#fbfcfc))] px-3.5 py-0;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .comment-next-footer-left,
@@ -374,6 +408,12 @@ async function updateEmotePanelPosition() {
 
   .comment-next-footer-left {
     --at-apply: min-w-0 gap-2.5;
+    max-width: 100%;
+  }
+
+  .comment-next-submit-area {
+    max-width: 100%;
+    min-width: 0;
   }
 
   .comment-next-insert-tools-region {

@@ -120,6 +120,7 @@ interface HaloCommentPage {
 }
 
 interface HaloComment {
+  replyToName?: string;
   metadata?: {
     name?: string;
     creationTimestamp?: string;
@@ -559,6 +560,7 @@ function adaptHaloComment(comment: HaloComment): CommentNextComment {
     featured: Boolean(comment.featured ?? isFeaturedComment(comment)),
     priority: normalizeNumber(comment.priority ?? comment.spec?.priority) ?? 0,
     quoteReplyId: comment.spec?.quoteReply,
+    replyToName: textValue(comment.replyToName),
     userAgent: comment.spec?.userAgent,
     author: {
       displayName,
@@ -616,6 +618,10 @@ function resolveAuthorAvatar(
 function normalizeNumber(value: unknown): number | undefined {
   const normalizedValue = Number(value);
   return Number.isFinite(normalizedValue) ? normalizedValue : undefined;
+}
+
+function textValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function resolveAuthorRole(

@@ -1,8 +1,38 @@
 # 评论组件 Next
 
-为 Halo 2.0 打造的 AI 评论组件，聚焦智能写作辅助、富文本评论、验证码、评论列表与徽章展示。UI 部分基于 Svelte Web Component，可在主题评论位和独立前端项目中复用。
+评论组件 Next 是为 Halo 打造的下一代评论系统，提供更现代的评论框、评论列表、互动能力和后台管理能力。它不仅支持富文本评论、图片上传、表情包、私密评论、评论精选/置顶、举报、黑灰名单、验证码和徽章体系，也可以结合 Halo AI Foundation 提供 AI 写作、@AI 自动回复、AI 自动回复管理和 AI 恶意评论拦截。
 
-![Cover](./images/cover.png)
+UI 部分基于 Svelte Web Component 构建，由插件自动注入到 Halo 主题的评论位中使用。
+
+![Cover](./images/img.png)
+
+## 功能特性
+
+- 富文本评论框：支持图片上传、表情包、私密评论、移动端适配和主题 CSS 变量定制。
+- 评论互动增强：支持文章表情回应、评论/回复表情回应、评论精选、评论置顶、用户徽章和评论举报。
+- 图片上传：支持 Halo 附件库和 ImgBB，可分别配置登录用户与未登录用户的上传方式、大小限制和安全拦截。
+- 验证码：支持图片验证码、GeeTest、ALTCHA 和 Cap，统一在提交评论时弹出验证。
+- 安全管理：支持 IP、邮箱、用户名、关键词、域名、UA 的黑名单/灰名单规则，支持精确、包含和正则匹配。
+- AI 能力：支持 AI 写作助手、@AI 自动回复、AI 自动回复候选审核、AI 恶意评论识别和拦截通知。
+- 后台管理：提供评论表情、举报记录、AI 回复管理、AI 拦截记录、黑灰名单、徽章设置等控制台菜单。
+
+## 配置概览
+
+插件安装后，可在插件设置中按模块配置：
+
+- 基本设置：评论分页、回复分页、回复预加载、评论者设备信息、私密评论。
+- 图片上传：支持 Halo 附件库和 ImgBB，可分别设置登录用户与未登录用户的上传方式、大小限制和上传限流。
+- 验证码：支持字母数字、算术验证码、GeeTest、ALTCHA 和 Cap，统一在提交评论时弹出验证。
+- 表情回应：支持文章、评论、回复的表情回应，并可分别配置 emoji 或图片回应项。
+- 举报设置：支持评论和回复举报，可设置达到举报阈值后自动进入待审核。
+- AI 助手：支持 AI 写作助手、@AI 自动回复、AI 自动回复管理、AI 提示词配置和 AI 恶意评论识别。
+- 徽章设置：支持首评徽章、管理员徽章、自定义徽章规则和用户徽章展示。
+
+## 可选依赖
+
+- AI 相关功能依赖 [Halo AI Foundation](https://www.halo.run/store/apps/app-acslk9nu)。未安装或未启用时，普通评论、上传、验证码、举报、黑灰名单等功能不受影响。
+- GeeTest、Cap、ImgBB 需要站长自行准备对应服务或密钥。
+- Halo 附件库上传需要在插件设置中选择存储策略和存储组。
 
 ## 使用方式
 
@@ -10,6 +40,18 @@
 2. 安装，插件安装和更新方式可参考：<https://docs.halo.run/user-guide/plugins>。
 
 > 需要注意的是，此插件需要主题进行适配，不会主动在内容页加载评论组件。
+
+## 后台菜单
+
+插件会在 Halo 控制台的评论菜单下增加以下管理入口：
+
+- 评论徽章
+- 评论表情
+- 精选评论
+- AI 拦截记录
+- 举报记录
+- AI 回复管理
+- 黑灰名单
 
 ## 开发环境
 
@@ -38,13 +80,41 @@ Halo 插件的详细开发文档可查阅 [插件开发](https://docs.halo.run/c
 
 ### 接入
 
-接入文档可参考 [自定义标签](https://docs.halo.run/developer-guide/theme/template-tag#halocomment)。
+评论组件 Next 实现的是 Halo 的 `comment-widget` 扩展点。启用插件后，插件会自动向主题页面注入 `comment-next.css` 和 `comment-next.iife.js`，主题只需要在文章页、独立页面的评论位置渲染 Halo 评论标签。
+
+插件自己的前台标签是 `<comment-widget>`，但它由 Halo 的 `<halo:comment />` 扩展点自动渲染出来。常规主题适配时推荐写 `<halo:comment />`，这样可以继续遵循 Halo 的评论启用状态、内容类型和插件扩展点机制。
+
+文章页示例：
+
+```html
+<div th:if="${haloCommentEnabled}">
+  <halo:comment
+    group="content.halo.run"
+    kind="Post"
+    th:attr="name=${post.metadata.name}"
+  />
+</div>
+```
+
+独立页面示例：
+
+```html
+<div th:if="${haloCommentEnabled}">
+  <halo:comment
+    group="content.halo.run"
+    kind="SinglePage"
+    th:attr="name=${singlePage.metadata.name}"
+  />
+</div>
+```
+
+如果主题没有渲染 `<halo:comment />`，评论组件不会出现在内容页。更多标签说明可参考 Halo 官方文档：[自定义标签](https://docs.halo.run/developer-guide/theme/template-tag#halocomment)。
 
 ### 自定义样式
 
-虽然目前不能直接为评论组件编写额外的样式，但可以通过一系列的 CSS 变量来自定义部分样式，开发者可以根据需求自行在主题中添加这些 CSS 变量，让评论组件和主题更好地融合。
+评论组件 Next 会优先读取 `--halo-cw-*` 变量，这套变量和 Halo 评论组件常用主题变量保持一致。主题如果已经定义了这些变量，评论组件会自动继承；如果需要进一步定制，也可以在主题 CSS 中覆盖这些变量。
 
-目前已提供的 CSS 变量：
+建议优先使用以下稳定变量：
 
 | 变量名                       | 描述                                     |
 | ---------------------------- | ---------------------------------------- |
@@ -63,35 +133,54 @@ Halo 插件的详细开发文档可查阅 [插件开发](https://docs.halo.run/c
 | `--halo-cw-base-font-size`   | 基础字体大小                             |
 | `--halo-cw-base-font-family` | 基础字体族                               |
 
-<details>
-<summary>点击查看 CSS 代码模板</summary>
+示例：
 
 ```css
 :root {
-  --halo-cw-primary-1-color: ;
-  --halo-cw-primary-2-color: ;
-  --halo-cw-primary-3-color: ;
+  --halo-cw-primary-1-color: #2563eb;
+  --halo-cw-primary-2-color: #bfdbfe;
+  --halo-cw-primary-3-color: #eff6ff;
 
-  --halo-cw-text-1-color: ;
-  --halo-cw-text-2-color: ;
-  --halo-cw-text-3-color: ;
+  --halo-cw-text-1-color: #172033;
+  --halo-cw-text-2-color: #64748b;
+  --halo-cw-text-3-color: #94a3b8;
 
-  --halo-cw-muted-1-color: ;
-  --halo-cw-muted-2-color: ;
-  --halo-cw-muted-3-color: ;
+  --halo-cw-muted-1-color: #d5dde7;
+  --halo-cw-muted-2-color: #e7ecf2;
+  --halo-cw-muted-3-color: #ffffff;
 
-  --halo-cw-base-rounded: ;
-  --halo-cw-avatar-rounded: ;
-  --halo-cw-avatar-size: ;
-  --halo-cw-base-font-size: ;
-  --halo-cw-base-font-family: ;
+  --halo-cw-base-rounded: 0.875rem;
+  --halo-cw-avatar-rounded: 9999px;
+  --halo-cw-avatar-size: 36px;
+  --halo-cw-base-font-size: 1rem;
+  --halo-cw-base-font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+```
+
+<details>
+<summary>更细粒度的变量</summary>
+
+如果主题需要精细控制评论框、弹层、徽章、AI 面板、精选/置顶标识等细节，可以继续覆盖 `--comment-next-*` 变量。此类变量更贴近组件内部实现，后续版本可能会调整，主题适配时优先使用 `--halo-cw-*`。
+
+```css
+:root {
+  --comment-next-bg-color: #ffffff;
+  --comment-next-text-color: #172033;
+  --comment-next-muted-color: #64748b;
+  --comment-next-border-color: #d5dde7;
+  --comment-next-radius-lg: 0.875rem;
+  --comment-next-reaction-hover-bg-color: rgb(239 246 255 / 0.68);
+  --comment-next-pinned-pill-bg-color: #fef3c7;
+  --comment-next-featured-pill-bg-color: #ccfbf1;
 }
 ```
 
 </details>
 
 <details>
-<summary>3.0.0 版本之前已废弃的 CSS 变量</summary>
+<summary>旧变量迁移</summary>
+
+评论组件 Next 不建议继续使用 `--halo-comment-widget-*` 这类旧变量。主题侧如果仍然保留旧变量，建议迁移到 `--halo-cw-*`。
 
 | 变量名                                                                  | 描述                     | 备注                                               |
 | ----------------------------------------------------------------------- | ------------------------ | -------------------------------------------------- |
@@ -132,142 +221,68 @@ Halo 插件的详细开发文档可查阅 [插件开发](https://docs.halo.run/c
 
 ### 配色切换方案
 
-根据上面提供的 CSS 变量，也可以通过定义 CSS 变量的方式为评论组件提供动态切换配色的功能。
+评论组件 Next 内置了明亮、深色和跟随系统三种模式。主题只需要在 `html` 或 `body` 上添加 class 或 `data-color-scheme`，组件会自动切换对应配色。
 
-以下是实现示例，你可以根据需求自行修改选择器或者媒体查询。
+可用 class：
+
+- `color-scheme-auto`：跟随系统。
+- `color-scheme-dark` / `dark`：强制深色。
+- `color-scheme-light` / `light`：强制明亮。
+
+可用 `data-color-scheme`：
+
+- `data-color-scheme="auto"`：跟随系统。
+- `data-color-scheme="dark"`：强制深色。
+- `data-color-scheme="light"`：强制明亮。
+
+示例：
 
 ```css
 @media (prefers-color-scheme: dark) {
   .color-scheme-auto,
-  [data-color-scheme='auto'] {
+  [data-color-scheme="auto"] {
     color-scheme: dark;
-    
-    --halo-cw-primary-1-color: #059669;
-    --halo-cw-primary-2-color: #047857;
-    --halo-cw-primary-3-color: #065f46;
 
-    --halo-cw-text-1-color: #f9fafb;
-    --halo-cw-text-2-color: #e5e7eb;
-    --halo-cw-text-3-color: #9ca3af;
+    --halo-cw-primary-1-color: #93c5fd;
+    --halo-cw-primary-2-color: #60a5fa;
+    --halo-cw-primary-3-color: #1e3a8a;
 
-    --halo-cw-muted-1-color: #4b5563;
-    --halo-cw-muted-2-color: #374151;
-    --halo-cw-muted-3-color: #1f2937;
+    --halo-cw-text-1-color: #f4f4f5;
+    --halo-cw-text-2-color: #a1a1aa;
+    --halo-cw-text-3-color: #71717a;
 
-    --halo-cw-emoji-picker-rgb-color: 222, 222, 221;
-    --halo-cw-emoji-picker-rgb-accent: 58, 130, 247;
-    --halo-cw-emoji-picker-rgb-background: 21, 22, 23;
-    --halo-cw-emoji-picker-rgb-input: 0, 0, 0;
-    --halo-cw-emoji-picker-color-border: rgba(255, 255, 255, 0.1);
-    --halo-cw-emoji-picker-color-border-over: rgba(255, 255, 255, 0.2);
+    --halo-cw-muted-1-color: #52525b;
+    --halo-cw-muted-2-color: #3f3f46;
+    --halo-cw-muted-3-color: #18181b;
   }
 }
 
 .color-scheme-dark,
 .dark,
-[data-color-scheme='dark'] {
+[data-color-scheme="dark"] {
   color-scheme: dark;
 
-    --halo-cw-primary-1-color: #059669;
-    --halo-cw-primary-2-color: #047857;
-    --halo-cw-primary-3-color: #065f46;
+  --halo-cw-primary-1-color: #93c5fd;
+  --halo-cw-primary-2-color: #60a5fa;
+  --halo-cw-primary-3-color: #1e3a8a;
 
-    --halo-cw-text-1-color: #f9fafb;
-    --halo-cw-text-2-color: #e5e7eb;
-    --halo-cw-text-3-color: #9ca3af;
+  --halo-cw-text-1-color: #f4f4f5;
+  --halo-cw-text-2-color: #a1a1aa;
+  --halo-cw-text-3-color: #71717a;
 
-    --halo-cw-muted-1-color: #4b5563;
-    --halo-cw-muted-2-color: #374151;
-    --halo-cw-muted-3-color: #1f2937;
-
-    --halo-cw-emoji-picker-rgb-color: 222, 222, 221;
-    --halo-cw-emoji-picker-rgb-accent: 58, 130, 247;
-    --halo-cw-emoji-picker-rgb-background: 21, 22, 23;
-    --halo-cw-emoji-picker-rgb-input: 0, 0, 0;
-    --halo-cw-emoji-picker-color-border: rgba(255, 255, 255, 0.1);
-    --halo-cw-emoji-picker-color-border-over: rgba(255, 255, 255, 0.2);
+  --halo-cw-muted-1-color: #52525b;
+  --halo-cw-muted-2-color: #3f3f46;
+  --halo-cw-muted-3-color: #18181b;
 }
 ```
 
-此外，为了让主题可以更加方便的适配暗黑模式，此插件也提供了一套暗黑模式的配色方案，主题可以直接使用此方案，而不需要自己去适配暗黑模式，适配方式如下：
+## 注意事项
 
-1. 在 html 或者 body 标签添加 class：
-   1. `color-scheme-auto`：自动模式，根据系统的暗黑模式自动切换。
-   2. `color-scheme-dark` / `dark`：强制暗黑模式。
-   3. `color-scheme-light` / `light`：强制明亮模式。
-2. 在 html 或者 body 标签添加 `data-color-scheme` 属性：
-   1. `auto`：自动模式，根据系统的暗黑模式自动切换。
-   2. `dark`：强制暗黑模式。
-   3. `light`：强制明亮模式。
+- 当前推荐接入方式是 Halo 插件 + 主题 `<halo:comment />` 标签，不再在 README 中提供独立 npm 组件接入说明。
+- AI 写作、@AI 自动回复、AI 自动回复和 AI 拦截都需要先在 AI Foundation 中配置可用语言模型。
+- 匿名上传、匿名 AI 和匿名举报会带来资源消耗风险，建议配合验证码、限流和审核策略开启。
+- 如果评论组件没有显示，优先检查主题是否渲染了 `<halo:comment />`，以及当前内容是否允许评论。
 
-## 作为组件使用
+## 开源协议
 
-此插件的 UI 部分计划采用 [Svelte](https://svelte.dev/) 编写，并最终编译为 Web Component，所以理论上可以在任何 JS 框架中使用。这非常适用于将 Halo 作为 Headless CMS 使用的场景。例如使用 Vue、React 等框架编写网站，并调用 Halo 的 API 来渲染网页，这个时候文章评论的解决方案就可以直接使用此组件。
-
-安装：
-
-```bash
-pnpm install @xhhao/comment-next
-```
-
-### Vue
-
-在 Vue 组件中使用时，需要在 Vue 的编译选项中设置将此组件标记为非 Vue 组件，以下是 Vite 的配置示例：
-
-```js
-import vue from '@vitejs/plugin-vue'
-
-export default {
-  plugins: [
-    vue({
-      template: {
-        compilerOptions: {
-          isCustomElement: (tag) => tag === 'comment-next'
-        }
-      }
-    })
-  ]
-}
-```
-
-然后在 SFC 中使用即可：
-
-```vue
-<script setup>
-import '@xhhao/comment-next'
-import '@xhhao/comment-next/var.css';
-</script>
-
-<template>
-  <comment-next
-    baseUrl="https://demo.halo.run"
-    group="content.halo.run"
-    kind="Post"
-    version="v1alpha1"
-    name="e0507f6f-88bb-4d3c-a90a-a88aba222035"
-  ></comment-next>
-</template>
-```
-
-## React
-
-```ts
-import "@xhhao/comment-next";
-import "@xhhao/comment-next/var.css";
-
-function App() {
-  return (
-    <>
-      <comment-next
-        baseUrl="https://demo.halo.run"
-        group="content.halo.run"
-        kind="Post"
-        version="v1alpha1"
-        name="e0507f6f-88bb-4d3c-a90a-a88aba222035"
-      ></comment-next>
-    </>
-  );
-}
-
-export default App;
-```
+本项目基于 [GPL-3.0](./LICENSE) 协议开源。

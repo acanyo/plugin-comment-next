@@ -17,7 +17,7 @@ spec:
           name: replySize
           validation: required
           value: 10
-        - $formkit: checkbox
+        - $formkit: switch
           label: 同时加载评论的回复
           name: withReplies
           id: withReplies
@@ -31,18 +31,18 @@ spec:
           key: withReplySize
           validation: required
           value: 5
-        - $formkit: checkbox
+        - $formkit: switch
           label: 显示评论者设备信息
           name: showCommenterDevice
           value: true
-        - $formkit: checkbox
+        - $formkit: switch
           label: 支持私密评论
           id: enablePrivateComment
           key: enablePrivateComment
           name: enablePrivateComment
           help: 开启之后，评论者可选是否私密评论，私密评论仅评论者（已登录）和网站管理员（包含评论查看权限）可见，
           value: false
-        - $formkit: checkbox
+        - $formkit: switch
           if: "$get(enablePrivateComment).value === true"
           label: 显示私密评论状态
           name: showPrivateCommentBadge
@@ -71,7 +71,7 @@ spec:
               apiEndpoint: ""
               secretKey: ""
           children:
-            - $formkit: checkbox
+            - $formkit: switch
               label: 匿名评论需要验证码
               name: anonymousCommentCaptcha
               id: anonymousCommentCaptcha
@@ -234,14 +234,14 @@ spec:
     - group: upload
       label: 图片上传
       formSchema:
-        - $formkit: checkbox
+        - $formkit: switch
           label: 启用评论图片上传
           name: enabled
           id: uploadEnabled
           key: uploadEnabled
           value: false
           help: 开启后，评论编辑器会显示图片上传按钮。图片会先上传到插件后端，再按下方配置存入 Halo 附件库或 ImgBB。
-        - $formkit: checkbox
+        - $formkit: switch
           if: "$get(uploadEnabled).value === true"
           label: 允许未登录用户上传图片
           name: allowAnonymousUpload
@@ -538,10 +538,52 @@ spec:
           name: allowAnonymous
           value: true
           help: 登录用户按账号防重复；未登录用户按匿名 cookie 防重复，可重复点击同一表情取消。
+    - group: report
+      label: 举报设置
+      formSchema:
+        - $formkit: switch
+          label: 启用评论举报
+          name: enabled
+          id: reportEnabled
+          key: reportEnabled
+          value: false
+          help: 开启后，前台评论和回复操作区会显示举报入口；同一登录用户或同一匿名访客对同一目标只计一次。
+        - $formkit: switch
+          if: "$get(reportEnabled).value === true"
+          label: 允许举报评论
+          name: commentEnabled
+          value: true
+        - $formkit: switch
+          if: "$get(reportEnabled).value === true"
+          label: 允许举报回复
+          name: replyEnabled
+          value: true
+        - $formkit: switch
+          if: "$get(reportEnabled).value === true"
+          label: 允许未登录用户举报
+          name: allowAnonymous
+          value: true
+          help: 登录用户按账号防重复；未登录用户按匿名 cookie 防重复。
+        - $formkit: switch
+          if: "$get(reportEnabled).value === true"
+          label: 达到阈值后自动进入待审核
+          name: autoPendingEnabled
+          id: reportAutoPendingEnabled
+          key: reportAutoPendingEnabled
+          value: true
+          help: 达到举报次数后，插件会把对应评论或回复设置为未审核，管理员可在 Halo 评论管理里重新审核。
+        - $formkit: number
+          if: "$get(reportEnabled).value === true && $get(reportAutoPendingEnabled).value === true"
+          label: 自动待审核举报次数
+          name: autoPendingThreshold
+          value: 3
+          min: 1
+          validation: required|min:1
+          help: 建议设置为 3 次或以上，避免单个用户误触导致评论被隐藏。
     - group: ai
       label: AI 助手
       formSchema:
-        - $formkit: checkbox
+        - $formkit: switch
           label: 启用 AI 写作助手
           name: enabled
           id: aiEnabled
@@ -583,7 +625,7 @@ spec:
           value:
             mentionAutoReplyEnabled: false
           children:
-            - $formkit: checkbox
+            - $formkit: switch
               label: 允许 @AI 自动回复
               name: mentionAutoReplyEnabled
               id: mentionAutoReplyEnabled
@@ -606,7 +648,7 @@ spec:
               label: 语言模型
               placeholder: 留空使用默认语言模型
               help: 选择 AI Foundation 中已启用的语言模型；留空时使用 AI Foundation 配置的默认语言模型。
-            - $formkit: checkbox
+            - $formkit: switch
               label: 允许未登录用户使用 AI
               name: allowAnonymous
               id: aiAllowAnonymous
@@ -844,7 +886,7 @@ spec:
     - group: aiReview
       label: AI 拦截
       formSchema:
-        - $formkit: checkbox
+        - $formkit: switch
           label: 启用 AI 恶意评论识别
           name: enabled
           id: aiReviewEnabled
@@ -866,17 +908,17 @@ spec:
             - label: 仅提醒（只记录识别结果）
               value: "NOTICE"
           help: 推荐先使用“进审核”。所有策略都会记录 AI 审核注解，方便后续在控制台展示或统计。
-        - $formkit: checkbox
+        - $formkit: switch
           if: "$get(aiReviewEnabled).value === true"
           label: 审核评论
           name: reviewComments
           value: true
-        - $formkit: checkbox
+        - $formkit: switch
           if: "$get(aiReviewEnabled).value === true"
           label: 审核回复
           name: reviewReplies
           value: true
-        - $formkit: checkbox
+        - $formkit: switch
           if: "$get(aiReviewEnabled).value === true"
           label: 命中后通知管理员
           name: notifyAdmins
@@ -899,7 +941,7 @@ spec:
               label: Halo 用户
               name: username
               validation: required
-        - $formkit: checkbox
+        - $formkit: switch
           if: "$get(aiReviewEnabled).value === true"
           label: 命中后通知评论人
           name: notifyCommenter
@@ -946,7 +988,7 @@ spec:
     - group: badge
       label: 徽章设置
       formSchema:
-        - $formkit: checkbox
+        - $formkit: switch
           label: 启用首评徽章
           name: enableFirstCommentBadge
           id: enableFirstCommentBadge

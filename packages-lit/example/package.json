@@ -1,9 +1,0 @@
-{
-  "private": true,
-  "scripts": {
-    "dev": "vite"
-  },
-  "dependencies": {
-    "@halo-dev/comment-widget": "workspace:*"
-  }
-}

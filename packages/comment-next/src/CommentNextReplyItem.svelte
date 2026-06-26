@@ -6,8 +6,12 @@ import CommentNextContent from './CommentNextContent.svelte';
 import CommentNextEnvironmentTags from './CommentNextEnvironmentTags.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import CommentNextReactionButton from './CommentNextReactionButton.svelte';
+import CommentNextReportButton from './CommentNextReportButton.svelte';
 import { upvoteCommentTarget } from './services/comments';
-import type { CommentNextReactionConfig } from './services/config';
+import type {
+  CommentNextReactionConfig,
+  CommentNextReportConfig,
+} from './services/config';
 import type {
   CommentNextBadgeConfig,
   CommentNextComment,
@@ -32,6 +36,7 @@ const {
   aiMentionName = '',
   loggedIn = false,
   reactionConfig,
+  reportConfig,
   onReply = () => {},
 }: {
   baseUrl?: string;
@@ -43,6 +48,7 @@ const {
   aiMentionName?: string;
   loggedIn?: boolean;
   reactionConfig?: CommentNextReactionConfig;
+  reportConfig?: CommentNextReportConfig;
   onReply?: (reply: CommentNextComment) => void;
 } = $props();
 
@@ -141,19 +147,18 @@ async function handleUpvote() {
       {#if reply.approved === false}
         <span class="comment-next-reply-state">待审核</span>
       {/if}
+      <span class="comment-next-reply-submeta">
+        {#if reply.creationTime}
+          <time>{formatRelativeTime(reply.creationTime)}</time>
+        {/if}
+        {#if showCommenterDevice}
+          <CommentNextEnvironmentTags tags={environmentTags} compact />
+        {/if}
+        {#if replyToName}
+          <span>回复 <strong>@{replyToName}</strong>：</span>
+        {/if}
+      </span>
     </header>
-
-    <div class="comment-next-reply-submeta">
-      {#if reply.creationTime}
-        <time>{formatRelativeTime(reply.creationTime)}</time>
-      {/if}
-      {#if showCommenterDevice}
-        <CommentNextEnvironmentTags tags={environmentTags} compact />
-      {/if}
-      {#if replyToName}
-        <span>回复 <strong>@{replyToName}</strong>：</span>
-      {/if}
-    </div>
 
     <CommentNextContent content={reply.content} {aiMentionName} />
 
@@ -182,6 +187,15 @@ async function handleUpvote() {
         <CommentNextIcon name="reply" size={13} />
         回复
       </button>
+      <CommentNextReportButton
+        {baseUrl}
+        targetType="REPLY"
+        name={reply.id}
+        {loggedIn}
+        config={reportConfig}
+        {demoData}
+        compact
+      />
     </div>
   </div>
 </article>
@@ -192,7 +206,7 @@ async function handleUpvote() {
   }
 
   .comment-next-reply-avatar {
-    --at-apply: pt-0.5;
+    --at-apply: w-[1.75rem] min-w-0 justify-self-start self-start pt-0.5 leading-none;
   }
 
   .comment-next-reply-main {
@@ -204,11 +218,11 @@ async function handleUpvote() {
   }
 
   .comment-next-reply-meta {
-    --at-apply: mb-[0.05rem] flex min-w-0 flex-wrap items-center gap-1.5;
+    --at-apply: mb-[0.4rem] flex min-h-[1.75rem] min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1;
   }
 
   .comment-next-reply-author {
-    --at-apply: max-w-40 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-[var(--comment-next-text-color,#172033)] font-[760];
+    --at-apply: max-w-40 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-[var(--comment-next-text-color,#172033)] font-[760] leading-[1.25rem];
   }
 
   .comment-next-reply-flags {
@@ -233,7 +247,7 @@ async function handleUpvote() {
   }
 
   .comment-next-reply-submeta {
-    --at-apply: mb-[0.4rem] flex flex-wrap gap-[0.45rem] font-[560];
+    --at-apply: inline-flex min-w-0 flex-wrap items-center gap-[0.45rem] font-[560] leading-[1.25rem];
   }
 
   .comment-next-reply-submeta strong {

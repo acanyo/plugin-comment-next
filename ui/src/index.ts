@@ -1,6 +1,11 @@
 import type { ListedComment, ListedReply } from '@halo-dev/api-client';
 import {
+  IconForbidLine,
+  IconMessage,
+  IconMotionLine,
   IconNotificationBadgeLine,
+  IconReplyLine,
+  IconShieldUser,
   Toast,
   VDropdownItem,
   VLoading,
@@ -43,7 +48,7 @@ export default definePlugin({
           title: '评论徽章设置',
           permissions: ['*'],
           menu: {
-            name: '评论徽章设置',
+            name: '评论徽章',
             icon: markRaw(IconNotificationBadgeLine),
             priority: 2.1,
           },
@@ -63,8 +68,8 @@ export default definePlugin({
           title: '评论表情管理',
           permissions: ['*'],
           menu: {
-            name: '评论表情管理',
-            icon: markRaw(IconNotificationBadgeLine),
+            name: '评论表情',
+            icon: markRaw(IconMotionLine),
             priority: 2.2,
           },
         },
@@ -84,7 +89,7 @@ export default definePlugin({
           permissions: ['*'],
           menu: {
             name: '精选评论',
-            icon: markRaw(IconNotificationBadgeLine),
+            icon: markRaw(IconMessage),
             priority: 2.25,
           },
         },
@@ -104,8 +109,28 @@ export default definePlugin({
           permissions: ['*'],
           menu: {
             name: 'AI 拦截记录',
-            icon: markRaw(IconNotificationBadgeLine),
+            icon: markRaw(IconShieldUser),
             priority: 2.3,
+          },
+        },
+      },
+    },
+    {
+      parentName: 'CommentsRoot',
+      route: {
+        path: 'comment-next-report-records',
+        name: 'CommentNextReportRecords',
+        component: defineAsyncComponent({
+          loader: () => import('./views/ReportRecordsView.vue'),
+          loadingComponent: VLoading,
+        }),
+        meta: {
+          title: '举报记录',
+          permissions: ['*'],
+          menu: {
+            name: '举报记录',
+            icon: markRaw(IconShieldUser),
+            priority: 2.32,
           },
         },
       },
@@ -124,7 +149,7 @@ export default definePlugin({
           permissions: ['*'],
           menu: {
             name: 'AI 回复管理',
-            icon: markRaw(IconNotificationBadgeLine),
+            icon: markRaw(IconReplyLine),
             priority: 2.35,
           },
         },
@@ -144,7 +169,7 @@ export default definePlugin({
           permissions: ['*'],
           menu: {
             name: '黑灰名单',
-            icon: markRaw(IconNotificationBadgeLine),
+            icon: markRaw(IconForbidLine),
             priority: 2.4,
           },
         },

@@ -21,7 +21,7 @@ import {
   deleteEmoteGroup,
   type EmoteGroup,
   type EmoteGroupFilter,
-  fetchDefaultEmotePacks,
+  fetchEmotePacksFromUrl,
   listAllEmoteGroups,
   listEmoteGroups,
   normalizeEmoteGroup,
@@ -49,6 +49,7 @@ const selectedGroupNames = ref<string[]>([]);
 const importKnownGroups = ref<EmoteGroup[]>([]);
 const defaultSourceVisible = ref(false);
 const defaultSourceLoading = ref(false);
+const defaultSourceUrl = ref(DEFAULT_EMOTE_SOURCE_URL);
 const defaultSourcePacks = ref<RawEmotePacks>({});
 const selectedDefaultNames = ref<string[]>([]);
 const customVisible = ref(false);
@@ -94,6 +95,14 @@ const importedDisplayNames = computed(
 const defaultPackSummaries = computed(() =>
   summarizePacks(defaultSourcePacks.value)
 );
+const normalizedDefaultSourceUrl = computed(
+  () => defaultSourceUrl.value.trim() || DEFAULT_EMOTE_SOURCE_URL
+);
+const defaultImportSourceType = computed(() =>
+  normalizedDefaultSourceUrl.value === DEFAULT_EMOTE_SOURCE_URL
+    ? 'DEFAULT'
+    : 'CUSTOM'
+);
 const customPackSummaries = computed(() => summarizePacks(customPacks.value));
 const hasDeletingGroups = computed(() => hasDeletingResources(groups.value));
 
@@ -124,6 +133,11 @@ watch(
     syncCheckAll();
   }
 );
+
+watch(defaultSourceUrl, () => {
+  defaultSourcePacks.value = {};
+  selectedDefaultNames.value = [];
+});
 
 useDeletionRefresh({
   hasDeletingItems: () => hasDeletingGroups.value,
@@ -195,17 +209,30 @@ function openDefaultSource() {
 }
 
 async function loadDefaultSource() {
+  if (!isValidHttpUrl(normalizedDefaultSourceUrl.value)) {
+    Toast.error('请输入正确的在线表情源地址');
+    return;
+  }
+
   defaultSourceLoading.value = true;
   try {
-    defaultSourcePacks.value = await fetchDefaultEmotePacks();
+    defaultSourcePacks.value = await fetchEmotePacksFromUrl(
+      normalizedDefaultSourceUrl.value
+    );
     selectedDefaultNames.value = [];
-    Toast.success('默认表情源已加载');
+    Toast.success('在线表情源已加载');
   } catch (error) {
     console.error(error);
-    Toast.error('默认表情源加载失败');
+    Toast.error('在线表情源加载失败');
   } finally {
     defaultSourceLoading.value = false;
   }
+}
+
+function resetDefaultSourceUrl() {
+  defaultSourceUrl.value = DEFAULT_EMOTE_SOURCE_URL;
+  defaultSourcePacks.value = {};
+  selectedDefaultNames.value = [];
 }
 
 function openCustomImport() {
@@ -279,8 +306,8 @@ async function importDefaultGroups() {
   await importGroups({
     rawPacks: defaultSourcePacks.value,
     names: selectedDefaultNames.value,
-    sourceType: 'DEFAULT',
-    sourceUrl: DEFAULT_EMOTE_SOURCE_URL,
+    sourceType: defaultImportSourceType.value,
+    sourceUrl: normalizedDefaultSourceUrl.value,
   });
   defaultSourceVisible.value = false;
 }
@@ -520,6 +547,15 @@ function typeText(type: string) {
   return type === 'image' ? '图片表情' : '颜文字';
 }
 
+function isValidHttpUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 async function openSortModal() {
   sortVisible.value = true;
   sortLoading.value = true;
@@ -578,7 +614,7 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
           导入 JSON
         </VButton>
         <VButton type="primary" @click="openDefaultSource">
-          默认表情源
+          在线表情源
         </VButton>
       </VSpace>
     </template>
@@ -659,12 +695,12 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
       <Transition v-else-if="!groups.length" appear name="fade">
         <VEmpty
           title="暂无表情分类"
-          message="可以从默认表情源选择分类导入，也可以粘贴 OwO JSON 导入自定义表情。"
+          message="可以从在线表情源选择分类导入，也可以粘贴 OwO JSON 导入自定义表情。"
         >
           <template #actions>
             <VSpace v-if="canManage">
               <VButton type="secondary" @click="openCustomImport">导入 JSON</VButton>
-              <VButton type="primary" @click="openDefaultSource">默认表情源</VButton>
+              <VButton type="primary" @click="openDefaultSource">在线表情源</VButton>
             </VSpace>
           </template>
         </VEmpty>
@@ -711,12 +747,35 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
 
   <VModal
     v-model:visible="defaultSourceVisible"
-    title="默认表情源"
+    title="在线表情源"
     :width="820"
   >
     <div class=":uno: space-y-4">
-      <div class=":uno: rounded-lg bg-gray-50 p-3 text-xs text-gray-500">
-        <div class=":uno: break-all">{{ DEFAULT_EMOTE_SOURCE_URL }}</div>
+      <div class=":uno: rounded-lg border border-solid border-gray-200 bg-gray-50 p-3">
+        <label class=":uno: text-xs font-medium text-gray-700">
+          表情源地址
+        </label>
+        <div class=":uno: mt-2 flex flex-col gap-2 sm:flex-row">
+          <input
+            v-model="defaultSourceUrl"
+            class=":uno: min-w-0 flex-1 rounded-lg border border-solid border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            placeholder="https://example.com/OwO.min.json"
+            type="url"
+          />
+          <VButton type="secondary" @click="resetDefaultSourceUrl">
+            恢复默认
+          </VButton>
+          <VButton
+            type="secondary"
+            :loading="defaultSourceLoading"
+            @click="loadDefaultSource"
+          >
+            加载
+          </VButton>
+        </div>
+        <div class=":uno: mt-2 text-xs leading-5 text-gray-500">
+          支持 OwO JSON 格式；默认地址仍是官方 GitHub 源，也可以换成自己的 CDN、对象存储或站内文件地址。
+        </div>
       </div>
 
       <div class=":uno: flex items-center justify-between gap-3">

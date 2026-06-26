@@ -852,6 +852,9 @@ function isNodeInsideTransient(node: Node): boolean {
 <style>
   .comment-next-editor-wrap {
     --at-apply: relative min-h-[var(--comment-next-editor-min-height,12.5rem)] overflow-visible [background:var(--comment-next-editor-surface-bg,transparent,var(--comment-next-editor-bg-color,#ffffff))];
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .comment-next-editor-wrap-top-rounded {
@@ -869,7 +872,11 @@ function isNodeInsideTransient(node: Node): boolean {
   }
 
   .comment-next-editor {
-    --at-apply: box-border min-h-[var(--comment-next-editor-min-height,12.5rem)] px-5 pb-5 pt-[1.125rem] text-[0.9375rem] text-[var(--comment-next-text-color,#172033)] leading-[1.7] outline-none caret-[var(--comment-next-primary-color,rgb(59,130,246))];
+    --at-apply: box-border min-h-[var(--comment-next-editor-min-height,12.5rem)] text-[0.9375rem] text-[var(--comment-next-text-color,#172033)] leading-[1.7] outline-none caret-[var(--comment-next-primary-color,rgb(59,130,246))];
+    max-width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    padding: var(--comment-next-editor-padding, 1.125rem 1.25rem 1.25rem);
   }
 
   .comment-next-editor:empty::before {
@@ -995,9 +1002,16 @@ function isNodeInsideTransient(node: Node): boolean {
   }
 
   @media (max-width: 640px) {
-    .comment-next-editor-wrap,
+    .comment-next-editor-wrap {
+      --at-apply: min-h-[var(--comment-next-editor-mobile-min-height,9rem)];
+    }
+
     .comment-next-editor {
-      --at-apply: min-h-[var(--comment-next-editor-mobile-min-height,9rem)] p-4;
+      --at-apply: min-h-[var(--comment-next-editor-mobile-min-height,9rem)];
+      padding: var(
+        --comment-next-editor-mobile-padding,
+        var(--comment-next-editor-padding, 1rem)
+      );
     }
 
     .comment-next-selection-bar {
