@@ -541,12 +541,9 @@ function adaptHaloComment(comment: HaloComment): CommentNextComment {
   const displayName =
     owner.displayName ||
     specOwner.displayName ||
-    specOwner.name ||
-    owner.name ||
     '匿名用户';
   const kind = owner.kind || specOwner.kind;
-  const username = owner.name || specOwner.name;
-  const role = resolveAuthorRole(owner.role || specOwner.role, kind, username);
+  const role = resolveAuthorRole(owner.role || specOwner.role, kind);
   const emailHash = specOwner.annotations?.['email-hash'];
 
   return {
@@ -566,7 +563,6 @@ function adaptHaloComment(comment: HaloComment): CommentNextComment {
       displayName,
       avatar: resolveAuthorAvatar(owner.avatar, kind, emailHash),
       website: specOwner.annotations?.website,
-      username,
       email: specOwner.email,
       kind,
       role,
@@ -626,12 +622,11 @@ function textValue(value: unknown): string | undefined {
 
 function resolveAuthorRole(
   role?: string,
-  kind?: string,
-  username?: string
+  kind?: string
 ): CommentNextComment['author']['role'] {
   if (role === 'admin' || role === 'member' || role === 'anonymous') {
     return role;
   }
 
-  return kind === 'User' || username ? 'member' : 'anonymous';
+  return kind === 'User' ? 'member' : 'anonymous';
 }

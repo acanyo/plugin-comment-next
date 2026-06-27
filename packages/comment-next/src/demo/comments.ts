@@ -4,9 +4,7 @@ import type {
   CommentNextCommentPage,
 } from '../types/comment';
 
-export const demoBadgeConfig: CommentNextBadgeConfig = {
-  adminIdentifiers: [{ username: 'handsome' }],
-};
+export const demoBadgeConfig: CommentNextBadgeConfig = {};
 
 export function createDemoCommentPage(): CommentNextCommentPage {
   const items: CommentNextComment[] = [
@@ -54,7 +52,6 @@ export function createDemoCommentPage(): CommentNextCommentPage {
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 26_3_1) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.0.0 Safari/537.36',
           author: {
             displayName: 'Handsome',
-            username: 'handsome',
             role: 'admin',
             activeCommentCount: 86,
           },

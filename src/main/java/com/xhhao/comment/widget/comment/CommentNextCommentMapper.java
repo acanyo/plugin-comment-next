@@ -78,9 +78,6 @@ class CommentNextCommentMapper {
 
     private ObjectNode ownerNode(CommentNextAuthor author) {
         var ownerNode = objectMapper.createObjectNode();
-        if (StringUtils.hasText(author.name())) {
-            ownerNode.put("name", author.name());
-        }
         ownerNode.put("displayName", author.displayName());
         if (StringUtils.hasText(author.avatar())) {
             ownerNode.put("avatar", author.avatar());

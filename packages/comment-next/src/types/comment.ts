@@ -16,16 +16,9 @@ export interface CommentNextBadge {
   title?: string;
 }
 
-export interface CommentNextBadgeIdentifier {
-  username?: string;
-  email?: string;
-  displayName?: string;
-}
-
 export interface CommentNextBadgeConfig {
   enableFirstCommentBadge?: boolean;
   firstCommentBadge?: Partial<CommentNextBadge>;
-  adminIdentifiers?: CommentNextBadgeIdentifier[];
   adminBadge?: Partial<CommentNextBadge>;
 }
 
@@ -33,7 +26,6 @@ export interface CommentNextAuthor {
   displayName: string;
   avatar?: string;
   website?: string;
-  username?: string;
   email?: string;
   kind?: string;
   role?: CommentNextAuthorRole;

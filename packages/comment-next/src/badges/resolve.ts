@@ -2,7 +2,6 @@ import type {
   CommentNextAuthor,
   CommentNextBadge,
   CommentNextBadgeConfig,
-  CommentNextBadgeIdentifier,
   CommentNextComment,
 } from '../types/comment';
 
@@ -43,7 +42,7 @@ export function resolveCommentBadges(
     });
   }
 
-  if (isAdminAuthor(comment.author, config.adminIdentifiers)) {
+  if (isAdminAuthor(comment.author)) {
     badges.push({ ...DEFAULT_ADMIN_BADGE, ...config.adminBadge });
   }
 
@@ -52,25 +51,8 @@ export function resolveCommentBadges(
   return dedupeBadges(badges);
 }
 
-function isAdminAuthor(
-  author: CommentNextAuthor,
-  adminIdentifiers: CommentNextBadgeIdentifier[] = []
-): boolean {
-  if (author.role === 'admin') {
-    return true;
-  }
-
-  return adminIdentifiers.some((identifier) =>
-    equalsIdentity(author.username, identifier.username)
-  );
-}
-
-function equalsIdentity(left?: string, right?: string): boolean {
-  if (!left || !right) {
-    return false;
-  }
-
-  return left.trim().toLowerCase() === right.trim().toLowerCase();
+function isAdminAuthor(author: CommentNextAuthor): boolean {
+  return author.role === 'admin';
 }
 
 function dedupeBadges(badges: CommentNextBadge[]): CommentNextBadge[] {
