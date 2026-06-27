@@ -60,6 +60,10 @@ tasks.register('buildCommentNext', PnpmTask) {
 tasks.register('buildConsoleUi', PnpmTask) {
     args = ['-C', 'ui', 'build']
     dependsOn('installDepsForUI', 'buildCommentNext')
+    doFirst {
+        delete(file('src/main/resources/console'))
+        delete(file('src/main/resources/ui'))
+    }
 }
 
 tasks.register('buildFrontend') {

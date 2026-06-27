@@ -7,6 +7,52 @@ spec:
     - group: basic
       label: 基本设置
       formSchema:
+        - $el: div
+          attrs:
+            style: >-
+              color-scheme:light dark;display:flex;flex-direction:column;gap:14px;padding:18px;border:1px solid color-mix(in srgb, CanvasText 12%, transparent);border-radius:10px;background:color-mix(in srgb, Canvas 96%, #2563eb 4%);color:CanvasText;box-shadow:0 1px 2px rgba(15,23,42,.04);
+          children:
+            - $el: div
+              attrs:
+                style: "display:flex;flex-direction:column;gap:4px;"
+              children:
+                - $el: strong
+                  attrs:
+                    style: "font-size:15px;line-height:22px;color:CanvasText;"
+                  children: 评论组件 Next
+                - $el: span
+                  attrs:
+                    style: "font-size:13px;line-height:20px;color:color-mix(in srgb, CanvasText 66%, transparent);"
+                  children: 查看使用教程、主题适配说明，或加入交流群反馈问题与建议。
+            - $el: div
+              attrs:
+                style: "display:flex;flex-wrap:wrap;gap:10px;"
+              children:
+                - $el: a
+                  attrs:
+                    href: "https://www.xhhao.com/docs/halo/comment-next/jiaocheng1"
+                    target: "_blank"
+                    rel: "noopener noreferrer"
+                    style: >-
+                      display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 14px;border-radius:8px;background:#2563eb;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;
+                  children: 查看文档
+                - $el: a
+                  attrs:
+                    href: "https://qm.qq.com/q/ayy293SPZu"
+                    target: "_blank"
+                    rel: "noopener noreferrer"
+                    style: >-
+                      display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 14px;border-radius:8px;background:color-mix(in srgb, CanvasText 6%, Canvas);color:CanvasText;font-size:13px;font-weight:600;text-decoration:none;border:1px solid color-mix(in srgb, CanvasText 12%, transparent);
+                  children: 加入 QQ 群
+                - $el: button
+                  attrs:
+                    type: button
+                    title: 点击复制 QQ 群号
+                    onclick: >-
+                      var text='766203360';var button=this;var reset=function(){setTimeout(function(){button.textContent='复制群号：'+text;},1600);};var done=function(){button.textContent='已复制：'+text;reset();};var fallback=function(){var input=document.createElement('input');input.value=text;input.style.position='fixed';input.style.left='-9999px';document.body.appendChild(input);input.select();try{document.execCommand('copy');done();}finally{document.body.removeChild(input);}};if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done,fallback);}else{fallback();}
+                    style: >-
+                      display:inline-flex;align-items:center;height:34px;padding:0 12px;border-radius:8px;background:Canvas;color:color-mix(in srgb, CanvasText 72%, transparent);font-size:13px;border:1px solid color-mix(in srgb, CanvasText 12%, transparent);cursor:pointer;
+                  children: "复制群号：766203360"
         - $formkit: number
           label: 评论分页条数
           name: size

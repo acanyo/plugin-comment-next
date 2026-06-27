@@ -3,8 +3,8 @@ import { pluginVue } from '@rsbuild/plugin-vue';
 import { UnoCSSRspackPlugin } from '@unocss/webpack/rspack';
 
 const MANIFEST_PATH = '../src/main/resources/plugin.yaml';
-const OUT_DIR_PROD = '../src/main/resources/console';
-const OUT_DIR_DEV = '../build/resources/main/console';
+const OUT_DIR_PROD = '../src/main/resources/ui';
+const OUT_DIR_DEV = '../build/resources/main/ui';
 
 export default rsbuildConfig({
   manifestPath: MANIFEST_PATH,

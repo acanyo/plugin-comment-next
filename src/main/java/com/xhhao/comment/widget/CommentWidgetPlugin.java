@@ -240,9 +240,8 @@ public class CommentWidgetPlugin extends BasePlugin {
     }
 
     private void unregister(Class<? extends Extension> extensionClass) {
-        Scheme scheme = schemeManager.get(extensionClass);
-        if (scheme != null) {
-            schemeManager.unregister(scheme);
-        }
+        Scheme scheme = Scheme.buildFromType(extensionClass);
+        schemeManager.fetch(scheme.groupVersionKind())
+            .ifPresent(schemeManager::unregister);
     }
 }
