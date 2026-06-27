@@ -1,6 +1,7 @@
 package com.xhhao.comment.widget.security;
 
 import java.time.Duration;
+import java.util.List;
 
 public record CommentNextActionSecurityPolicy(
     boolean enabled,
@@ -8,7 +9,11 @@ public record CommentNextActionSecurityPolicy(
     int anonymousRateLimit,
     int anonymousRateWindowSeconds,
     int authenticatedRateLimit,
-    int authenticatedRateWindowSeconds
+    int authenticatedRateWindowSeconds,
+    boolean antiHotlinkEnabled,
+    boolean allowMissingOrigin,
+    List<String> allowedOrigins,
+    boolean rateLimitEnabled
 ) {
 
     public int limitFor(CommentNextActionActor actor) {
@@ -19,5 +24,9 @@ public record CommentNextActionSecurityPolicy(
         var seconds = Math.max(1,
             actor.anonymous() ? anonymousRateWindowSeconds : authenticatedRateWindowSeconds);
         return Duration.ofSeconds(seconds);
+    }
+
+    public List<String> allowedOrigins() {
+        return allowedOrigins == null ? List.of() : allowedOrigins;
     }
 }

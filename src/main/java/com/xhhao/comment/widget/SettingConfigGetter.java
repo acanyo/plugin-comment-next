@@ -281,10 +281,28 @@ public interface SettingConfigGetter {
 
     @Data
     class UploadSecurityConfig {
+        private boolean antiHotlinkEnabled = true;
+        private boolean allowMissingOrigin = false;
+        @Getter(onMethod_ = @NonNull)
+        private List<AllowedOriginConfig> allowedOrigins = new ArrayList<>();
+        private boolean rateLimitEnabled = true;
         private int anonymousRateLimit = 5;
         private int anonymousRateWindowSeconds = 60;
         private int authenticatedRateLimit = 30;
         private int authenticatedRateWindowSeconds = 60;
+
+        public void setAllowedOrigins(List<AllowedOriginConfig> allowedOrigins) {
+            this.allowedOrigins = allowedOrigins == null ? new ArrayList<>() : allowedOrigins;
+        }
+
+        public List<String> allowedOriginValues() {
+            return allowedOrigins.stream()
+                .map(AllowedOriginConfig::getOrigin)
+                .filter(origin -> origin != null && !origin.isBlank())
+                .map(String::strip)
+                .distinct()
+                .toList();
+        }
 
         public static UploadSecurityConfig empty() {
             return new UploadSecurityConfig();
@@ -1028,14 +1046,37 @@ public interface SettingConfigGetter {
 
     @Data
     class AiSecurityConfig {
+        private boolean antiHotlinkEnabled = true;
+        private boolean allowMissingOrigin = false;
+        @Getter(onMethod_ = @NonNull)
+        private List<AllowedOriginConfig> allowedOrigins = new ArrayList<>();
+        private boolean rateLimitEnabled = true;
         private int anonymousRateLimit = 3;
         private int anonymousRateWindowSeconds = 60;
         private int authenticatedRateLimit = 20;
         private int authenticatedRateWindowSeconds = 60;
 
+        public void setAllowedOrigins(List<AllowedOriginConfig> allowedOrigins) {
+            this.allowedOrigins = allowedOrigins == null ? new ArrayList<>() : allowedOrigins;
+        }
+
+        public List<String> allowedOriginValues() {
+            return allowedOrigins.stream()
+                .map(AllowedOriginConfig::getOrigin)
+                .filter(origin -> origin != null && !origin.isBlank())
+                .map(String::strip)
+                .distinct()
+                .toList();
+        }
+
         public static AiSecurityConfig empty() {
             return new AiSecurityConfig();
         }
+    }
+
+    @Data
+    class AllowedOriginConfig {
+        private String origin;
     }
 
     @Data

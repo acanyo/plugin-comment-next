@@ -163,6 +163,7 @@ public class ConfigEndpoint implements CustomEndpoint {
 
         var uploadValue = rootNode.get(UPLOAD_GROUP);
         if (uploadValue instanceof ObjectNode uploadNode) {
+            uploadNode.remove(SECURITY_GROUP);
             var imgBbValue = uploadNode.get(IMG_BB);
             if (imgBbValue instanceof ObjectNode imgBbNode) {
                 imgBbNode.remove(API_KEY);

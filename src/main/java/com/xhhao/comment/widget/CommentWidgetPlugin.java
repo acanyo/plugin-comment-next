@@ -7,6 +7,7 @@ import com.xhhao.comment.widget.ai.CommentNextAiReplyRecord;
 import com.xhhao.comment.widget.emote.CommentNextEmoteGroup;
 import com.xhhao.comment.widget.interaction.CommentNextReaction;
 import com.xhhao.comment.widget.report.CommentNextReport;
+import com.xhhao.comment.widget.security.CommentNextActionGuard;
 import com.xhhao.comment.widget.security.CommentNextSecurityRule;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -26,9 +27,14 @@ public class CommentWidgetPlugin extends BasePlugin {
 
     private final SchemeManager schemeManager;
 
-    public CommentWidgetPlugin(PluginContext pluginContext, SchemeManager schemeManager) {
+    private final CommentNextActionGuard actionGuard;
+
+    public CommentWidgetPlugin(PluginContext pluginContext,
+                               SchemeManager schemeManager,
+                               CommentNextActionGuard actionGuard) {
         super(pluginContext);
         this.schemeManager = schemeManager;
+        this.actionGuard = actionGuard;
     }
 
     @Override
@@ -229,6 +235,7 @@ public class CommentWidgetPlugin extends BasePlugin {
 
     @Override
     public void stop() {
+        actionGuard.dispose();
         unregister(CommentNextAiReplyRecord.class);
         unregister(CommentNextReport.class);
         unregister(CommentNextReaction.class);

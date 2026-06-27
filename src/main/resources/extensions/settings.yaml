@@ -380,30 +380,74 @@ spec:
           name: security
           label: 上传安全拦截
           value:
+            antiHotlinkEnabled: true
+            allowMissingOrigin: false
+            allowedOrigins: []
+            rateLimitEnabled: true
             anonymousRateLimit: 5
             anonymousRateWindowSeconds: 60
             authenticatedRateLimit: 30
             authenticatedRateWindowSeconds: 60
           children:
+            - $formkit: switch
+              label: 启用接口防盗链
+              name: antiHotlinkEnabled
+              id: uploadAntiHotlinkEnabled
+              key: uploadAntiHotlinkEnabled
+              value: true
+              help: 开启后会校验 Sec-Fetch-Site、Origin 和 Referer，只允许本站或额外白名单来源调用上传接口，降低图片上传被其他站点盗刷的风险。
+            - $formkit: switch
+              if: "$get(uploadAntiHotlinkEnabled).value === true"
+              label: 允许缺失来源
+              name: allowMissingOrigin
+              value: false
+              help: 默认不允许缺失 Origin/Referer。只有在反代、旧浏览器或特殊客户端无法携带来源时再开启。
+            - $formkit: array
+              if: "$get(uploadAntiHotlinkEnabled).value === true"
+              label: 额外允许的 Origin
+              name: allowedOrigins
+              addLabel: 添加 Origin
+              value: []
+              help: 每行填写完整 Origin，例如 https://www.example.com。本站 Origin 会自动允许，不需要重复填写。
+              itemLabels:
+                - type: text
+                  label: $value.origin
+              children:
+                - $formkit: text
+                  label: Origin
+                  name: origin
+                  placeholder: https://www.example.com
+                  validation: required|url
+            - $formkit: switch
+              label: 启用接口限流
+              name: rateLimitEnabled
+              id: uploadRateLimitEnabled
+              key: uploadRateLimitEnabled
+              value: true
+              help: 开启后按匿名 IP 或登录用户名限制上传频率。
             - $formkit: number
+              if: "$get(uploadRateLimitEnabled).value === true"
               label: 未登录用户窗口内允许上传次数
               name: anonymousRateLimit
               value: 5
               min: 1
               validation: required|min:1
             - $formkit: number
+              if: "$get(uploadRateLimitEnabled).value === true"
               label: 未登录用户限流窗口（秒）
               name: anonymousRateWindowSeconds
               value: 60
               min: 1
               validation: required|min:1
             - $formkit: number
+              if: "$get(uploadRateLimitEnabled).value === true"
               label: 登录用户窗口内允许上传次数
               name: authenticatedRateLimit
               value: 30
               min: 1
               validation: required|min:1
             - $formkit: number
+              if: "$get(uploadRateLimitEnabled).value === true"
               label: 登录用户限流窗口（秒）
               name: authenticatedRateWindowSeconds
               value: 60
@@ -726,32 +770,76 @@ spec:
         - $formkit: group
           if: "$get(aiEnabled).value === true"
           name: security
-          label: AI 生成限流
+          label: AI 接口安全策略
           value:
+            antiHotlinkEnabled: true
+            allowMissingOrigin: false
+            allowedOrigins: []
+            rateLimitEnabled: true
             anonymousRateLimit: 3
             anonymousRateWindowSeconds: 60
             authenticatedRateLimit: 20
             authenticatedRateWindowSeconds: 60
           children:
+            - $formkit: switch
+              label: 启用接口防盗链
+              name: antiHotlinkEnabled
+              id: aiAntiHotlinkEnabled
+              key: aiAntiHotlinkEnabled
+              value: true
+              help: 开启后会校验 Sec-Fetch-Site、Origin 和 Referer，只允许本站或额外白名单来源调用 AI 写作接口，降低匿名恶意消耗 AI 额度的风险。
+            - $formkit: switch
+              if: "$get(aiAntiHotlinkEnabled).value === true"
+              label: 允许缺失来源
+              name: allowMissingOrigin
+              value: false
+              help: 默认不允许缺失 Origin/Referer。只有在反代、旧浏览器或特殊客户端无法携带来源时再开启。
+            - $formkit: array
+              if: "$get(aiAntiHotlinkEnabled).value === true"
+              label: 额外允许的 Origin
+              name: allowedOrigins
+              addLabel: 添加 Origin
+              value: []
+              help: 每行填写完整 Origin，例如 https://www.example.com。本站 Origin 会自动允许，不需要重复填写。
+              itemLabels:
+                - type: text
+                  label: $value.origin
+              children:
+                - $formkit: text
+                  label: Origin
+                  name: origin
+                  placeholder: https://www.example.com
+                  validation: required|url
+            - $formkit: switch
+              label: 启用接口限流
+              name: rateLimitEnabled
+              id: aiRateLimitEnabled
+              key: aiRateLimitEnabled
+              value: true
+              help: 开启后按匿名 IP 或登录用户名限制 AI 写作生成频率。
             - $formkit: number
+              if: "$get(aiRateLimitEnabled).value === true"
               label: 未登录用户窗口内允许生成次数
               name: anonymousRateLimit
               value: 3
               min: 1
               validation: required|min:1
             - $formkit: number
+              if: "$get(aiRateLimitEnabled).value === true"
               label: 未登录用户限流窗口（秒）
               name: anonymousRateWindowSeconds
               value: 60
               min: 1
               validation: required|min:1
             - $formkit: number
+              if: "$get(aiRateLimitEnabled).value === true"
               label: 登录用户窗口内允许生成次数
               name: authenticatedRateLimit
               value: 20
               min: 1
               validation: required|min:1
             - $formkit: number
+              if: "$get(aiRateLimitEnabled).value === true"
               label: 登录用户限流窗口（秒）
               name: authenticatedRateWindowSeconds
               value: 60

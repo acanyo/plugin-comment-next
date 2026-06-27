@@ -501,7 +501,11 @@ public class CommentNextAiService {
             security.getAnonymousRateLimit(),
             security.getAnonymousRateWindowSeconds(),
             security.getAuthenticatedRateLimit(),
-            security.getAuthenticatedRateWindowSeconds()
+            security.getAuthenticatedRateWindowSeconds(),
+            security.isAntiHotlinkEnabled(),
+            security.isAllowMissingOrigin(),
+            security.allowedOriginValues(),
+            security.isRateLimitEnabled()
         );
     }
 
