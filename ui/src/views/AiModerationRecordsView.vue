@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import {
+  Dialog,
   IconRefreshLine,
   Toast,
   VCard,
@@ -10,8 +11,10 @@ import {
   VPagination,
   VSpace,
 } from '@halo-dev/components';
+import { utils } from '@halo-dev/ui-shared';
 import { computed, onMounted, ref, watch } from 'vue';
 import {
+  approveAiModerationRecord,
   type AiModerationRecord,
   type AiModerationTarget,
   listAiModerationRecords,
@@ -29,7 +32,10 @@ const fetching = ref(false);
 const target = ref<AiModerationTarget>('all');
 const status = ref<AiModerationStatusFilter>('intercepted');
 const keyword = ref('');
+const approvingRecordKey = ref('');
+const managePermissions = ['plugin:comment-next:comments:moderate'];
 
+const canManage = computed(() => utils.permission.has(managePermissions));
 const hasFilters = computed(
   () =>
     target.value !== 'all' ||
@@ -102,6 +108,32 @@ function clearFilters() {
 function handlePageChange() {
   loadRecords();
 }
+
+function recordKey(record: AiModerationRecord) {
+  return `${record.targetType}-${record.name}`;
+}
+
+function approveRecord(record: AiModerationRecord) {
+  Dialog.warning({
+    title: '复核通过',
+    description: '通过后会将这条评论或回复标记为已审核，并清除对应的 AI 拦截记录。',
+    confirmText: '通过',
+    cancelText: '取消',
+    onConfirm: async () => {
+      approvingRecordKey.value = recordKey(record);
+      try {
+        await approveAiModerationRecord(record.targetType, record.name);
+        Toast.success('已复核通过');
+        await loadRecords();
+      } catch (error) {
+        console.error(error);
+        Toast.error('复核通过失败');
+      } finally {
+        approvingRecordKey.value = '';
+      }
+    },
+  });
+}
 </script>
 
 <template>
@@ -155,8 +187,11 @@ function handlePageChange() {
         <VEntityContainer>
           <AiModerationRecordListItem
             v-for="record in records"
-            :key="`${record.targetType}-${record.name}`"
+            :key="recordKey(record)"
             :record="record"
+            :can-manage="canManage"
+            :approving="approvingRecordKey === recordKey(record)"
+            @approve="approveRecord"
           />
         </VEntityContainer>
       </Transition>

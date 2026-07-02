@@ -20,12 +20,21 @@ public class CommentNextAiModerationRecordEndpoint implements CustomEndpoint {
     public RouterFunction<ServerResponse> endpoint() {
         return RouterFunctions.route()
             .GET("ai/moderation-records", this::listRecords)
+            .PUT("ai/moderation-records/{targetType}/{name}/approve", this::approveRecord)
             .build();
     }
 
     private Mono<ServerResponse> listRecords(ServerRequest request) {
         return recordService.list(new CommentNextAiModerationRecordQuery(request))
             .flatMap(records -> ServerResponse.ok().bodyValue(records));
+    }
+
+    private Mono<ServerResponse> approveRecord(ServerRequest request) {
+        return recordService.approve(
+                request.pathVariable("targetType"),
+                request.pathVariable("name")
+            )
+            .then(ServerResponse.noContent().build());
     }
 
     @Override

@@ -274,8 +274,16 @@ public class CommentNextAiService {
 
             类型：%s
             内容 ID：%s
-            评论者：%s
+            评论者显示名：%s
+            评论者类型：%s
+            评论者账号或邮箱标识：%s
+            评论者主页：%s
             评论对象：%s
+
+            审核重点：
+            - 同时判断评论者显示名、账号/邮箱标识、主页和正文；如果昵称或标识明显是推广、黑产、赌博、算命、代刷、贷款、成人等账号，即使正文看似正常，也可以按 ads 或 spam 拦截。
+            - 友链/友联申请、站点互换链接、留下站点名、URL、邮箱或站点介绍，属于评论区常见的正常申请场景；不要仅因包含链接、邮箱或“申请友链/友联”等措辞拦截。
+            - 只有友链申请本身明显欺诈、成人、违法、恶意链接、批量广告或与站点互动无关时才拦截。
 
             内容：
             %s
@@ -283,6 +291,9 @@ public class CommentNextAiService {
             firstText(subject.sourceType(), "comment"),
             firstText(subject.name(), ""),
             firstText(subject.authorName(), "匿名用户"),
+            firstText(subject.authorKind(), "未知"),
+            firstText(subject.authorIdentifier(), ""),
+            firstText(subject.authorWebsite(), ""),
             firstText(subject.subject(), "未知"),
             content
         );

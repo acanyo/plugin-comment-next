@@ -1,5 +1,6 @@
 package com.xhhao.comment.widget.ai;
 
+import com.xhhao.comment.widget.CommentNextRoles;
 import com.xhhao.comment.widget.SettingConfigGetter;
 import com.xhhao.comment.widget.security.CommentNextSecurityReviewAction;
 import com.xhhao.comment.widget.security.CommentNextSecurityReviewResult;
@@ -20,6 +21,7 @@ import reactor.util.retry.Retry;
 import run.halo.app.core.extension.User;
 import run.halo.app.core.extension.content.Comment;
 import run.halo.app.core.extension.content.Reply;
+import run.halo.app.core.user.service.RoleService;
 import run.halo.app.extension.AbstractExtension;
 import run.halo.app.extension.ExtensionUtil;
 import run.halo.app.extension.MetadataUtil;
@@ -36,6 +38,8 @@ class CommentNextAiModerationService {
     private static final int UPDATE_MAX_ATTEMPTS = 2;
 
     private final ReactiveExtensionClient client;
+
+    private final RoleService roleService;
 
     private final SettingConfigGetter settingConfigGetter;
 
@@ -66,27 +70,41 @@ class CommentNextAiModerationService {
     }
 
     private Mono<Void> reviewComment(Comment comment, SettingConfigGetter.AiConfig config) {
+        var spec = comment.getSpec();
+        var owner = spec.getOwner();
         var subject = new CommentNextAiModerationSubject(
             "comment",
             comment.getMetadata().getName(),
-            ownerDisplayName(comment.getSpec().getOwner()),
-            Comment.toSubjectRefKey(comment.getSpec().getSubjectRef()),
-            plainText(comment.getSpec().getContent())
+            ownerDisplayName(owner),
+            ownerKind(owner),
+            ownerIdentifier(owner),
+            ownerWebsite(owner),
+            Comment.toSubjectRefKey(spec.getSubjectRef()),
+            plainText(spec.getContent())
         );
-        return review(comment, subject, config)
-            .then();
+        return isTrustedOwner(owner)
+            .flatMap(trusted -> trusted
+                ? clearReviewResult(comment).then()
+                : review(comment, subject, config).then());
     }
 
     private Mono<Void> reviewReply(Reply reply, SettingConfigGetter.AiConfig config) {
+        var spec = reply.getSpec();
+        var owner = spec.getOwner();
         var subject = new CommentNextAiModerationSubject(
             "reply",
             reply.getMetadata().getName(),
-            ownerDisplayName(reply.getSpec().getOwner()),
-            reply.getSpec().getCommentName(),
-            plainText(reply.getSpec().getContent())
+            ownerDisplayName(owner),
+            ownerKind(owner),
+            ownerIdentifier(owner),
+            ownerWebsite(owner),
+            spec.getCommentName(),
+            plainText(spec.getContent())
         );
-        return review(reply, subject, config)
-            .then();
+        return isTrustedOwner(owner)
+            .flatMap(trusted -> trusted
+                ? clearReviewResult(reply).then()
+                : review(reply, subject, config).then());
     }
 
     private Mono<? extends AbstractExtension> review(AbstractExtension extension,
@@ -96,7 +114,7 @@ class CommentNextAiModerationService {
             return Mono.empty();
         }
 
-        var contentHash = sha256(subject.content());
+        var contentHash = sha256(subject.fingerprint());
         if (hasReviewedCurrentContent(extension, contentHash)) {
             return Mono.empty();
         }
@@ -133,6 +151,35 @@ class CommentNextAiModerationService {
                 result,
                 config
             ));
+    }
+
+    private Mono<? extends AbstractExtension> clearReviewResult(AbstractExtension extension) {
+        return fetchLatest(extension)
+            .filter(this::isProcessable)
+            .filter(latestExtension -> CommentNextAiModerationAnnotations.hasReviewAnnotations(
+                latestExtension.getMetadata().getAnnotations()
+            ))
+            .flatMap(latestExtension -> {
+                var annotations = MetadataUtil.nullSafeAnnotations(latestExtension);
+                var wasIntercepted =
+                    "true".equals(annotations.get(CommentNextAiModerationAnnotations.INTERCEPTED));
+                CommentNextAiModerationAnnotations.clear(annotations);
+
+                if (wasIntercepted) {
+                    var spec = commentSpec(latestExtension);
+                    if (spec != null) {
+                        spec.setApproved(true);
+                    }
+                }
+
+                if (latestExtension instanceof Comment comment) {
+                    return client.update(comment).cast(AbstractExtension.class);
+                }
+                if (latestExtension instanceof Reply reply) {
+                    return client.update(reply).cast(AbstractExtension.class);
+                }
+                return Mono.empty();
+            });
     }
 
     private Mono<? extends AbstractExtension> updateReviewResult(AbstractExtension extension,
@@ -284,6 +331,27 @@ class CommentNextAiModerationService {
             && contentHash.equals(annotations.get(CommentNextAiModerationAnnotations.CONTENT_HASH));
     }
 
+    private Mono<Boolean> isTrustedOwner(Comment.CommentOwner owner) {
+        if (owner == null
+            || !User.KIND.equals(owner.getKind())
+            || !StringUtils.hasText(owner.getName())) {
+            return Mono.just(false);
+        }
+
+        var username = owner.getName().strip();
+        return settingConfigGetter.getBadgeConfig()
+            .map(config -> config.getAdminIdentifiers().stream()
+                .anyMatch(identifier -> identifier != null
+                    && StringUtils.hasText(identifier.getUsername())
+                    && username.equalsIgnoreCase(identifier.getUsername().strip())))
+            .flatMap(configuredAdmin -> configuredAdmin
+                ? Mono.just(true)
+                : roleService.getRolesByUsername(username)
+                    .any(CommentNextRoles.SUPER_ADMIN::equals)
+                    .defaultIfEmpty(false))
+            .onErrorReturn(false);
+    }
+
     private String ownerDisplayName(Comment.CommentOwner owner) {
         if (owner == null) {
             return "匿名用户";
@@ -295,6 +363,20 @@ class CommentNextAiModerationService {
             return owner.getName().strip();
         }
         return "匿名用户";
+    }
+
+    private String ownerKind(Comment.CommentOwner owner) {
+        return owner == null ? "" : firstText(owner.getKind(), "");
+    }
+
+    private String ownerIdentifier(Comment.CommentOwner owner) {
+        return owner == null ? "" : firstText(owner.getName(), "");
+    }
+
+    private String ownerWebsite(Comment.CommentOwner owner) {
+        return owner == null
+            ? ""
+            : firstText(owner.getAnnotation(Comment.CommentOwner.WEBSITE_ANNO), "");
     }
 
     private String plainText(String html) {
@@ -310,6 +392,10 @@ class CommentNextAiModerationService {
             .replaceAll("[\\t\\x0B\\f\\r ]+", " ")
             .replaceAll("\\n{3,}", "\n\n")
             .strip();
+    }
+
+    private String firstText(String value, String fallback) {
+        return StringUtils.hasText(value) ? value.strip() : fallback;
     }
 
     private void putJoined(Map<String, String> annotations,

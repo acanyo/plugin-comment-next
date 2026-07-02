@@ -60,3 +60,12 @@ export async function listAiModerationRecords(
   );
   return data;
 }
+
+export async function approveAiModerationRecord(
+  targetType: AiModerationRecord['targetType'],
+  name: string
+): Promise<void> {
+  await axiosInstance.put(
+    `${AI_MODERATION_RECORDS_ENDPOINT}/${targetType}/${name}/approve`
+  );
+}

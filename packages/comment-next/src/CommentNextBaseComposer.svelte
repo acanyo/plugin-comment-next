@@ -1167,8 +1167,8 @@ function resolveMentionName(
   }
 
   .comment-next-reply-composer {
-    --comment-next-editor-min-height: 4.5rem;
-    --comment-next-editor-mobile-min-height: 4.5rem;
+    --comment-next-editor-min-height: 7.5rem;
+    --comment-next-editor-mobile-min-height: 6rem;
     --comment-next-editor-padding: 0.875rem 1rem 1rem;
     --comment-next-editor-mobile-padding: 0.875rem 1rem 1rem;
     --at-apply: [border-color:var(--comment-next-border-subtle-color,#e7ecf2)] shadow-none;

@@ -199,7 +199,7 @@ rules:
     verbs: [ "update" ]
   - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "ai/moderation-records" ]
-    verbs: [ "get", "list" ]
+    verbs: [ "get", "list", "update" ]
   - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "ai/reply-records" ]
     verbs: [ "get", "list", "create" ]

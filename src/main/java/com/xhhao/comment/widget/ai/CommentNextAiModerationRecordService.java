@@ -7,8 +7,10 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.HtmlUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -17,6 +19,7 @@ import run.halo.app.core.extension.content.Comment;
 import run.halo.app.core.extension.content.Reply;
 import run.halo.app.extension.ExtensionUtil;
 import run.halo.app.extension.ListOptions;
+import run.halo.app.extension.MetadataUtil;
 import run.halo.app.extension.ReactiveExtensionClient;
 
 @Service
@@ -35,6 +38,58 @@ class CommentNextAiModerationRecordService {
                 query.size(),
                 records
             ));
+    }
+
+    Mono<Void> approve(String targetType, String name) {
+        if (!StringUtils.hasText(name)) {
+            return Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少记录 ID"));
+        }
+
+        return switch (normalizeTargetType(targetType)) {
+            case "comment" -> approveComment(name.strip());
+            case "reply" -> approveReply(name.strip());
+            default -> Mono.error(new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的记录类型"));
+        };
+    }
+
+    private Mono<Void> approveComment(String name) {
+        return client.fetch(Comment.class, name)
+            .filter(this::isProcessable)
+            .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "评论不存在")))
+            .flatMap(comment -> {
+                comment.getSpec().setApproved(true);
+                CommentNextAiModerationAnnotations.clear(MetadataUtil.nullSafeAnnotations(comment));
+                return client.update(comment);
+            })
+            .then();
+    }
+
+    private Mono<Void> approveReply(String name) {
+        return client.fetch(Reply.class, name)
+            .filter(this::isProcessable)
+            .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "回复不存在")))
+            .flatMap(reply -> {
+                reply.getSpec().setApproved(true);
+                CommentNextAiModerationAnnotations.clear(MetadataUtil.nullSafeAnnotations(reply));
+                return client.update(reply);
+            })
+            .then();
+    }
+
+    private boolean isProcessable(Comment comment) {
+        return !ExtensionUtil.isDeleted(comment)
+            && comment.getMetadata() != null
+            && comment.getSpec() != null;
+    }
+
+    private boolean isProcessable(Reply reply) {
+        return !ExtensionUtil.isDeleted(reply)
+            && reply.getMetadata() != null
+            && reply.getSpec() != null;
+    }
+
+    private String normalizeTargetType(String targetType) {
+        return StringUtils.hasText(targetType) ? targetType.strip().toLowerCase() : "";
     }
 
     private Flux<CommentNextAiModerationRecord> records(CommentNextAiModerationRecordQuery query) {

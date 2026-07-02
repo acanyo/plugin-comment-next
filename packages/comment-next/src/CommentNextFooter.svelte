@@ -272,21 +272,37 @@ async function updateEmotePanelPosition() {
   const rect = trigger.getBoundingClientRect();
   const viewportPadding = 16;
   const gap = 8;
+  const preferredPanelHeight = 360;
+  const minimumUsefulPanelHeight = 280;
   const panelWidth = Math.min(480, window.innerWidth - viewportPadding * 2);
-  const availableAbove = Math.max(180, rect.top - viewportPadding - gap);
+  const availableAbove = rect.top - viewportPadding - gap;
+  const availableBelow = window.innerHeight - rect.bottom - viewportPadding - gap;
+  const shouldPreferAbove = variant === 'reply' || compact || !showSubmitArea;
+  const openBelow =
+    !shouldPreferAbove &&
+    availableAbove < minimumUsefulPanelHeight &&
+    availableBelow > availableAbove;
+  const availableAboveHeight = shouldPreferAbove
+    ? Math.max(minimumUsefulPanelHeight, availableAbove)
+    : availableAbove;
+  const availableHeight = Math.max(
+    180,
+    openBelow ? availableBelow : availableAboveHeight
+  );
   const panelHeight = Math.min(
-    360,
+    preferredPanelHeight,
     window.innerHeight - viewportPadding * 2,
-    availableAbove
+    availableHeight
   );
   const maxLeft = window.innerWidth - panelWidth - viewportPadding;
   const left = Math.min(Math.max(viewportPadding, rect.left), maxLeft);
-  const top = rect.top - gap - panelHeight;
+  const top = openBelow ? rect.bottom + gap : rect.top - gap - panelHeight;
 
   emotePanelStyle = [
     `--comment-next-emote-fixed-left:${Math.max(viewportPadding, left)}px`,
     `--comment-next-emote-fixed-top:${Math.max(viewportPadding, top)}px`,
     `--comment-next-emote-fixed-width:${panelWidth}px`,
+    `--comment-next-emote-fixed-height:${panelHeight}px`,
     `--comment-next-emote-fixed-max-height:${panelHeight}px`,
   ].join(';');
 }

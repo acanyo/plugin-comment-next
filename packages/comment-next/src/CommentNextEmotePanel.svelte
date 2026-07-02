@@ -259,7 +259,10 @@ function saveRecentItemIds(ids: string[]) {
     left: var(--comment-next-emote-fixed-left, 1rem) !important;
     z-index: var(--comment-next-emote-fixed-z-index, 9999) !important;
     width: var(--comment-next-emote-fixed-width, min(30rem, calc(100vw - 2rem))) !important;
+    height: var(--comment-next-emote-fixed-height, auto);
     max-height: var(--comment-next-emote-fixed-max-height, 22.5rem);
+    display: flex;
+    flex-direction: column;
   }
 
   .comment-next-emote-head {
@@ -304,6 +307,16 @@ function saveRecentItemIds(ids: string[]) {
 
   .comment-next-emote-panel-fixed .comment-next-emote-tabs {
     max-height: calc(var(--comment-next-emote-fixed-max-height, 22.5rem) - 3.25rem);
+  }
+
+  .comment-next-emote-panel-fixed .comment-next-emote-body {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .comment-next-emote-panel-fixed .comment-next-emote-content {
+    min-height: 0;
+    overflow: hidden;
   }
 
   .comment-next-emote-tabs button {

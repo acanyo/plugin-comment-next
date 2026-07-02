@@ -1,11 +1,29 @@
 <script lang="ts" setup>
-import { VEntity, VEntityField, VStatusDot } from '@halo-dev/components';
+import {
+  VButton,
+  VDropdownItem,
+  VEntity,
+  VEntityField,
+  VStatusDot,
+} from '@halo-dev/components';
 import { utils } from '@halo-dev/ui-shared';
 import { computed } from 'vue';
 import type { AiModerationRecord } from '../api/ai-moderation-records';
 
-const props = defineProps<{
-  record: AiModerationRecord;
+const props = withDefaults(
+  defineProps<{
+    record: AiModerationRecord;
+    canManage?: boolean;
+    approving?: boolean;
+  }>(),
+  {
+    canManage: false,
+    approving: false,
+  }
+);
+
+const emit = defineEmits<{
+  approve: [record: AiModerationRecord];
 }>();
 
 const categoryLabels: Record<string, string> = {
@@ -92,6 +110,14 @@ const targetTooltip = computed(() =>
   ].filter(Boolean).join('\n')
 );
 const contentPreview = computed(() => props.record.content || '无内容');
+const canApprove = computed(() => props.canManage && props.record.intercepted);
+
+function approveRecord() {
+  if (!canApprove.value || props.approving) {
+    return;
+  }
+  emit('approve', props.record);
+}
 </script>
 
 <template>
@@ -156,6 +182,18 @@ const contentPreview = computed(() => props.record.content || '无内容');
           </span>
         </template>
       </VEntityField>
+      <VEntityField v-if="canApprove" title="操作" width="6rem">
+        <template #description>
+          <VButton
+            size="sm"
+            type="secondary"
+            :loading="approving"
+            @click="approveRecord"
+          >
+            通过
+          </VButton>
+        </template>
+      </VEntityField>
     </template>
 
     <template v-if="record.reason" #footer>
@@ -163,6 +201,12 @@ const contentPreview = computed(() => props.record.content || '无内容');
         <span class=":uno: font-medium text-gray-700">拦截原因：</span>
         <span>{{ record.reason }}</span>
       </div>
+    </template>
+
+    <template v-if="canApprove" #dropdownItems>
+      <VDropdownItem @click="approveRecord">
+        复核通过
+      </VDropdownItem>
     </template>
   </VEntity>
 </template>
