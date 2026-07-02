@@ -6,7 +6,7 @@ import {
   VStatusDot,
 } from '@halo-dev/components';
 import { utils } from '@halo-dev/ui-shared';
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import type { ReportRecord } from '../api/report-records';
 import {
   getReportContentPreview,
@@ -27,7 +27,7 @@ const emit = defineEmits<{
   close: [];
 }>();
 
-const visible = ref(true);
+const visible = ref(false);
 let closeTimer: ReturnType<typeof setTimeout> | undefined;
 
 const targetText = computed(() => getReportTargetText(props.record));
@@ -62,6 +62,12 @@ const detailItems = computed(() =>
     { label: '举报记录', value: props.record.name },
   ]
 );
+
+onMounted(() => {
+  nextTick(() => {
+    visible.value = true;
+  });
+});
 
 onBeforeUnmount(() => {
   if (closeTimer) {
