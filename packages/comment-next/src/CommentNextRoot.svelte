@@ -78,6 +78,7 @@ type CommentNextComposerRef = {
 let pluginConfig = $state<CommentNextPluginConfig | undefined>();
 let globalInfo = $state<CommentNextGlobalInfo | undefined>();
 let rawEmotePacks = $state<CommentNextRawEmotePacks>({});
+// biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
 let editorComposerRef = $state<CommentNextComposerRef | undefined>();
 let configLoaded = $state(false);
 let configFailed = $state(false);
@@ -103,11 +104,18 @@ const resolvedAllowAnonymous = $derived(
 const resolvedShowCaptcha = $derived(
   securityConfig?.captcha?.anonymousCommentCaptcha ?? showCaptcha
 );
-const resolvedCaptchaType = $derived(securityConfig?.captcha?.type ?? 'ALPHANUMERIC');
+const resolvedCaptchaType = $derived(
+  securityConfig?.captcha?.type ?? 'ALPHANUMERIC'
+);
 const resolvedEnablePrivate = $derived(
   basicConfig?.enablePrivateComment ?? enablePrivate
 );
-const resolvedShowCommenterDevice = $derived(true);
+const resolvedShowCommenterDevice = $derived(
+  basicConfig?.showCommenterDevice ?? true
+);
+const resolvedEnableImageLightbox = $derived(
+  basicConfig?.enableImageLightbox ?? true
+);
 const resolvedPlaceholder = $derived(
   editorConfig?.placeholder?.trim() || placeholder
 );
@@ -321,6 +329,7 @@ export function reset() {
         replySize={resolvedReplySize}
         withReplies={resolvedWithReplies}
         showCommenterDevice={resolvedShowCommenterDevice}
+        enableImageLightbox={resolvedEnableImageLightbox}
         {badgeConfig}
         {aiConfig}
         {reactionConfig}

@@ -1,6 +1,6 @@
 import type { CommentNextBadgeConfig } from '../types/comment';
-import type { CommentNextCaptchaConfig } from './captcha';
 import { resolveApiUrl } from './api';
+import type { CommentNextCaptchaConfig } from './captcha';
 
 export interface CommentNextPluginConfig {
   basic?: CommentNextBasicConfig;
@@ -24,6 +24,7 @@ export interface CommentNextBasicConfig {
   withReplySize?: number;
   enablePrivateComment?: boolean;
   showCommenterDevice?: boolean;
+  enableImageLightbox?: boolean;
 }
 
 export interface CommentNextSecurityConfig {

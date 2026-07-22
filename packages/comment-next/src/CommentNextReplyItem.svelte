@@ -16,12 +16,13 @@ import type {
   CommentNextBadgeConfig,
   CommentNextComment,
 } from './types/comment';
+import { commentAnchor, getCommentAnchorHref } from './utils/comment-anchor';
 import { formatRelativeTime } from './utils/date';
 import {
   COMMENT_NEXT_UPVOTED_REPLIES_KEY,
   hasRememberedUpvote,
-  rememberUpvote,
   rememberedUpvoteCount,
+  rememberUpvote,
   rememberUpvoteCount,
 } from './utils/upvote';
 import { getCommentEnvironmentTags } from './utils/user-agent';
@@ -33,6 +34,7 @@ const {
   replyToName = '',
   demoData = false,
   showCommenterDevice = true,
+  enableImageLightbox = true,
   aiMentionName = '',
   loggedIn = false,
   reactionConfig,
@@ -45,6 +47,7 @@ const {
   replyToName?: string;
   demoData?: boolean;
   showCommenterDevice?: boolean;
+  enableImageLightbox?: boolean;
   aiMentionName?: string;
   loggedIn?: boolean;
   reactionConfig?: CommentNextReactionConfig;
@@ -117,6 +120,7 @@ async function handleUpvote() {
 </script>
 
 <article
+  use:commentAnchor={{ kind: 'reply', id: reply.id }}
   class="comment-next-reply-item"
 >
   <div class="comment-next-reply-avatar">
@@ -160,7 +164,11 @@ async function handleUpvote() {
       </span>
     </header>
 
-    <CommentNextContent content={reply.content} {aiMentionName} />
+    <CommentNextContent
+      content={reply.content}
+      {aiMentionName}
+      {enableImageLightbox}
+    />
 
     <div class="comment-next-reply-actions">
       {#if replyReactionEnabled}
@@ -196,6 +204,15 @@ async function handleUpvote() {
         {demoData}
         compact
       />
+      <a
+        class="comment-next-reply-anchor"
+        href={getCommentAnchorHref('reply', reply.id)}
+        aria-label="跳转到此回复"
+        title="回复链接"
+      >
+        <CommentNextIcon name="link" size={13} />
+        链接
+      </a>
     </div>
   </div>
 </article>
@@ -258,11 +275,14 @@ async function handleUpvote() {
     --at-apply: mt-[0.45rem] flex gap-3;
   }
 
-  .comment-next-reply-actions button {
+  .comment-next-reply-actions button,
+  .comment-next-reply-anchor {
     --at-apply: inline-flex h-[1.375rem] cursor-pointer items-center gap-1 border-0 rounded-none bg-transparent p-0 text-xs text-[var(--comment-next-muted-color,#6b7687)] font-[650] font-inherit;
+    text-decoration: none;
   }
 
-  .comment-next-reply-actions button:hover {
+  .comment-next-reply-actions button:hover,
+  .comment-next-reply-anchor:hover {
     --at-apply: text-[var(--comment-next-primary-color,rgb(59,130,246))];
   }
 

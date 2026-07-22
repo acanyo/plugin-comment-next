@@ -41,7 +41,9 @@ function copyPortalVariables(source: Element, target: HTMLElement) {
   for (let index = 0; index < sourceStyle.length; index += 1) {
     const property = sourceStyle.item(index);
 
-    if (!PORTAL_VARIABLE_PREFIXES.some((prefix) => property.startsWith(prefix))) {
+    if (
+      !PORTAL_VARIABLE_PREFIXES.some((prefix) => property.startsWith(prefix))
+    ) {
       continue;
     }
 
@@ -76,6 +78,7 @@ function ensurePortalStyles() {
   style.id = PORTAL_STYLE_ID;
   style.textContent = `
 .comment-next-report-dialog-shell,
+.comment-next-image-lightbox-shell,
 .comment-next-ai-panel-layer {
   box-sizing: border-box;
   font-family: var(--comment-next-dialog-font-family, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
@@ -90,6 +93,9 @@ function ensurePortalStyles() {
 .comment-next-report-dialog-shell *,
 .comment-next-report-dialog-shell *::before,
 .comment-next-report-dialog-shell *::after,
+.comment-next-image-lightbox-shell *,
+.comment-next-image-lightbox-shell *::before,
+.comment-next-image-lightbox-shell *::after,
 .comment-next-ai-panel-layer *,
 .comment-next-ai-panel-layer *::before,
 .comment-next-ai-panel-layer *::after {
@@ -98,6 +104,7 @@ function ensurePortalStyles() {
 .comment-next-report-dialog-shell button,
 .comment-next-report-dialog-shell input,
 .comment-next-report-dialog-shell textarea,
+.comment-next-image-lightbox-shell button,
 .comment-next-ai-panel-layer button {
   font: inherit;
   letter-spacing: 0;
@@ -329,6 +336,87 @@ function ensurePortalStyles() {
 .comment-next-report-dialog-submit:hover {
   background: var(--comment-next-primary-hover-color, #2563eb);
 }
+.comment-next-image-lightbox-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483010;
+  width: 100vw;
+  max-width: none;
+  height: 100vh;
+  max-height: none;
+  margin: 0;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  overflow: hidden;
+  border: 0;
+  background: rgb(2 6 23 / 0.94);
+  color: #fff;
+}
+.comment-next-image-lightbox-shell::backdrop {
+  background: rgb(2 6 23 / 0.94);
+}
+.comment-next-image-lightbox-stage {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  cursor: zoom-out;
+}
+.comment-next-image-lightbox-stage img {
+  display: block;
+  max-width: min(100%, 100rem);
+  max-height: calc(100vh - 7rem);
+  border-radius: 0.5rem;
+  object-fit: contain;
+  cursor: default;
+  pointer-events: none;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 0.42);
+}
+.comment-next-image-lightbox-caption {
+  max-width: min(42rem, 90vw);
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgb(226 232 240 / 0.9);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+.comment-next-image-lightbox-close {
+  position: fixed;
+  z-index: 1;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
+  display: inline-flex;
+  width: 2.5rem;
+  height: 2.5rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  background: rgb(15 23 42 / 0.72);
+  padding: 0;
+  color: #fff;
+  transition: background-color 140ms ease, transform 140ms ease;
+}
+.comment-next-image-lightbox-close:hover {
+  background: rgb(30 41 59 / 0.96);
+}
+.comment-next-image-lightbox-close:active {
+  transform: scale(0.95);
+}
+.comment-next-image-lightbox-close:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
 .comment-next-ai-panel-layer {
   position: fixed;
   z-index: 2147482990;
@@ -477,6 +565,13 @@ function ensurePortalStyles() {
     inset: auto 0.75rem 0.75rem;
     width: auto;
   }
+  .comment-next-image-lightbox-shell {
+    padding: 1rem;
+  }
+  .comment-next-image-lightbox-stage img {
+    max-height: calc(100vh - 6rem);
+    border-radius: 0.375rem;
+  }
   .comment-next-report-dialog {
     max-width: none;
     padding: 0.875rem;
@@ -533,6 +628,7 @@ function ensurePortalStyles() {
   .comment-next-ai-panel-close,
   .comment-next-report-dialog-actions button,
   .comment-next-report-dialog-close,
+  .comment-next-image-lightbox-close,
   .comment-next-report-reason {
     animation: none;
     transition: none;

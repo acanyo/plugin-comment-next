@@ -8,8 +8,8 @@ import { createDemoCommentPage, demoBadgeConfig } from './demo/comments';
 import { fetchCommentPage } from './services/comments';
 import type {
   CommentNextAiConfig,
-  CommentNextReportConfig,
   CommentNextReactionConfig,
+  CommentNextReportConfig,
   CommentNextSecurityConfig,
   CommentNextUploadConfig,
 } from './services/config';
@@ -36,6 +36,7 @@ const {
   replySize = 10,
   withReplies = true,
   showCommenterDevice = true,
+  enableImageLightbox = true,
   badgeConfig: configuredBadgeConfig,
   aiConfig,
   reactionConfig,
@@ -58,6 +59,7 @@ const {
   replySize?: number;
   withReplies?: boolean;
   showCommenterDevice?: boolean;
+  enableImageLightbox?: boolean;
   badgeConfig?: CommentNextBadgeConfig;
   aiConfig?: CommentNextAiConfig;
   reactionConfig?: CommentNextReactionConfig;
@@ -80,7 +82,9 @@ let sortMode = $state<CommentNextCommentSort>('latest');
 const badgeConfig = $derived<CommentNextBadgeConfig>(
   demoData ? demoBadgeConfig : (configuredBadgeConfig ?? {})
 );
-const visibleComments = $derived(demoData ? sortComments(comments, sortMode) : comments);
+const visibleComments = $derived(
+  demoData ? sortComments(comments, sortMode) : comments
+);
 const paginationItems = $derived(resolvePaginationItems(page, totalPages));
 const sortOptions: Array<{ label: string; value: CommentNextCommentSort }> = [
   { label: '最新', value: 'latest' },
@@ -123,7 +127,10 @@ function scheduleCreatedRefreshes() {
   window.setTimeout(() => void refreshComments(), 5200);
 }
 
-async function selectPage(nextPage: number, options: { scrollIntoView?: boolean } = {}) {
+async function selectPage(
+  nextPage: number,
+  options: { scrollIntoView?: boolean } = {}
+) {
   const normalizedPage = clampPage(nextPage);
 
   if (normalizedPage === page || loading) {
@@ -236,7 +243,8 @@ function sortComments(
       return moderationDiff;
     }
 
-    const upvotesDiff = (right.stats?.upvotes ?? 0) - (left.stats?.upvotes ?? 0);
+    const upvotesDiff =
+      (right.stats?.upvotes ?? 0) - (left.stats?.upvotes ?? 0);
     if (upvotesDiff) {
       return upvotesDiff;
     }
@@ -376,6 +384,7 @@ function resolvePaginationItems(
           {demoData}
           {replySize}
           {showCommenterDevice}
+          {enableImageLightbox}
           {aiConfig}
           {reactionConfig}
           {reportConfig}

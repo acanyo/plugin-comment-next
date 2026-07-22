@@ -5,18 +5,15 @@ import CommentNextContent from './CommentNextContent.svelte';
 import CommentNextEnvironmentTags from './CommentNextEnvironmentTags.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import CommentNextReactionButton from './CommentNextReactionButton.svelte';
-import CommentNextReportButton from './CommentNextReportButton.svelte';
-import CommentNextReplyItem from './CommentNextReplyItem.svelte';
 import CommentNextReplyComposer from './CommentNextReplyComposer.svelte';
+import CommentNextReplyItem from './CommentNextReplyItem.svelte';
+import CommentNextReportButton from './CommentNextReportButton.svelte';
 import CommentNextTooltip from './CommentNextTooltip.svelte';
-import {
-  fetchReplyPage,
-  upvoteCommentTarget,
-} from './services/comments';
+import { fetchReplyPage, upvoteCommentTarget } from './services/comments';
 import type {
   CommentNextAiConfig,
-  CommentNextReportConfig,
   CommentNextReactionConfig,
+  CommentNextReportConfig,
   CommentNextSecurityConfig,
   CommentNextUploadConfig,
 } from './services/config';
@@ -27,12 +24,13 @@ import type {
   CommentNextPageInfo,
 } from './types/comment';
 import type { CommentNextEmotePack } from './types/emote';
+import { commentAnchor, getCommentAnchorHref } from './utils/comment-anchor';
 import { formatRelativeTime } from './utils/date';
 import {
   COMMENT_NEXT_UPVOTED_COMMENTS_KEY,
   hasRememberedUpvote,
-  rememberUpvote,
   rememberedUpvoteCount,
+  rememberUpvote,
   rememberUpvoteCount,
 } from './utils/upvote';
 import { getCommentEnvironmentTags } from './utils/user-agent';
@@ -51,6 +49,7 @@ const {
   demoData = false,
   replySize = 10,
   showCommenterDevice = true,
+  enableImageLightbox = true,
   aiConfig,
   reactionConfig,
   reportConfig,
@@ -71,6 +70,7 @@ const {
   demoData?: boolean;
   replySize?: number;
   showCommenterDevice?: boolean;
+  enableImageLightbox?: boolean;
   aiConfig?: CommentNextAiConfig;
   reactionConfig?: CommentNextReactionConfig;
   reportConfig?: CommentNextReportConfig;
@@ -227,7 +227,8 @@ function resolveReplyToName(reply: CommentNextComment): string {
   return (
     reply.replyToName ||
     replyAuthors[reply.quoteReplyId] ||
-    replies.find((item) => item.id === reply.quoteReplyId)?.author.displayName ||
+    replies.find((item) => item.id === reply.quoteReplyId)?.author
+      .displayName ||
     ''
   );
 }
@@ -243,7 +244,9 @@ function rememberReplyAuthor(reply: CommentNextComment) {
   };
 }
 
-function buildReplyAuthorMap(items: CommentNextComment[]): Record<string, string> {
+function buildReplyAuthorMap(
+  items: CommentNextComment[]
+): Record<string, string> {
   return items.reduce<Record<string, string>>((result, item) => {
     if (item.id && item.author.displayName) {
       result[item.id] = item.author.displayName;
@@ -358,6 +361,7 @@ async function loadReplies({
 </script>
 
 <article
+  use:commentAnchor={{ kind: 'comment', id: comment.id }}
   class:comment-next-comment-item-first={first}
   class="comment-next-comment-item"
 >
@@ -436,7 +440,11 @@ async function loadReplies({
       </div>
     {/if}
 
-    <CommentNextContent content={comment.content} {aiMentionName} />
+    <CommentNextContent
+      content={comment.content}
+      {aiMentionName}
+      {enableImageLightbox}
+    />
 
     <footer class="comment-next-comment-actions">
       {#if commentReactionEnabled}
@@ -476,6 +484,15 @@ async function loadReplies({
         config={reportConfig}
         {demoData}
       />
+      <a
+        class="comment-next-comment-anchor"
+        href={getCommentAnchorHref('comment', comment.id)}
+        aria-label="跳转到此评论"
+        title="评论链接"
+      >
+        <CommentNextIcon name="link" size={14} />
+        <span>链接</span>
+      </a>
     </footer>
 
     {#if replyComposerOpen && !quoteReply}
@@ -507,6 +524,7 @@ async function loadReplies({
             {badgeConfig}
             {demoData}
             {showCommenterDevice}
+            {enableImageLightbox}
             {aiMentionName}
             {loggedIn}
             reactionConfig={reactionConfig}
@@ -625,11 +643,14 @@ async function loadReplies({
     --at-apply: mt-[0.55rem] flex items-center gap-3;
   }
 
-  .comment-next-comment-actions button {
+  .comment-next-comment-actions button,
+  .comment-next-comment-anchor {
     --at-apply: inline-flex h-6 min-w-0 box-border cursor-pointer items-center justify-start gap-1 border-0 rounded-none bg-transparent p-0 text-[0.8125rem] text-[var(--comment-next-muted-color,#6b7687)] font-[680] font-inherit transition-[color,transform] duration-140 ease-in-out;
+    text-decoration: none;
   }
 
-  .comment-next-comment-actions button:hover {
+  .comment-next-comment-actions button:hover,
+  .comment-next-comment-anchor:hover {
     --at-apply: text-[var(--comment-next-primary-color,rgb(59,130,246))];
   }
 
@@ -646,7 +667,8 @@ async function loadReplies({
     --at-apply: animate-spin;
   }
 
-  .comment-next-comment-actions button:active {
+  .comment-next-comment-actions button:active,
+  .comment-next-comment-anchor:active {
     --at-apply: translate-y-px;
   }
 

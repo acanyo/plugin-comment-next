@@ -1,19 +1,29 @@
 <script lang="ts">
+import CommentNextImageLightbox from './CommentNextImageLightbox.svelte';
 import {
   highlightAssistantMentionHtml,
   sanitizeCommentHtml,
   sanitizeConsoleCommentHtml,
 } from './utils/html';
+import {
+  type CommentNextLightboxImage,
+  imageLightboxContent,
+} from './utils/image-lightbox';
+import { notifyCommentNextModalOpen } from './utils/overlays';
 
 const {
   content = '',
   allowImages = true,
   aiMentionName = '',
+  enableImageLightbox = true,
 }: {
   content?: string;
   allowImages?: boolean;
   aiMentionName?: string;
+  enableImageLightbox?: boolean;
 } = $props();
+
+let lightboxImage = $state<CommentNextLightboxImage | undefined>();
 
 const safeContent = $derived(
   highlightAssistantMentionHtml(
@@ -23,11 +33,31 @@ const safeContent = $derived(
     aiMentionName
   )
 );
+
+function openLightbox(image: CommentNextLightboxImage) {
+  notifyCommentNextModalOpen('image-lightbox');
+  lightboxImage = image;
+}
 </script>
 
-<div class="comment-next-comment-content break-words text-[0.9375rem] text-[var(--comment-next-comment-content-color,var(--comment-next-text-color,#172033))] leading-[1.72]">
+<div
+  use:imageLightboxContent={{
+    enabled: enableImageLightbox && allowImages,
+    content: safeContent,
+    onOpen: openLightbox,
+  }}
+  class="comment-next-comment-content break-words text-[0.9375rem] text-[var(--comment-next-comment-content-color,var(--comment-next-text-color,#172033))] leading-[1.72]"
+>
   {@html safeContent}
 </div>
+
+{#if lightboxImage}
+  <CommentNextImageLightbox
+    src={lightboxImage.src}
+    alt={lightboxImage.alt}
+    onClose={() => (lightboxImage = undefined)}
+  />
+{/if}
 
 <style>
   .comment-next-comment-content :global(p) {
@@ -89,6 +119,15 @@ const safeContent = $derived(
 
   .comment-next-comment-content :global(.comment-next-emote-image) {
     --at-apply: mx-0.5 inline-block max-h-18 max-w-36 align-middle object-contain;
+  }
+
+  .comment-next-comment-content :global(.comment-next-lightbox-trigger) {
+    cursor: zoom-in;
+  }
+
+  .comment-next-comment-content :global(.comment-next-lightbox-trigger:focus-visible) {
+    outline: 2px solid var(--comment-next-primary-color, rgb(59, 130, 246));
+    outline-offset: 3px;
   }
 
   .comment-next-comment-content :global(.comment-next-ai-mention) {

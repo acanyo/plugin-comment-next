@@ -82,6 +82,11 @@ spec:
           name: showCommenterDevice
           value: true
         - $formkit: switch
+          label: 启用评论图片灯箱
+          name: enableImageLightbox
+          help: 开启后，点击评论或回复中的图片可全屏预览
+          value: true
+        - $formkit: switch
           label: 支持私密评论
           id: enablePrivateComment
           key: enablePrivateComment
