@@ -177,6 +177,16 @@ public class SettingConfigGetterImpl implements SettingConfigGetter {
             fallbackReviewConfig.getReviewReplies(),
             true
         ));
+        reviewConfig.setInspectAuthorWebsite(firstBoolean(
+            settings.getInspectAuthorWebsite(),
+            fallbackReviewConfig.getInspectAuthorWebsite(),
+            true
+        ));
+        reviewConfig.setWaybackFallbackEnabled(firstBoolean(
+            settings.getWaybackFallbackEnabled(),
+            fallbackReviewConfig.getWaybackFallbackEnabled(),
+            false
+        ));
         reviewConfig.setMaxInputLength(firstInteger(
             settings.getMaxInputLength(),
             fallbackReviewConfig.getMaxInputLength()

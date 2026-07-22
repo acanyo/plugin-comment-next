@@ -568,6 +568,15 @@ public interface SettingConfigGetter {
             return review.getReviewReplies() == null || review.getReviewReplies();
         }
 
+        public boolean isReviewAuthorWebsiteEnabled() {
+            return review.getInspectAuthorWebsite() == null || review.getInspectAuthorWebsite();
+        }
+
+        public boolean isReviewWaybackFallbackEnabled() {
+            return review.getWaybackFallbackEnabled() != null
+                && review.getWaybackFallbackEnabled();
+        }
+
         public boolean isReviewAdminNotificationEnabled() {
             return review.getNotifyAdmins() == null || review.getNotifyAdmins();
         }
@@ -779,6 +788,8 @@ public interface SettingConfigGetter {
         private String action = CommentNextSecurityReviewAction.PENDING_REVIEW.name();
         private Boolean reviewComments = true;
         private Boolean reviewReplies = true;
+        private Boolean inspectAuthorWebsite = true;
+        private Boolean waybackFallbackEnabled = false;
         private Integer maxInputLength;
         private Double confidenceThreshold;
         private String rolePrompt = defaultRolePrompt();
@@ -959,6 +970,10 @@ public interface SettingConfigGetter {
         private Boolean reviewComments = true;
 
         private Boolean reviewReplies = true;
+
+        private Boolean inspectAuthorWebsite = true;
+
+        private Boolean waybackFallbackEnabled = false;
 
         private Integer maxInputLength;
 

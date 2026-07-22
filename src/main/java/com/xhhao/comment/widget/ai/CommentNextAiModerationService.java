@@ -2,6 +2,7 @@ package com.xhhao.comment.widget.ai;
 
 import com.xhhao.comment.widget.CommentNextRoles;
 import com.xhhao.comment.widget.SettingConfigGetter;
+import com.xhhao.comment.widget.ai.website.CommentNextWebsiteMetadataService;
 import com.xhhao.comment.widget.security.CommentNextSecurityReviewAction;
 import com.xhhao.comment.widget.security.CommentNextSecurityReviewResult;
 import java.nio.charset.StandardCharsets;
@@ -45,6 +46,8 @@ class CommentNextAiModerationService {
 
     private final CommentNextAiService aiService;
 
+    private final CommentNextWebsiteMetadataService websiteMetadataService;
+
     private final CommentNextAiModerationNotificationService notificationService;
 
     Mono<Void> reconcileComment(String name) {
@@ -79,13 +82,18 @@ class CommentNextAiModerationService {
             ownerKind(owner),
             ownerIdentifier(owner),
             ownerWebsite(owner),
+            "",
+            "",
+            "",
             Comment.toSubjectRefKey(spec.getSubjectRef()),
             plainText(spec.getContent())
         );
         return isTrustedOwner(owner)
             .flatMap(trusted -> trusted
                 ? clearReviewResult(comment).then()
-                : review(comment, subject, config).then());
+                : enrichWebsiteMetadata(subject, config)
+                    .flatMap(enriched -> review(comment, enriched, config))
+                    .then());
     }
 
     private Mono<Void> reviewReply(Reply reply, SettingConfigGetter.AiConfig config) {
@@ -98,13 +106,29 @@ class CommentNextAiModerationService {
             ownerKind(owner),
             ownerIdentifier(owner),
             ownerWebsite(owner),
+            "",
+            "",
+            "",
             spec.getCommentName(),
             plainText(spec.getContent())
         );
         return isTrustedOwner(owner)
             .flatMap(trusted -> trusted
                 ? clearReviewResult(reply).then()
-                : review(reply, subject, config).then());
+                : enrichWebsiteMetadata(subject, config)
+                    .flatMap(enriched -> review(reply, enriched, config))
+                    .then());
+    }
+
+    private Mono<CommentNextAiModerationSubject> enrichWebsiteMetadata(
+        CommentNextAiModerationSubject subject,
+        SettingConfigGetter.AiConfig config
+    ) {
+        if (!StringUtils.hasText(subject.content())) {
+            return Mono.just(subject);
+        }
+        return websiteMetadataService.inspect(config, subject.authorWebsite())
+            .map(subject::withWebsiteMetadata);
     }
 
     private Mono<? extends AbstractExtension> review(AbstractExtension extension,

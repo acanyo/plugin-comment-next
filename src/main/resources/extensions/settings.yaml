@@ -1059,6 +1059,20 @@ spec:
           value: true
         - $formkit: switch
           if: "$get(aiReviewEnabled).value === true"
+          label: 检测评论者网址
+          name: inspectAuthorWebsite
+          id: aiReviewInspectAuthorWebsite
+          key: aiReviewInspectAuthorWebsite
+          value: true
+          help: 开启后会安全访问评论者填写的域名首页，提取网页标题和描述并交给 AI 一起研判；仅允许公开的 HTTP/HTTPS 地址。
+        - $formkit: switch
+          if: "$get(aiReviewEnabled).value === true && $get(aiReviewInspectAuthorWebsite).value === true"
+          label: 使用 Wayback 回退
+          name: waybackFallbackEnabled
+          value: false
+          help: 实时网页无法读取时，查询 Internet Archive 的最近快照。开启后会把评论者填写的域名发送给 Internet Archive，建议按隐私策略自行决定。
+        - $formkit: switch
+          if: "$get(aiReviewEnabled).value === true"
           label: 命中后通知管理员
           name: notifyAdmins
           id: aiReviewNotifyAdmins

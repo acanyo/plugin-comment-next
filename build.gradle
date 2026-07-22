@@ -34,6 +34,7 @@ dependencies {
     compileOnly 'run.halo.aifoundation:api:1.0.0-SNAPSHOT'
     implementation 'org.altcha:altcha:2.0.2'
     implementation 'org.json:json:20240303'
+    implementation 'org.jsoup:jsoup:1.18.3'
 
     testImplementation 'run.halo.app:api'
     testImplementation 'run.halo.aifoundation:api:1.0.0-SNAPSHOT'

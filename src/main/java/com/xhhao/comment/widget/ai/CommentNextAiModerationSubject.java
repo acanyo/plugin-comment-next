@@ -1,5 +1,7 @@
 package com.xhhao.comment.widget.ai;
 
+import com.xhhao.comment.widget.ai.website.CommentNextWebsiteMetadata;
+
 record CommentNextAiModerationSubject(
     String sourceType,
     String name,
@@ -7,9 +9,28 @@ record CommentNextAiModerationSubject(
     String authorKind,
     String authorIdentifier,
     String authorWebsite,
+    String authorWebsiteTitle,
+    String authorWebsiteDescription,
+    String authorWebsiteMetadataSource,
     String subject,
     String content
 ) {
+    CommentNextAiModerationSubject withWebsiteMetadata(CommentNextWebsiteMetadata metadata) {
+        return new CommentNextAiModerationSubject(
+            sourceType,
+            name,
+            authorName,
+            authorKind,
+            authorIdentifier,
+            authorWebsite,
+            metadata.title(),
+            metadata.description(),
+            metadata.source(),
+            subject,
+            content
+        );
+    }
+
     String fingerprint() {
         return String.join("\n",
             safe(sourceType),
@@ -18,6 +39,9 @@ record CommentNextAiModerationSubject(
             safe(authorKind),
             safe(authorIdentifier),
             safe(authorWebsite),
+            safe(authorWebsiteTitle),
+            safe(authorWebsiteDescription),
+            safe(authorWebsiteMetadataSource),
             safe(subject),
             safe(content)
         );
