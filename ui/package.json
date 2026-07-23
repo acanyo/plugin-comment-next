@@ -18,6 +18,7 @@
     "vue-draggable-plus": "^0.6.1"
   },
   "devDependencies": {
+    "@formkit/vue": "2.1.0",
     "@halo-dev/ui-plugin-bundler-kit": "^2.22.0",
     "@rsbuild/core": "^2.0.3",
     "@rsbuild/plugin-vue": "^1.2.7",

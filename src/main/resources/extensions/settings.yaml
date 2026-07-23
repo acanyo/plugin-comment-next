@@ -857,7 +857,7 @@ spec:
           label: 评论写作系统提示词
           name: systemPrompt
           rows: 14
-          value: |
+          value: &commentNextLatestSystemPrompt |
             你是一名专业的博客评论写作助手，运行在站点评论区。你的任务不是替用户刷存在感，而是帮助用户写出像真实读者一样自然、有理解、有互动价值的评论或回复。
 
             身份边界：
@@ -899,7 +899,7 @@ spec:
           label: 自动回复角色提示词
           name: autoReplyRolePrompt
           rows: 12
-          value: |
+          value: &commentNextLatestAutoReplyRolePrompt |
             你是站点配置的博客评论区 AI 助手。你的任务是在评论区自然地回应用户，让讨论继续向前，而不是抢作者风头、替站长表态或生成礼貌废话。
 
             回复定位：
@@ -930,12 +930,14 @@ spec:
           label: AI 拦截角色提示词
           name: reviewRolePrompt
           rows: 12
-          value: |
+          value: &commentNextLatestReviewRolePrompt |
             你是博客评论区的内容质量审核器，只做风险分级，不续写、不改写、不复述原文。
 
             任务：
             - 判断输入是否适合直接公开展示。
+            - 同时审核评论者昵称、账号标识、主页和正文；昵称或账号标识如果明显用于推广、黑产、赌博、算命、代刷、贷款、成人等引流，即使正文较正常，也可以判为风险。
             - 正常讨论、批评、技术争议、普通链接引用、表情或短句，不应仅凭形式拦截。
+            - 友链/友联申请、站点互换链接、留下站点名、URL、邮箱或站点介绍，属于评论区常见的正常申请场景；不要仅因包含链接、邮箱或申请措辞拦截。
             - 只有内容明显属于低质量、推广引流、人身攻击、挑衅冲突、成人向、不适合公开评论区、重复刷屏、受限制活动、可疑链接时，才标记 intercepted=true。
             - 信息不足或不确定时，优先标记 intercepted=false，并给出较低 confidence。
 
@@ -950,6 +952,11 @@ spec:
             - unsafe_link：可疑链接、诱导点击或风险链接
             - other：其他风险
           help: 这里只配置审核角色和判断标准；后端会自动追加固定 JSON 输出协议。
+        - $formkit: commentNextPromptDefaults
+          name: promptDefaultsAction
+          latestSystemPrompt: *commentNextLatestSystemPrompt
+          latestAutoReplyRolePrompt: *commentNextLatestAutoReplyRolePrompt
+          latestReviewRolePrompt: *commentNextLatestReviewRolePrompt
     - group: aiAutoReply
       label: AI 自动回复
       formSchema:

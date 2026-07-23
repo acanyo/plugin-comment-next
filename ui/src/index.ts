@@ -1,3 +1,4 @@
+import { createInput } from '@formkit/vue';
 import type { ListedComment, ListedReply } from '@halo-dev/api-client';
 import {
   IconForbidLine,
@@ -32,8 +33,32 @@ const ConsoleCommentContent = defineAsyncComponent({
   loadingComponent: VLoading,
 });
 
+const AiPromptDefaultsAction = defineAsyncComponent(
+  () => import('./components/AiPromptDefaultsAction.vue')
+);
+
 export default definePlugin({
   components: {},
+  formkit: {
+    inputs: {
+      commentNextPromptDefaults: createInput(AiPromptDefaultsAction, {
+        features: [
+          (node) => {
+            // Retain sibling access, but keep this action-only input out of saved settings.
+            node.props.promptFormNode = node.parent;
+            node.props.ignore = true;
+            node.parent = null;
+          },
+        ],
+        props: [
+          'latestSystemPrompt',
+          'latestAutoReplyRolePrompt',
+          'latestReviewRolePrompt',
+          'promptFormNode',
+        ],
+      }),
+    },
+  },
   routes: [
     {
       parentName: 'CommentsRoot',
@@ -282,7 +307,11 @@ function openAiReplyModal(
   targetLabel: string
 ) {
   if (!targetName) {
-    Toast.error(targetType === 'comment' ? '评论缺少 ID，无法生成 AI 回复' : '回复缺少 ID，无法生成 AI 回复');
+    Toast.error(
+      targetType === 'comment'
+        ? '评论缺少 ID，无法生成 AI 回复'
+        : '回复缺少 ID，无法生成 AI 回复'
+    );
     return;
   }
 
@@ -417,7 +446,8 @@ function applyCommentModerationState(
   resource.metadata.annotations ??= {};
   if (state.featured) {
     resource.metadata.annotations[FEATURED_ANNOTATION] = 'true';
-    resource.metadata.annotations[FEATURED_AT_ANNOTATION] = new Date().toISOString();
+    resource.metadata.annotations[FEATURED_AT_ANNOTATION] =
+      new Date().toISOString();
     return;
   }
 
