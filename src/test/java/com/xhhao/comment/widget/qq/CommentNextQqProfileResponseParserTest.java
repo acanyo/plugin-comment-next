@@ -17,6 +17,19 @@ class CommentNextQqProfileResponseParserTest {
     }
 
     @Test
+    void readsNameFromCommonQqApiResponse() throws Exception {
+        var response = JsonUtils.createObjectMapper().readTree("""
+            {
+              "code": 200,
+              "name": "冬天的夏目。",
+              "avatar": "https://example.com/qq-avatar.png"
+            }
+            """);
+
+        assertEquals("冬天的夏目。", CommentNextQqProfileResponseParser.nickname(response));
+    }
+
+    @Test
     void rejectsMissingOrOversizedNickname() throws Exception {
         var objectMapper = JsonUtils.createObjectMapper();
 

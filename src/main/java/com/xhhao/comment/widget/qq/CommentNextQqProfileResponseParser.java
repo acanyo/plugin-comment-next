@@ -15,10 +15,22 @@ final class CommentNextQqProfileResponseParser {
             return "";
         }
 
-        var nickname = response.path("nickname").asText("").strip();
+        var nickname = firstText(
+            response.path("nickname").asText(""),
+            response.path("name").asText("")
+        );
         if (!StringUtils.hasText(nickname) || nickname.length() > MAX_NICKNAME_LENGTH) {
             return "";
         }
         return nickname;
+    }
+
+    private static String firstText(String... values) {
+        for (var value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.strip();
+            }
+        }
+        return "";
     }
 }

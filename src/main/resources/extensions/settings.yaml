@@ -120,7 +120,7 @@ spec:
           placeholder: "https://example.com/qq/{qq}"
           validation: required
           help: >-
-            使用 {qq} 作为 QQ 号占位符，例如 https://example.com/qq/{qq}。接口需返回 JSON：{"nickname":"昵称"}。请求由插件后端发起，配置地址不会暴露到前台。
+            使用 {qq} 作为 QQ 号占位符，例如 https://example.com/qq/{qq}。接口返回 JSON 时昵称字段可使用 nickname 或 name，例如 {"nickname":"昵称"}。请求由插件后端发起，配置地址不会暴露到前台。
     - group: security
       label: 安全设置
       formSchema:
