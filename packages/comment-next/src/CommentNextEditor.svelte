@@ -2,6 +2,7 @@
 import { tick } from 'svelte';
 import CommentNextAiSuggestion from './CommentNextAiSuggestion.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
+import type { CommentNextEditorImageKind } from './types/editor';
 import {
   autolinkUrls,
   getTextSelectionOffset,
@@ -122,7 +123,11 @@ export function replaceText(value: string) {
   editorElement.focus();
 }
 
-export function insertImage(src: string, alt = '') {
+export function insertImage(
+  src: string,
+  alt = '',
+  kind: CommentNextEditorImageKind = 'image'
+) {
   if (!allowImages || !src || !editorElement) {
     return;
   }
@@ -130,7 +135,10 @@ export function insertImage(src: string, alt = '') {
   const image = document.createElement('img');
   image.src = src;
   image.alt = alt;
-  image.className = 'comment-next-emote-image';
+  image.className =
+    kind === 'emote'
+      ? 'comment-next-editor-emote-image'
+      : 'comment-next-editor-image';
   image.loading = 'lazy';
   image.decoding = 'async';
   insertNodeAtCaret(image, document.createTextNode(' '));
@@ -476,7 +484,9 @@ function replaceTextRange(
 }
 
 function hasTextAtOffset(text: string, offset: number): boolean {
-  return getSerializableEditorText().slice(offset, offset + text.length) === text;
+  return (
+    getSerializableEditorText().slice(offset, offset + text.length) === text
+  );
 }
 
 function replaceEditorText(text: string, selectionOffset: number) {
@@ -513,9 +523,10 @@ async function updateMentionPanelPosition(trigger: PendingMentionTrigger) {
   const wrapRect = editorWrapElement.getBoundingClientRect();
   const editorRect = editorElement.getBoundingClientRect();
   const triggerRect = range?.getBoundingClientRect();
-  const rect = triggerRect && triggerRect.width + triggerRect.height > 0
-    ? triggerRect
-    : editorRect;
+  const rect =
+    triggerRect && triggerRect.width + triggerRect.height > 0
+      ? triggerRect
+      : editorRect;
   const panelWidth = Math.min(288, Math.max(220, wrapRect.width - 24));
   const left = Math.min(
     Math.max(12, rect.left - wrapRect.left),
@@ -653,7 +664,9 @@ function getSerializableEditorText(): string {
 function removeTransientEditorNodes(root: HTMLElement) {
   root
     .querySelectorAll('[data-comment-next-transient="true"]')
-    .forEach((node) => node.remove());
+    .forEach((node) => {
+      node.remove();
+    });
 }
 
 function getClipboardImageFiles(clipboardData: DataTransfer | null): File[] {
@@ -693,7 +706,9 @@ function normalizeEditorImages() {
   }
 
   for (const image of Array.from(editorElement.querySelectorAll('img'))) {
-    image.classList.add('comment-next-emote-image');
+    if (!image.classList.contains('comment-next-editor-emote-image')) {
+      image.classList.add('comment-next-editor-image');
+    }
     image.loading = 'lazy';
     image.decoding = 'async';
     image.alt ||= '图片';
@@ -777,10 +792,14 @@ function isSelectionInsideEditor(selection: Selection): boolean {
 
 function isNodeInsideTransient(node: Node): boolean {
   if (node.nodeType === Node.ELEMENT_NODE) {
-    return Boolean((node as Element).closest('[data-comment-next-transient="true"]'));
+    return Boolean(
+      (node as Element).closest('[data-comment-next-transient="true"]')
+    );
   }
 
-  return Boolean(node.parentElement?.closest('[data-comment-next-transient="true"]'));
+  return Boolean(
+    node.parentElement?.closest('[data-comment-next-transient="true"]')
+  );
 }
 </script>
 
@@ -921,11 +940,15 @@ function isNodeInsideTransient(node: Node): boolean {
     --at-apply: text-[var(--comment-next-link-hover-color,rgb(37_99_235))] decoration-current;
   }
 
-  .comment-next-editor :global(.comment-next-emote-image) {
-    --at-apply: mx-0.5 inline-block max-h-[16rem] max-w-full align-middle object-contain;
+  .comment-next-editor :global(.comment-next-editor-emote-image) {
+    --at-apply: mx-0.5 inline-block align-middle object-contain;
+    width: auto;
+    height: auto;
+    max-width: min(100%, var(--comment-next-editor-emote-max-width, 9rem));
+    max-height: var(--comment-next-editor-emote-max-height, 4.5rem);
   }
 
-  .comment-next-editor :global(img) {
+  .comment-next-editor :global(.comment-next-editor-image) {
     --at-apply: inline-block max-h-[16rem] max-w-full align-middle object-contain;
   }
 

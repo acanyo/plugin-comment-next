@@ -4,6 +4,7 @@ const ALLOWED_TAGS = new Set([
   'blockquote',
   'br',
   'code',
+  'div',
   'em',
   'i',
   'img',
@@ -148,7 +149,9 @@ function createMentionHighlightedFragment(
 
   while (index >= 0) {
     fragment.append(text.slice(cursor, index));
-    fragment.append(createMentionElement(text.slice(index, index + mentionName.length)));
+    fragment.append(
+      createMentionElement(text.slice(index, index + mentionName.length))
+    );
     cursor = index + mentionName.length;
     index = textLower.indexOf(mentionNameLower, cursor);
     matched = true;

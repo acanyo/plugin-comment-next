@@ -12,10 +12,18 @@ import CommentNextIcon from './CommentNextIcon.svelte';
 import CommentNextNotice from './CommentNextNotice.svelte';
 import CommentNextSkeleton from './CommentNextSkeleton.svelte';
 import {
+  type CommentNextAiMode,
   generateCommentAiSuggestion,
   getAiSuggestionErrorMessage,
-  type CommentNextAiMode,
 } from './services/ai';
+import {
+  loadAnonymousAccount,
+  saveAnonymousAccount,
+} from './services/anonymous-account';
+import {
+  type CommentNextCaptchaConfig,
+  isLocalImageCaptcha,
+} from './services/captcha';
 import {
   CommentNextCommentError,
   getCommentSubmitErrorMessage,
@@ -25,28 +33,18 @@ import type {
   CommentNextSecurityConfig,
   CommentNextUploadConfig,
 } from './services/config';
-import {
-  isLocalImageCaptcha,
-  type CommentNextCaptchaConfig,
-} from './services/captcha';
+import { type CurrentUser, fetchCurrentUser } from './services/current-user';
 import {
   CommentNextUploadError,
   getImageUploadErrorMessage,
   uploadCommentImage,
 } from './services/uploads';
-import {
-  loadAnonymousAccount,
-  saveAnonymousAccount,
-} from './services/anonymous-account';
-import { type CurrentUser, fetchCurrentUser } from './services/current-user';
 import type { CommentNextComment } from './types/comment';
 import type { CommentNextComposerSubmitPayload } from './types/composer';
+import type { CommentNextEditorImageKind } from './types/editor';
 import type { CommentNextEmoteItem, CommentNextEmotePack } from './types/emote';
 import { sanitizeCommentSubmitHtml } from './utils/html';
-import {
-  inferImageContentType,
-  isImageContentType,
-} from './utils/image-files';
+import { inferImageContentType, isImageContentType } from './utils/image-files';
 import {
   COMMENT_NEXT_MODAL_OPEN_EVENT,
   notifyCommentNextModalOpen,
@@ -61,7 +59,11 @@ type CommentNextEditorRef = {
   focus: () => void;
   insertText: (value: string) => void;
   replaceText: (value: string) => void;
-  insertImage: (src: string, alt?: string) => void;
+  insertImage: (
+    src: string,
+    alt?: string,
+    kind?: CommentNextEditorImageKind
+  ) => void;
   replaceImageSrc: (sourceSrc: string, targetSrc: string, alt?: string) => void;
   consumeCommandTrigger: () => void;
 };
@@ -180,7 +182,9 @@ let captchaDialogError = $state('');
 let externalCaptchaStarting = $state(false);
 let currentUser = $state<CurrentUser | undefined>();
 let anonymousAvatarUrl = $state(getDefaultAnonymousAvatarUrl());
+// biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
 let composerElement = $state<HTMLFormElement | undefined>();
+// biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
 let editorRef = $state<CommentNextEditorRef | undefined>();
 let editorHtml = $state('');
 let localSubmitting = $state(false);
@@ -212,7 +216,11 @@ const externalCaptchaRequired = $derived(
   captchaRequired && !isLocalImageCaptcha(captchaType)
 );
 const resolvedSubmitLabel = $derived(
-  externalCaptchaStarting ? '验证中' : imageUploading ? '上传图片中' : submitLabel
+  externalCaptchaStarting
+    ? '验证中'
+    : imageUploading
+      ? '上传图片中'
+      : submitLabel
 );
 const imageUploadEnabled = $derived(resolveImageUploadEnabled());
 const imageAccept = 'image/*';
@@ -618,7 +626,7 @@ function handleEmoteSelect(item: CommentNextEmoteItem) {
       return;
     }
 
-    editorRef?.insertImage(item.src || item.value, item.label);
+    editorRef?.insertImage(item.src || item.value, item.label, 'emote');
     return;
   }
 
@@ -738,7 +746,9 @@ function getImageSrcs(html: string): Set<string> {
   const template = document.createElement('template');
   template.innerHTML = html;
 
-  for (const image of Array.from(template.content.querySelectorAll('img[src]'))) {
+  for (const image of Array.from(
+    template.content.querySelectorAll('img[src]')
+  )) {
     const src = image.getAttribute('src');
     if (src) {
       srcs.add(src);

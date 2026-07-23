@@ -1,9 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
-import type {
-  CommentNextEmoteItem,
-  CommentNextEmotePack,
-} from './types/emote';
+import CommentNextEmotePreview from './CommentNextEmotePreview.svelte';
+import type { CommentNextEmoteItem, CommentNextEmotePack } from './types/emote';
 
 type CommentNextEmotePanelEntry = {
   item: CommentNextEmoteItem;
@@ -37,6 +35,7 @@ let activePackId = $state('');
 let query = $state('');
 let recentItemIds = $state<string[]>([]);
 let selectedItemId = $state('');
+let previewEntry = $state<CommentNextEmotePanelEntry | undefined>();
 
 const availablePacks = $derived(packs.filter((pack) => pack.items.length));
 const allEntries = $derived(
@@ -118,6 +117,21 @@ function handleSelect(item: CommentNextEmoteItem) {
   ].slice(0, MAX_RECENT_COUNT);
   saveRecentItemIds(recentItemIds);
   emitSelect(item);
+}
+
+function showPreview(entry: CommentNextEmotePanelEntry) {
+  if (
+    entry.item.type === 'image' &&
+    (entry.item.originSrc || entry.item.src || entry.item.previewSrc)
+  ) {
+    previewEntry = entry;
+  }
+}
+
+function hidePreview(itemId: string) {
+  if (previewEntry?.item.id === itemId) {
+    previewEntry = undefined;
+  }
 }
 
 function emitSelect(item: CommentNextEmoteItem) {
@@ -222,6 +236,10 @@ function saveRecentItemIds(ids: string[]) {
                 type="button"
                 title={entry.item.description || entry.item.label}
                 aria-label={entry.item.description || entry.item.label}
+                onpointerenter={() => showPreview(entry)}
+                onpointerleave={() => hidePreview(entry.item.id)}
+                onfocus={() => showPreview(entry)}
+                onblur={() => hidePreview(entry.item.id)}
                 onclick={() => handleSelect(entry.item)}
               >
                 {#if entry.item.type === "image" && (entry.item.previewSrc || entry.item.src)}
@@ -242,6 +260,13 @@ function saveRecentItemIds(ids: string[]) {
         {/if}
       </div>
     </div>
+
+    {#if previewEntry}
+      <CommentNextEmotePreview
+        item={previewEntry.item}
+        packName={previewEntry.packName}
+      />
+    {/if}
   </div>
 {/if}
 
