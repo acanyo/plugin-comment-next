@@ -18,7 +18,7 @@ rules:
     verbs: [ "list" ]
   - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "qq-profiles" ]
-    verbs: [ "get" ]
+    verbs: [ "get", "list" ]
   - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "emotes" ]
     verbs: [ "list" ]
