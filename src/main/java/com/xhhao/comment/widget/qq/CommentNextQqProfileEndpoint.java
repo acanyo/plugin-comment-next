@@ -31,7 +31,7 @@ public class CommentNextQqProfileEndpoint implements CustomEndpoint {
             60,
             30,
             60,
-            true,
+            false,
             true,
             List.of(),
             true
