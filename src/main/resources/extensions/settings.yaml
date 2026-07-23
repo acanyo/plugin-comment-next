@@ -853,11 +853,9 @@ spec:
     - group: aiPrompts
       label: AI 提示词
       formSchema:
-        - $formkit: textarea
-          label: 评论写作系统提示词
-          name: systemPrompt
-          rows: 14
-          value: &commentNextLatestSystemPrompt |
+        - $formkit: commentNextPromptDefaults
+          name: promptDefaultsAction
+          latestSystemPrompt: &commentNextLatestSystemPrompt |
             你是一名专业的博客评论写作助手，运行在站点评论区。你的任务不是替用户刷存在感，而是帮助用户写出像真实读者一样自然、有理解、有互动价值的评论或回复。
 
             身份边界：
@@ -894,12 +892,7 @@ spec:
             - 不要输出标题、解释、前缀、引号、Markdown 或额外说明。
             - 不要说“我可以帮你”“以下是”等助手式开场。
             - 语言优先使用自然中文，必要时保留技术英文名词。
-          help: 用于评论框 AI 写作、润色、总结文章评论和生成回复；后端会自动追加助手昵称、文章上下文和输出要求。
-        - $formkit: textarea
-          label: 自动回复角色提示词
-          name: autoReplyRolePrompt
-          rows: 12
-          value: &commentNextLatestAutoReplyRolePrompt |
+          latestAutoReplyRolePrompt: &commentNextLatestAutoReplyRolePrompt |
             你是站点配置的博客评论区 AI 助手。你的任务是在评论区自然地回应用户，让讨论继续向前，而不是抢作者风头、替站长表态或生成礼貌废话。
 
             回复定位：
@@ -925,12 +918,7 @@ spec:
             输出要求：
             - 只输出最终可直接发布的回复正文。
             - 不要输出前缀、引号、解释过程或多版本候选。
-          help: 用于 @AI 自动回复、AI 自动回复和后台 AI 回复按钮；后端会自动追加评论上下文和输出格式。
-        - $formkit: textarea
-          label: AI 拦截角色提示词
-          name: reviewRolePrompt
-          rows: 12
-          value: &commentNextLatestReviewRolePrompt |
+          latestReviewRolePrompt: &commentNextLatestReviewRolePrompt |
             你是博客评论区的内容质量审核器，只做风险分级，不续写、不改写、不复述原文。
 
             任务：
@@ -951,12 +939,24 @@ spec:
             - prohibited：受限制活动或明显违规意图
             - unsafe_link：可疑链接、诱导点击或风险链接
             - other：其他风险
+        - $formkit: textarea
+          label: 评论写作系统提示词
+          name: systemPrompt
+          rows: 14
+          value: *commentNextLatestSystemPrompt
+          help: 用于评论框 AI 写作、润色、总结文章评论和生成回复；后端会自动追加助手昵称、文章上下文和输出要求。
+        - $formkit: textarea
+          label: 自动回复角色提示词
+          name: autoReplyRolePrompt
+          rows: 12
+          value: *commentNextLatestAutoReplyRolePrompt
+          help: 用于 @AI 自动回复、AI 自动回复和后台 AI 回复按钮；后端会自动追加评论上下文和输出格式。
+        - $formkit: textarea
+          label: AI 拦截角色提示词
+          name: reviewRolePrompt
+          rows: 12
+          value: *commentNextLatestReviewRolePrompt
           help: 这里只配置审核角色和判断标准；后端会自动追加固定 JSON 输出协议。
-        - $formkit: commentNextPromptDefaults
-          name: promptDefaultsAction
-          latestSystemPrompt: *commentNextLatestSystemPrompt
-          latestAutoReplyRolePrompt: *commentNextLatestAutoReplyRolePrompt
-          latestReviewRolePrompt: *commentNextLatestReviewRolePrompt
     - group: aiAutoReply
       label: AI 自动回复
       formSchema:
