@@ -12,6 +12,7 @@ const {
   email = '',
   website = '',
   onChange = () => {},
+  onEmailBlur = () => {},
 }: {
   visible?: boolean;
   loggedIn?: boolean;
@@ -26,6 +27,7 @@ const {
     email: string;
     website: string;
   }) => void;
+  onEmailBlur?: (email: string) => void;
 } = $props();
 
 function updateField(
@@ -79,6 +81,7 @@ function updateField(
           value={email}
           required
           oninput={(event) => updateField("email", event.currentTarget.value)}
+          onblur={(event) => onEmailBlur(event.currentTarget.value)}
         />
       </label>
       <label class="comment-next-field">

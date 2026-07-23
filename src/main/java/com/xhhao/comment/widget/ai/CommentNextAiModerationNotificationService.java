@@ -1,6 +1,8 @@
 package com.xhhao.comment.widget.ai;
 
 import com.xhhao.comment.widget.SettingConfigGetter;
+import com.xhhao.comment.widget.avatar.CommentNextAvatarUrlResolver;
+import com.xhhao.comment.widget.avatar.CommentNextWeAvatarUrl;
 import com.xhhao.comment.widget.security.CommentNextSecurityReviewAction;
 import com.xhhao.comment.widget.security.CommentNextSecurityReviewResult;
 import java.util.LinkedHashMap;
@@ -40,6 +42,8 @@ class CommentNextAiModerationNotificationService {
 
     private final NotificationReasonEmitter notificationReasonEmitter;
 
+    private final CommentNextAvatarUrlResolver avatarUrlResolver;
+
     Mono<Void> notifyIntercepted(AbstractExtension extension,
                                  CommentNextSecurityReviewResult result,
                                  SettingConfigGetter.AiConfig config,
@@ -49,10 +53,12 @@ class CommentNextAiModerationNotificationService {
             return Mono.empty();
         }
 
-        return Mono.when(
-                notifyAdmins(context, config),
-                notifyCommenter(context, config)
-            )
+        return avatarUrlResolver.resolve(NotificationContext.owner(extension))
+            .map(context::withAuthorAvatar)
+            .flatMap(resolvedContext -> Mono.when(
+                notifyAdmins(resolvedContext, config),
+                notifyCommenter(resolvedContext, config)
+            ))
             .onErrorResume(error -> {
                 log.warn("Failed to send AI moderation notification. targetType={}, name={}",
                     context.targetType(), context.targetName(), error);
@@ -146,6 +152,7 @@ class CommentNextAiModerationNotificationService {
         String targetName,
         String parentName,
         String authorName,
+        String authorAvatar,
         String content,
         String reason,
         String categories,
@@ -180,6 +187,7 @@ class CommentNextAiModerationNotificationService {
                 targetName,
                 parentName,
                 ownerDisplayName(owner),
+                "",
                 truncate(plainText(spec.getContent()), MAX_CONTENT_LENGTH),
                 firstText(result.reason(), "AI 判定该内容需要人工审核。"),
                 categoryText(result),
@@ -188,6 +196,25 @@ class CommentNextAiModerationNotificationService {
                 ownerIdentity(owner),
                 firstText(extension.getApiVersion(), "content.halo.run/v1alpha1"),
                 firstText(extension.getKind(), targetLabel)
+            );
+        }
+
+        NotificationContext withAuthorAvatar(String avatarUrl) {
+            return new NotificationContext(
+                targetType,
+                targetLabel,
+                targetName,
+                parentName,
+                authorName,
+                firstText(avatarUrl, CommentNextWeAvatarUrl.defaultAvatar()),
+                content,
+                reason,
+                categories,
+                confidence,
+                action,
+                ownerIdentity,
+                apiVersion,
+                kind
             );
         }
 
@@ -218,6 +245,7 @@ class CommentNextAiModerationNotificationService {
             attributes.put("targetName", targetName);
             attributes.put("parentName", parentName);
             attributes.put("authorName", authorName);
+            attributes.put("authorAvatar", authorAvatar);
             attributes.put("content", content);
             attributes.put("reason", reason);
             attributes.put("categories", categories);
@@ -237,6 +265,11 @@ class CommentNextAiModerationNotificationService {
                 return reply.getSpec();
             }
             return null;
+        }
+
+        private static Comment.CommentOwner owner(AbstractExtension extension) {
+            var commentSpec = spec(extension);
+            return commentSpec == null ? null : commentSpec.getOwner();
         }
 
         private static UserIdentity ownerIdentity(Comment.CommentOwner owner) {

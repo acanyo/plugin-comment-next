@@ -34,6 +34,7 @@ import type {
   CommentNextUploadConfig,
 } from './services/config';
 import { type CurrentUser, fetchCurrentUser } from './services/current-user';
+import { fetchQqProfile, isQqEmail } from './services/qq-profile';
 import {
   CommentNextUploadError,
   getImageUploadErrorMessage,
@@ -182,6 +183,7 @@ let captchaDialogError = $state('');
 let externalCaptchaStarting = $state(false);
 let currentUser = $state<CurrentUser | undefined>();
 let anonymousAvatarUrl = $state(getDefaultAnonymousAvatarUrl());
+let qqProfileLookupRequestId = 0;
 // biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
 let composerElement = $state<HTMLFormElement | undefined>();
 // biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
@@ -330,6 +332,7 @@ onMount(() => {
 });
 
 onDestroy(() => {
+  qqProfileLookupRequestId += 1;
   clearPendingImageUploads();
 });
 
@@ -618,6 +621,32 @@ function storeAnonymousAccount() {
     email: anonymousEmail,
     website: anonymousWebsite,
   });
+}
+
+async function handleAnonymousEmailBlur(email: string) {
+  const expectedEmail = email.trim().toLowerCase();
+  if (isLoggedIn || anonymousDisplayName.trim() || !isQqEmail(expectedEmail)) {
+    return;
+  }
+
+  const requestId = ++qqProfileLookupRequestId;
+  try {
+    const profile = await fetchQqProfile(baseUrl, expectedEmail);
+    if (
+      requestId !== qqProfileLookupRequestId ||
+      isLoggedIn ||
+      anonymousDisplayName.trim() ||
+      anonymousEmail.trim().toLowerCase() !== expectedEmail
+    ) {
+      return;
+    }
+
+    if (profile?.nickname) {
+      anonymousDisplayName = profile.nickname;
+    }
+  } catch {
+    // QQ nickname lookup is optional; keep manual input available on failure.
+  }
 }
 
 function handleEmoteSelect(item: CommentNextEmoteItem) {
@@ -1040,6 +1069,7 @@ function resolveMentionName(
         anonymousEmail = values.email;
         anonymousWebsite = values.website;
       }}
+      onEmailBlur={handleAnonymousEmailBlur}
     />
 
     <CommentNextEditor

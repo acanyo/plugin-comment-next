@@ -19,7 +19,10 @@ spec:
       查看记录：[(${site.url})][(${manageUrl != null ? manageUrl : ''})]
     htmlBody: |
       <p>AI 已拦截一条<span th:text="${targetLabel != null ? targetLabel : '评论'}"></span>。</p>
-      <p>评论人：<strong th:text="${authorName != null ? authorName : ''}"></strong></p>
+      <p>
+        <img th:if="${authorAvatar != null}" th:src="${authorAvatar}" alt="" width="32" height="32" style="width:32px;height:32px;border-radius:9999px;object-fit:cover;vertical-align:middle;margin-right:8px;" />
+        评论人：<strong th:text="${authorName != null ? authorName : ''}"></strong>
+      </p>
       <p>风险类型：<span th:text="${categories != null ? categories : ''}"></span></p>
       <p>置信度：<span th:text="${confidence != null ? confidence : ''}"></span></p>
       <p>处理策略：<span th:text="${action != null ? action : ''}"></span></p>

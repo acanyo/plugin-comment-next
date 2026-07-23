@@ -17,6 +17,9 @@ rules:
     resources: [ "config" ]
     verbs: [ "list" ]
   - apiGroups: [ "api.commentnext.xhhao.com" ]
+    resources: [ "qq-profiles" ]
+    verbs: [ "get" ]
+  - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "emotes" ]
     verbs: [ "list" ]
   - apiGroups: [ "api.commentnext.xhhao.com" ]
@@ -44,6 +47,7 @@ rules:
       - "/apis/api.commentnext.xhhao.com/v1alpha1/subject-reactions"
       - "/apis/api.commentnext.xhhao.com/v1alpha1/target-reactions"
       - "/apis/api.commentnext.xhhao.com/v1alpha1/target-reports"
+      - "/apis/api.commentnext.xhhao.com/v1alpha1/qq-profiles"
     verbs: [ "get", "list", "create" ]
 ---
 apiVersion: v1alpha1

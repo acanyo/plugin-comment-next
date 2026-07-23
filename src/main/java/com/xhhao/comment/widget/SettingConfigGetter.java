@@ -21,6 +21,11 @@ public interface SettingConfigGetter {
     /**
      * Never {@link Mono#empty()}.
      */
+    Mono<QqProfileConfig> getQqProfileConfig();
+
+    /**
+     * Never {@link Mono#empty()}.
+     */
     Mono<SecurityConfig> getSecurityConfig();
 
     /**
@@ -180,6 +185,22 @@ public interface SettingConfigGetter {
         private boolean enableImageLightbox = true;
         private boolean enablePrivateComment;
         private boolean showPrivateCommentBadge = true;
+    }
+
+    @Data
+    @Accessors(chain = true)
+    class QqProfileConfig {
+        public static final String GROUP = "qqProfile";
+
+        private boolean enabled;
+
+        private String apiUrlTemplate;
+
+        public static QqProfileConfig empty() {
+            return new QqProfileConfig()
+                .setEnabled(false)
+                .setApiUrlTemplate("");
+        }
     }
 
     @Data

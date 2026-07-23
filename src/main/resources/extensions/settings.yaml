@@ -101,6 +101,26 @@ spec:
           key: showPrivateCommentBadge
           value: true
           help: 开启后，私密评论会显示一个私密状态标识
+    - group: qqProfile
+      label: QQ 资料
+      formSchema:
+        - $formkit: switch
+          label: 自动获取 QQ 昵称
+          name: enabled
+          id: qqProfileEnabled
+          key: qqProfileEnabled
+          value: false
+          help: 匿名评论者填写纯数字 QQ 邮箱且昵称为空时，自动获取并回填昵称；头像继续使用 WeAvatar。
+        - $formkit: text
+          if: "$get(qqProfileEnabled).value === true"
+          label: QQ 昵称接口 URL 模板
+          name: apiUrlTemplate
+          id: qqProfileApiUrlTemplate
+          key: qqProfileApiUrlTemplate
+          placeholder: "https://example.com/qq/{qq}"
+          validation: required
+          help: >-
+            使用 {qq} 作为 QQ 号占位符，例如 https://example.com/qq/{qq}。接口需返回 JSON：{"nickname":"昵称"}。请求由插件后端发起，配置地址不会暴露到前台。
     - group: security
       label: 安全设置
       formSchema:

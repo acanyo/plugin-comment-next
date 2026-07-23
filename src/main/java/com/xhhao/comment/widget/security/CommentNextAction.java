@@ -17,6 +17,12 @@ public enum CommentNextAction {
         "AI 写作助手未开启",
         "请先登录后再使用 AI 写作",
         "AI 生成过于频繁，请稍后再试"
+    ),
+    QQ_PROFILE(
+        "qq-profile",
+        "QQ 昵称自动获取未开启",
+        "匿名用户可以获取 QQ 昵称",
+        "QQ 昵称获取过于频繁，请稍后再试"
     );
 
     private final String key;

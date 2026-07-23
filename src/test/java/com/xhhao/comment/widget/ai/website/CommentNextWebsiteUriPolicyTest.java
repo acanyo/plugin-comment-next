@@ -5,13 +5,16 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.xhhao.comment.widget.network.CommentNextOutboundUriPolicy;
 import java.net.InetAddress;
 import java.net.URI;
 import org.junit.jupiter.api.Test;
 
 class CommentNextWebsiteUriPolicyTest {
 
-    private final CommentNextWebsiteUriPolicy policy = new CommentNextWebsiteUriPolicy();
+    private final CommentNextWebsiteUriPolicy policy = new CommentNextWebsiteUriPolicy(
+        new CommentNextOutboundUriPolicy()
+    );
 
     @Test
     void normalizesWebsiteToOriginRoot() {
@@ -39,18 +42,18 @@ class CommentNextWebsiteUriPolicyTest {
 
     @Test
     void rejectsPrivateAndReservedAddresses() throws Exception {
-        assertFalse(CommentNextWebsiteUriPolicy.isPublicAddress(InetAddress.getByName("127.0.0.1")));
-        assertFalse(CommentNextWebsiteUriPolicy.isPublicAddress(InetAddress.getByName("10.0.0.1")));
-        assertFalse(CommentNextWebsiteUriPolicy.isPublicAddress(InetAddress.getByName("100.64.0.1")));
-        assertFalse(CommentNextWebsiteUriPolicy.isPublicAddress(InetAddress.getByName("169.254.169.254")));
-        assertFalse(CommentNextWebsiteUriPolicy.isPublicAddress(InetAddress.getByName("192.168.1.1")));
-        assertFalse(CommentNextWebsiteUriPolicy.isPublicAddress(InetAddress.getByName("198.51.100.1")));
-        assertFalse(CommentNextWebsiteUriPolicy.isPublicAddress(InetAddress.getByName("203.0.113.1")));
-        assertFalse(CommentNextWebsiteUriPolicy.isPublicAddress(InetAddress.getByName("::1")));
-        assertFalse(CommentNextWebsiteUriPolicy.isPublicAddress(InetAddress.getByName("fc00::1")));
-        assertFalse(CommentNextWebsiteUriPolicy.isPublicAddress(InetAddress.getByName("2001:db8::1")));
-        assertTrue(CommentNextWebsiteUriPolicy.isPublicAddress(InetAddress.getByName("8.8.8.8")));
-        assertTrue(CommentNextWebsiteUriPolicy.isPublicAddress(InetAddress.getByName("2606:4700:4700::1111")));
+        assertFalse(CommentNextOutboundUriPolicy.isPublicAddress(InetAddress.getByName("127.0.0.1")));
+        assertFalse(CommentNextOutboundUriPolicy.isPublicAddress(InetAddress.getByName("10.0.0.1")));
+        assertFalse(CommentNextOutboundUriPolicy.isPublicAddress(InetAddress.getByName("100.64.0.1")));
+        assertFalse(CommentNextOutboundUriPolicy.isPublicAddress(InetAddress.getByName("169.254.169.254")));
+        assertFalse(CommentNextOutboundUriPolicy.isPublicAddress(InetAddress.getByName("192.168.1.1")));
+        assertFalse(CommentNextOutboundUriPolicy.isPublicAddress(InetAddress.getByName("198.51.100.1")));
+        assertFalse(CommentNextOutboundUriPolicy.isPublicAddress(InetAddress.getByName("203.0.113.1")));
+        assertFalse(CommentNextOutboundUriPolicy.isPublicAddress(InetAddress.getByName("::1")));
+        assertFalse(CommentNextOutboundUriPolicy.isPublicAddress(InetAddress.getByName("fc00::1")));
+        assertFalse(CommentNextOutboundUriPolicy.isPublicAddress(InetAddress.getByName("2001:db8::1")));
+        assertTrue(CommentNextOutboundUriPolicy.isPublicAddress(InetAddress.getByName("8.8.8.8")));
+        assertTrue(CommentNextOutboundUriPolicy.isPublicAddress(InetAddress.getByName("2606:4700:4700::1111")));
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.xhhao.comment.widget.ai.website;
 
 import com.xhhao.comment.widget.ai.ConditionalOnHaloAiFoundation;
+import com.xhhao.comment.widget.network.CommentNextOutboundUriPolicy;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.time.Duration;
@@ -29,7 +30,7 @@ class CommentNextSafeHtmlFetcher {
         .clientConnector(new ReactorClientHttpConnector(HttpClient.create()
             .resolvedAddressesSelector((config, addresses) -> addresses.stream()
                 .filter(address -> address instanceof InetSocketAddress inetAddress
-                    && CommentNextWebsiteUriPolicy.isPublicAddress(inetAddress.getAddress()))
+                    && CommentNextOutboundUriPolicy.isPublicAddress(inetAddress.getAddress()))
                 .toList())))
         .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(MAX_BODY_BYTES))
         .defaultHeader(HttpHeaders.USER_AGENT, "Halo-Comment-Next-Website-Review/1.0")

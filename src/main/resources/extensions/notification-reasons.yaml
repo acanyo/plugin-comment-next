@@ -25,6 +25,9 @@ spec:
     - name: authorName
       type: string
       description: 评论人名称
+    - name: authorAvatar
+      type: string
+      description: 评论人头像 URL
     - name: content
       type: string
       description: 评论内容
@@ -72,6 +75,9 @@ spec:
     - name: authorName
       type: string
       description: 评论人名称
+    - name: authorAvatar
+      type: string
+      description: 评论人头像 URL
     - name: content
       type: string
       description: 评论内容

@@ -21,6 +21,13 @@ public class SettingConfigGetterImpl implements SettingConfigGetter {
     }
 
     @Override
+    public Mono<QqProfileConfig> getQqProfileConfig() {
+        return settingFetcher.fetch(QqProfileConfig.GROUP, QqProfileConfig.class)
+            .defaultIfEmpty(QqProfileConfig.empty())
+            .onErrorReturn(QqProfileConfig.empty());
+    }
+
+    @Override
     public Mono<SecurityConfig> getSecurityConfig() {
         return settingFetcher.fetch(SecurityConfig.GROUP, SecurityConfig.class)
             .defaultIfEmpty(SecurityConfig.empty())

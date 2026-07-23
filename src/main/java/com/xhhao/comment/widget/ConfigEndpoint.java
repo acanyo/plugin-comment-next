@@ -31,6 +31,8 @@ public class ConfigEndpoint implements CustomEndpoint {
 
     private static final String AVATAR_GROUP = "avatar";
 
+    private static final String QQ_PROFILE_GROUP = "qqProfile";
+
     private static final String ADMIN_IDENTIFIERS = "adminIdentifiers";
 
     private static final String UPLOAD_GROUP = "upload";
@@ -159,7 +161,12 @@ public class ConfigEndpoint implements CustomEndpoint {
     }
 
     private ObjectNode removeSensitiveFields(ObjectNode rootNode) {
-        rootNode.remove(List.of(AI_REVIEW_GROUP, AI_PROMPTS_GROUP, AVATAR_GROUP));
+        rootNode.remove(List.of(
+            AI_REVIEW_GROUP,
+            AI_PROMPTS_GROUP,
+            AVATAR_GROUP,
+            QQ_PROFILE_GROUP
+        ));
 
         var uploadValue = rootNode.get(UPLOAD_GROUP);
         if (uploadValue instanceof ObjectNode uploadNode) {
