@@ -1,4 +1,5 @@
 <script lang="ts">
+import CommentNextLottie from './CommentNextLottie.svelte';
 import type { CommentNextEmoteItem } from './types/emote';
 
 const {
@@ -13,16 +14,17 @@ const previewSrc = $derived(
   item.originSrc || item.src || item.previewSrc || ''
 );
 const previewLabel = $derived(item.description || item.label || packName);
+const isLottie = $derived(item.type === 'lottie' && Boolean(item.contentUrl));
 </script>
 
-{#if previewSrc}
+{#if previewSrc || isLottie}
   <div class="comment-next-emote-preview" role="status" aria-live="polite">
     <div class="comment-next-emote-preview-image">
-      <img
-        src={previewSrc}
-        alt={previewLabel}
-        decoding="async"
-      />
+      {#if isLottie}
+        <CommentNextLottie item={item} maxWidth={144} maxHeight={72} />
+      {:else}
+        <img src={previewSrc} alt={previewLabel} decoding="async" />
+      {/if}
     </div>
     {#if previewLabel}
       <span>{previewLabel}</span>

@@ -31,6 +31,11 @@ import {
   sortEmoteGroupsByPriority,
   updateEmoteGroup,
 } from '../api/emotes';
+import {
+  buildLottieEmoteGroups,
+  fetchLottieCatalog,
+  LottiePluginUnavailableError,
+} from '../api/lottie';
 import EmoteGroupListItem from '../components/EmoteGroupListItem.vue';
 import EmoteGroupSortModal from '../components/EmoteGroupSortModal.vue';
 import { useDeletionRefresh } from '../composables/use-deletion-refresh';
@@ -42,6 +47,7 @@ const total = ref(0);
 const groups = ref<EmoteGroup[]>([]);
 const loading = ref(false);
 const fetching = ref(false);
+const lottieSyncing = ref(false);
 const importing = ref(false);
 const keyword = ref('');
 const checkAll = ref(false);
@@ -70,6 +76,7 @@ const filterItems: Array<{ label: string; value: EmoteGroupFilter }> = [
   { label: '全部', value: 'ALL' },
   { label: '颜文字', value: 'emoticon' },
   { label: '图片表情', value: 'image' },
+  { label: 'Lottie 动画', value: 'lottie' },
 ];
 
 const canManage = computed(() => utils.permission.has(managePermissions));
@@ -78,7 +85,7 @@ const hasFilters = computed(
 );
 const visibleSelectableGroupNames = computed(() =>
   groups.value
-    .filter((group) => !isDeletingResource(group))
+    .filter((group) => !isDeletingResource(group) && group.spec.provider !== 'LOTTIE')
     .map((group) => group.metadata.name)
     .filter((name): name is string => Boolean(name))
 );
@@ -86,11 +93,17 @@ const selectedVisibleGroups = computed(() => {
   const selectedNames = new Set(selectedGroupNames.value);
   return groups.value.filter(
     (group) =>
-      !isDeletingResource(group) && selectedNames.has(group.metadata.name)
+      !isDeletingResource(group)
+      && group.spec.provider !== 'LOTTIE'
+      && selectedNames.has(group.metadata.name)
   );
 });
 const importedDisplayNames = computed(
-  () => new Set(importKnownGroups.value.map((group) => group.spec.displayName))
+  () => new Set(
+    importKnownGroups.value
+      .filter((group) => group.spec.provider !== 'LOTTIE')
+      .map((group) => group.spec.displayName)
+  )
 );
 const defaultPackSummaries = computed(() =>
   summarizePacks(defaultSourcePacks.value)
@@ -349,7 +362,9 @@ async function importGroups({
       existingGroups,
     });
     const existingNames = new Set(
-      existingGroups.map((group) => group.spec.displayName)
+      existingGroups
+        .filter((group) => group.spec.provider !== 'LOTTIE')
+        .map((group) => group.spec.displayName)
     );
 
     await Promise.all(
@@ -466,8 +481,48 @@ async function updateSelectedGroupsEnabled(enabled: boolean) {
   }
 }
 
+async function syncLottieGroups() {
+  if (lottieSyncing.value) {
+    return;
+  }
+
+  lottieSyncing.value = true;
+  try {
+    const [catalog, existingGroups] = await Promise.all([
+      fetchLottieCatalog(),
+      listAllEmoteGroups(),
+    ]);
+    const { upserts, stale } = buildLottieEmoteGroups(catalog, existingGroups);
+    const existingNames = new Set(existingGroups.map((group) => group.metadata.name));
+
+    await Promise.all(
+      upserts.map((group) =>
+        existingNames.has(group.metadata.name)
+          ? updateEmoteGroup(group)
+          : createEmoteGroup(group)
+      )
+    );
+    await Promise.all(
+      stale.map((group) => deleteEmoteGroup(group.metadata.name))
+    );
+    Toast.success(`已同步 ${upserts.length} 个 Lottie 分组`);
+    selectedGroupNames.value = [];
+    page.value = 1;
+    await loadGroups();
+  } catch (error) {
+    console.error(error);
+    if (error instanceof LottiePluginUnavailableError) {
+      Toast.error('未检测到已启用的 plugin-lottie');
+    } else {
+      Toast.error('Lottie 动画库同步失败，未清理现有镜像');
+    }
+  } finally {
+    lottieSyncing.value = false;
+  }
+}
+
 function removeGroup(group: EmoteGroup) {
-  if (isDeletingResource(group)) {
+  if (isDeletingResource(group) || group.spec.provider === 'LOTTIE') {
     return;
   }
 
@@ -535,8 +590,10 @@ function filterEmoteGroups(groups: EmoteGroup[], normalizedKeyword: string) {
     [
       group.spec.displayName,
       group.metadata.name,
+      group.spec.provider,
       group.spec.sourceType,
       group.spec.sourceUrl,
+      group.spec.sourceRef,
     ]
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(normalizedKeyword))
@@ -544,6 +601,7 @@ function filterEmoteGroups(groups: EmoteGroup[], normalizedKeyword: string) {
 }
 
 function typeText(type: string) {
+  if (type === 'lottie') return 'Lottie 动画';
   return type === 'image' ? '图片表情' : '颜文字';
 }
 
@@ -609,6 +667,9 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
       <VSpace v-if="canManage">
         <VButton type="secondary" :loading="sortLoading" @click="openSortModal">
           手动排序
+        </VButton>
+        <VButton type="secondary" :loading="lottieSyncing" @click="syncLottieGroups">
+          同步 Lottie
         </VButton>
         <VButton type="secondary" @click="openCustomImport">
           导入 JSON
@@ -699,6 +760,9 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
         >
           <template #actions>
             <VSpace v-if="canManage">
+              <VButton type="secondary" :loading="lottieSyncing" @click="syncLottieGroups">
+                同步 Lottie
+              </VButton>
               <VButton type="secondary" @click="openCustomImport">导入 JSON</VButton>
               <VButton type="primary" @click="openDefaultSource">在线表情源</VButton>
             </VSpace>

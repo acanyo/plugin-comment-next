@@ -58,10 +58,12 @@ function save() {
 }
 
 function sourceText(type: string) {
+  if (type === 'PLUGIN') return 'plugin-lottie';
   return type === 'DEFAULT' ? '默认源' : '自定义';
 }
 
 function typeText(type: string) {
+  if (type === 'lottie') return 'Lottie 动画';
   return type === 'image' ? '图片表情' : '颜文字';
 }
 </script>
@@ -117,7 +119,9 @@ function typeText(type: string) {
                 class=":uno: block max-h-6 max-w-6 object-contain"
                 loading="lazy"
               />
-              <span v-else class=":uno: max-w-14 truncate">{{ item.icon }}</span>
+              <span v-else class=":uno: max-w-14 truncate">
+                {{ group.spec.provider === 'LOTTIE' ? (item.text || item.animationName) : item.icon }}
+              </span>
             </span>
           </div>
         </div>

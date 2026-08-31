@@ -15,6 +15,7 @@ const ALLOWED_TAGS = new Set([
   's',
   'span',
   'strong',
+  'halo-lottie',
   'u',
   'ul',
 ]);
@@ -23,12 +24,42 @@ const GLOBAL_ALLOWED_ATTRIBUTES = new Set(['title']);
 const DISPLAY_TAG_ALLOWED_ATTRIBUTES: Record<string, Set<string>> = {
   a: new Set(['href', 'title']),
   img: new Set(['src', 'alt', 'class', 'loading', 'decoding']),
+  'halo-lottie': new Set([
+    'src',
+    'format',
+    'width',
+    'height',
+    'autoplay',
+    'loop',
+    'speed',
+    'fit',
+    'align',
+    'controls',
+    'hover-play',
+    'freeze-on-offscreen',
+    'aria-label',
+  ]),
 };
 
 const SUBMIT_TAG_ALLOWED_ATTRIBUTES: Record<string, Set<string>> = {
   a: new Set(['href', 'target', 'title']),
   code: new Set(['class']),
   img: new Set(['align', 'alt', 'height', 'src', 'title', 'width']),
+  'halo-lottie': new Set([
+    'src',
+    'format',
+    'width',
+    'height',
+    'autoplay',
+    'loop',
+    'speed',
+    'fit',
+    'align',
+    'controls',
+    'hover-play',
+    'freeze-on-offscreen',
+    'aria-label',
+  ]),
 };
 
 interface SanitizeOptions {
@@ -181,6 +212,11 @@ function sanitizeElement(element: Element, options: SanitizeOptions): void {
     return;
   }
 
+  if (tagName === 'halo-lottie') {
+    sanitizeLottie(element);
+    return;
+  }
+
   if (!ALLOWED_TAGS.has(tagName)) {
     element.replaceWith(document.createTextNode(element.textContent ?? ''));
     return;
@@ -216,6 +252,123 @@ function sanitizeElement(element: Element, options: SanitizeOptions): void {
   }
 
   sanitizeChildren(element, options);
+}
+
+function sanitizeLottie(element: Element): void {
+  const allowedAttributes = DISPLAY_TAG_ALLOWED_ATTRIBUTES['halo-lottie'];
+  for (const attribute of Array.from(element.attributes)) {
+    const attributeName = attribute.name.toLowerCase();
+    if (!allowedAttributes.has(attributeName) || attributeName.startsWith('on')) {
+      element.removeAttribute(attribute.name);
+    }
+  }
+
+  const src = normalizeLottieSrc(element.getAttribute('src') ?? '');
+  if (!src) {
+    element.remove();
+    return;
+  }
+
+  element.setAttribute('src', src);
+  element.setAttribute('format', normalizeLottieFormat(element.getAttribute('format')));
+
+  const dimensions = normalizeLottieDimensions(
+    element.getAttribute('width'),
+    element.getAttribute('height')
+  );
+  element.setAttribute('width', String(dimensions.width));
+  element.setAttribute('height', String(dimensions.height));
+  element.setAttribute('autoplay', normalizeBooleanAttribute(element.getAttribute('autoplay'), true));
+  element.setAttribute('loop', normalizeBooleanAttribute(element.getAttribute('loop'), true));
+  element.setAttribute('controls', normalizeBooleanAttribute(element.getAttribute('controls'), false));
+  element.setAttribute('hover-play', normalizeBooleanAttribute(element.getAttribute('hover-play'), false));
+  element.setAttribute(
+    'freeze-on-offscreen',
+    normalizeBooleanAttribute(element.getAttribute('freeze-on-offscreen'), true)
+  );
+
+  const speed = Number(element.getAttribute('speed'));
+  element.setAttribute(
+    'speed',
+    String(Number.isFinite(speed) ? Math.min(10, Math.max(0.1, speed)) : 1)
+  );
+  element.setAttribute('fit', normalizeLottieFit(element.getAttribute('fit')));
+  element.setAttribute('align', normalizeLottieAlign(element.getAttribute('align')));
+
+  const ariaLabel = (element.getAttribute('aria-label') ?? '').trim().slice(0, 120);
+  if (ariaLabel) {
+    element.setAttribute('aria-label', ariaLabel);
+  } else {
+    element.removeAttribute('aria-label');
+  }
+
+  // The runtime owns the element's canvas and controls. Never preserve
+  // attacker-provided children inside the custom element.
+  element.replaceChildren();
+}
+
+function normalizeLottieSrc(value: string): string {
+  const normalized = value.startsWith('//') ? `https:${value}` : value.trim();
+  try {
+    const url = new URL(normalized, window.location.origin);
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return '';
+    }
+
+    // Lottie content is served by the installed plugin on this site. A
+    // matching path on another origin must not be allowed to load arbitrary
+    // attacker-controlled animation data.
+    if (url.origin !== window.location.origin) {
+      return '';
+    }
+
+    const isPublicLottieContent =
+      url.pathname.startsWith(
+        '/apis/api.lottie.halo.run/v1alpha1/animations/'
+      ) && url.pathname.endsWith('/content');
+    return isPublicLottieContent ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
+function normalizeLottieFormat(value: string | null): string {
+  const format = value?.trim().toLowerCase();
+  return format && ['json', 'tgs', 'lottie'].includes(format) ? format : 'json';
+}
+
+function normalizeLottieDimensions(widthValue: string | null, heightValue: string | null) {
+  const width = parsePositiveDimension(widthValue, 160);
+  const height = parsePositiveDimension(heightValue, 160);
+  const scale = Math.min(1, 144 / width, 72 / height);
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
+
+function parsePositiveDimension(value: string | null, fallback: number): number {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.min(number, 4096) : fallback;
+}
+
+function normalizeBooleanAttribute(value: string | null, fallback: boolean): string {
+  if (value === null) return fallback ? 'true' : 'false';
+  return value.trim().toLowerCase() === 'false' ? 'false' : 'true';
+}
+
+function normalizeLottieFit(value: string | null): string {
+  const fit = value?.trim();
+  return fit && ['contain', 'cover', 'fill', 'none', 'fit-width', 'fit-height'].includes(fit)
+    ? fit
+    : 'contain';
+}
+
+function normalizeLottieAlign(value: string | null): string {
+  const align = value?.trim();
+  return align && ['center', 'top', 'bottom', 'left', 'right'].includes(align)
+    ? align
+    : 'center';
 }
 
 function sanitizeImage(

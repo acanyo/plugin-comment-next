@@ -120,10 +120,20 @@ public class CommentWidgetPlugin extends BasePlugin {
                 .indexFunc(group -> Optional.ofNullable(group.getSpec())
                     .map(CommentNextEmoteGroup.Spec::getType)
                     .orElse(null)));
+            indexSpecs.add(IndexSpecs.<CommentNextEmoteGroup, String>single("spec.provider",
+                    String.class)
+                .indexFunc(group -> Optional.ofNullable(group.getSpec())
+                    .map(CommentNextEmoteGroup.Spec::getProvider)
+                    .orElse(CommentNextEmoteGroup.Provider.OWO.name())));
             indexSpecs.add(IndexSpecs.<CommentNextEmoteGroup, String>single("spec.sourceType",
                     String.class)
                 .indexFunc(group -> Optional.ofNullable(group.getSpec())
                     .map(CommentNextEmoteGroup.Spec::getSourceType)
+                    .orElse(null)));
+            indexSpecs.add(IndexSpecs.<CommentNextEmoteGroup, String>single("spec.sourceRef",
+                    String.class)
+                .indexFunc(group -> Optional.ofNullable(group.getSpec())
+                    .map(CommentNextEmoteGroup.Spec::getSourceRef)
                     .orElse(null)));
             indexSpecs.add(IndexSpecs.<CommentNextEmoteGroup, Integer>single("spec.priority",
                     Integer.class)

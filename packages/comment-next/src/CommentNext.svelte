@@ -152,7 +152,7 @@ function getContentLength(html: string): number {
 
   return (
     (template.content.textContent?.trim().length ?? 0) +
-    template.content.querySelectorAll('img[src]').length
+    template.content.querySelectorAll('img[src], halo-lottie[src]').length
   );
 }
 </script>

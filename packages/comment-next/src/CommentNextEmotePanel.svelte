@@ -1,5 +1,6 @@
 <script lang="ts">
 import { onMount } from 'svelte';
+import CommentNextLottie from './CommentNextLottie.svelte';
 import CommentNextEmotePreview from './CommentNextEmotePreview.svelte';
 import type { CommentNextEmoteItem, CommentNextEmotePack } from './types/emote';
 
@@ -85,6 +86,9 @@ const filteredEntries = $derived(
 const hasImageItems = $derived(
   filteredEntries.some((entry) => entry.item.type === 'image')
 );
+const hasLottieItems = $derived(
+  filteredEntries.some((entry) => entry.item.type === 'lottie')
+);
 const panelCountText = $derived(
   normalizedQuery
     ? `${filteredEntries.length} 个结果`
@@ -121,8 +125,9 @@ function handleSelect(item: CommentNextEmoteItem) {
 
 function showPreview(entry: CommentNextEmotePanelEntry) {
   if (
-    entry.item.type === 'image' &&
-    (entry.item.originSrc || entry.item.src || entry.item.previewSrc)
+    (entry.item.type === 'image' &&
+      (entry.item.originSrc || entry.item.src || entry.item.previewSrc)) ||
+    (entry.item.type === 'lottie' && entry.item.contentUrl)
   ) {
     previewEntry = entry;
   }
@@ -224,13 +229,13 @@ function saveRecentItemIds(ids: string[]) {
       <div class="comment-next-emote-content">
         {#if filteredEntries.length}
           <div
-            class:comment-next-emote-grid-image={hasImageItems}
+            class:comment-next-emote-grid-image={hasImageItems || hasLottieItems}
             class="comment-next-emote-grid"
             aria-label={normalizedQuery ? '表情搜索结果' : `${activePack.name}表情`}
           >
             {#each filteredEntries as entry}
               <button
-                class:comment-next-emote-item-image={entry.item.type === "image"}
+                class:comment-next-emote-item-image={entry.item.type === "image" || entry.item.type === "lottie"}
                 class:comment-next-emote-item-selected={selectedItemId === entry.item.id}
                 class="comment-next-emote-item"
                 type="button"
@@ -249,6 +254,8 @@ function saveRecentItemIds(ids: string[]) {
                     loading="lazy"
                     decoding="async"
                   />
+                {:else if entry.item.type === "lottie"}
+                  <CommentNextLottie item={entry.item} maxWidth={40} maxHeight={40} />
                 {:else}
                   <span>{entry.item.value}</span>
                 {/if}

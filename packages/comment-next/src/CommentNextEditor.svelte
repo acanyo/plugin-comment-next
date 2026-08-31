@@ -3,6 +3,7 @@ import { tick } from 'svelte';
 import CommentNextAiSuggestion from './CommentNextAiSuggestion.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import type { CommentNextEditorImageKind } from './types/editor';
+import type { CommentNextEmoteItem } from './types/emote';
 import {
   autolinkUrls,
   getTextSelectionOffset,
@@ -142,6 +143,37 @@ export function insertImage(
   image.loading = 'lazy';
   image.decoding = 'async';
   insertNodeAtCaret(image, document.createTextNode(' '));
+}
+
+export function insertLottie(item: CommentNextEmoteItem) {
+  if (!item.contentUrl || !editorElement) {
+    return;
+  }
+
+  const defaults = item.defaults;
+  const width = Number(defaults?.width) > 0 ? Number(defaults?.width) : 160;
+  const height = Number(defaults?.height) > 0 ? Number(defaults?.height) : 160;
+  const scale = Math.min(1, 144 / width, 72 / height);
+  const element = document.createElement('halo-lottie');
+  element.className = 'comment-next-editor-lottie';
+  element.setAttribute('contenteditable', 'false');
+  element.setAttribute('src', item.contentUrl);
+  element.setAttribute('format', item.format || 'json');
+  element.setAttribute('width', String(Math.max(1, Math.round(width * scale))));
+  element.setAttribute('height', String(Math.max(1, Math.round(height * scale))));
+  element.setAttribute('autoplay', defaults?.autoplay === false ? 'false' : 'true');
+  element.setAttribute('loop', defaults?.loop === false ? 'false' : 'true');
+  element.setAttribute('speed', String(Number(defaults?.speed) > 0 ? defaults?.speed : 1));
+  element.setAttribute('fit', defaults?.fit || 'contain');
+  element.setAttribute('align', defaults?.align || 'center');
+  element.setAttribute('controls', defaults?.controls ? 'true' : 'false');
+  element.setAttribute('hover-play', defaults?.hoverPlay ? 'true' : 'false');
+  element.setAttribute(
+    'freeze-on-offscreen',
+    defaults?.freezeOnOffscreen === false ? 'false' : 'true'
+  );
+  element.setAttribute('aria-label', defaults?.ariaLabel || item.label);
+  insertNodeAtCaret(element, document.createTextNode(' '));
 }
 
 export function replaceImageSrc(
@@ -950,6 +982,12 @@ function isNodeInsideTransient(node: Node): boolean {
 
   .comment-next-editor :global(.comment-next-editor-image) {
     --at-apply: inline-block max-h-[16rem] max-w-full align-middle object-contain;
+  }
+
+  .comment-next-editor :global(.comment-next-editor-lottie) {
+    --at-apply: mx-0.5 inline-flex align-middle;
+    max-width: min(100%, 9rem);
+    max-height: 4.5rem;
   }
 
   .comment-next-editor-paragraph {

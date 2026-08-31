@@ -6,8 +6,9 @@ export const EMOTE_GROUPS_ENDPOINT =
 export const DEFAULT_EMOTE_SOURCE_URL =
   'https://raw.githubusercontent.com/SwaggyMacro/OwO_Stickers/main/OwO.min.json';
 
-export type EmoteGroupType = 'emoticon' | 'image';
-export type EmoteSourceType = 'DEFAULT' | 'CUSTOM';
+export type EmoteProvider = 'OWO' | 'LOTTIE';
+export type EmoteGroupType = 'emoticon' | 'image' | 'lottie';
+export type EmoteSourceType = 'DEFAULT' | 'CUSTOM' | 'PLUGIN';
 export type EmoteGroupFilter = EmoteGroupType | 'ALL';
 
 export interface EmoteGroup {
@@ -21,15 +22,35 @@ export interface EmoteGroupSpec {
   enabled: boolean;
   displayName: string;
   type: EmoteGroupType;
+  provider: EmoteProvider;
   sourceType: EmoteSourceType;
   sourceUrl?: string;
+  sourceRef?: string;
   priority?: number;
   items: EmoteItem[];
 }
 
 export interface EmoteItem {
-  icon: string;
+  icon?: string;
   text?: string;
+  animationName?: string;
+  contentUrl?: string;
+  format?: string;
+  defaults?: EmoteLottieDefaults;
+}
+
+export interface EmoteLottieDefaults {
+  width: number;
+  height: number;
+  autoplay: boolean;
+  loop: boolean;
+  speed: number;
+  fit: string;
+  align: string;
+  controls: boolean;
+  hoverPlay: boolean;
+  freezeOnOffscreen: boolean;
+  ariaLabel?: string;
 }
 
 export interface EmoteGroupList {
@@ -170,7 +191,9 @@ export function rawPacksToGroups({
   existingGroups?: EmoteGroup[];
 }): EmoteGroup[] {
   const existingByName = new Map(
-    existingGroups.map((group) => [group.spec.displayName, group])
+    existingGroups
+      .filter((group) => group.spec?.provider !== 'LOTTIE')
+      .map((group) => [group.spec.displayName, group])
   );
   const nextPriority = resolveNextPriority(existingGroups);
   const groups: EmoteGroup[] = [];
@@ -195,8 +218,10 @@ export function rawPacksToGroups({
         enabled: existing?.spec.enabled ?? true,
         displayName: name,
         type,
+        provider: 'OWO',
         sourceType,
         sourceUrl,
+        sourceRef: undefined,
         priority: existing?.spec.priority ?? nextPriority + index,
         items,
       },
@@ -222,7 +247,10 @@ export function sortEmoteGroupsByPriority(groups: EmoteGroup[]): EmoteGroup[] {
 }
 
 export function normalizeEmoteGroup(group: EmoteGroup): EmoteGroup {
-  const type = normalizeEmoteGroupType(group.spec?.type);
+  const provider = group.spec?.provider === 'LOTTIE' ? 'LOTTIE' : 'OWO';
+  const type = provider === 'LOTTIE'
+    ? 'lottie'
+    : normalizeEmoteGroupType(group.spec?.type === 'lottie' ? 'emoticon' : group.spec?.type);
 
   return {
     apiVersion: API_VERSION,
@@ -236,17 +264,28 @@ export function normalizeEmoteGroup(group: EmoteGroup): EmoteGroup {
       enabled: group.spec?.enabled !== false,
       displayName: group.spec?.displayName?.trim() || '未命名表情',
       type,
-      sourceType: group.spec?.sourceType === 'DEFAULT' ? 'DEFAULT' : 'CUSTOM',
+      provider,
+      sourceType:
+        group.spec?.sourceType === 'DEFAULT'
+          ? 'DEFAULT'
+          : group.spec?.sourceType === 'PLUGIN'
+            ? 'PLUGIN'
+            : 'CUSTOM',
       sourceUrl: group.spec?.sourceUrl?.trim() || undefined,
+      sourceRef: group.spec?.sourceRef?.trim() || undefined,
       priority: Number.isFinite(Number(group.spec?.priority))
         ? Number(group.spec.priority)
         : 0,
-      items: normalizeEmoteItems(group.spec?.items),
+      items:
+        provider === 'LOTTIE'
+          ? normalizeLottieItems(group.spec?.items)
+          : normalizeEmoteItems(group.spec?.items),
     },
   };
 }
 
 export function normalizeEmoteGroupType(value: unknown): EmoteGroupType {
+  if (value === 'lottie') return 'lottie';
   return value === 'image' ? 'image' : 'emoticon';
 }
 
@@ -256,17 +295,27 @@ export function normalizeEmoteItems(value: unknown): EmoteItem[] {
   }
 
   return value
-    .map((item) => normalizeEmoteItem(item))
+      .map((item) => normalizeEmoteItem(item))
+      .filter((item): item is EmoteItem => Boolean(item));
+}
+
+export function normalizeLottieItems(value: unknown): EmoteItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => normalizeLottieItem(item))
     .filter((item): item is EmoteItem => Boolean(item));
 }
 
 export function emoteItemPreviewUrl(item: EmoteItem): string {
-  const source = extractImageAttribute(item.icon, 'src');
+  const source = extractImageAttribute(item.icon || '', 'src');
   return normalizeUrl(source);
 }
 
 export function emoteItemOriginUrl(item: EmoteItem): string {
-  const source = extractImageAttribute(item.icon, 'origin');
+  const source = extractImageAttribute(item.icon || '', 'origin');
   return normalizeUrl(source);
 }
 
@@ -290,6 +339,67 @@ function normalizeEmoteItem(value: unknown): EmoteItem | undefined {
   return {
     icon,
     text: typeof item.text === 'string' ? item.text.trim() : '',
+  };
+}
+
+function normalizeLottieItem(value: unknown): EmoteItem | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const item = value as Partial<EmoteItem>;
+  const animationName = typeof item.animationName === 'string'
+    ? item.animationName.trim()
+    : '';
+  const contentUrl = typeof item.contentUrl === 'string'
+    ? item.contentUrl.trim()
+    : '';
+
+  if (!animationName || !contentUrl) {
+    return undefined;
+  }
+
+  return {
+    icon: '',
+    text: typeof item.text === 'string' ? item.text.trim() : '',
+    animationName,
+    contentUrl,
+    format: typeof item.format === 'string' && item.format.trim()
+      ? item.format.trim().toLowerCase()
+      : 'json',
+    defaults: normalizeLottieDefaults(item.defaults),
+  };
+}
+
+export function normalizeLottieDefaults(value: unknown): EmoteLottieDefaults {
+  const defaults = value && typeof value === 'object'
+    ? (value as Partial<EmoteLottieDefaults>)
+    : {};
+  const positiveNumber = (candidate: unknown, fallback: number) => {
+    const number = Number(candidate);
+    return Number.isFinite(number) && number > 0 ? number : fallback;
+  };
+  const booleanValue = (candidate: unknown, fallback: boolean) =>
+    typeof candidate === 'boolean' ? candidate : fallback;
+
+  return {
+    width: positiveNumber(defaults.width, 160),
+    height: positiveNumber(defaults.height, 160),
+    autoplay: booleanValue(defaults.autoplay, true),
+    loop: booleanValue(defaults.loop, true),
+    speed: Math.min(10, positiveNumber(defaults.speed, 1)),
+    fit: typeof defaults.fit === 'string' && defaults.fit.trim()
+      ? defaults.fit.trim()
+      : 'contain',
+    align: typeof defaults.align === 'string' && defaults.align.trim()
+      ? defaults.align.trim()
+      : 'center',
+    controls: booleanValue(defaults.controls, false),
+    hoverPlay: booleanValue(defaults.hoverPlay, false),
+    freezeOnOffscreen: booleanValue(defaults.freezeOnOffscreen, true),
+    ariaLabel: typeof defaults.ariaLabel === 'string'
+      ? defaults.ariaLabel.trim()
+      : '',
   };
 }
 

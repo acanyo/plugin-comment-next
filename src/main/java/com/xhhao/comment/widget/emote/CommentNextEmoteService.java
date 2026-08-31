@@ -1,6 +1,7 @@
 package com.xhhao.comment.widget.emote;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xhhao.comment.utils.JsonUtils;
 import java.util.Comparator;
@@ -37,31 +38,65 @@ public class CommentNextEmoteService {
             .collectList()
             .map(groups -> {
                 var root = objectMapper.createObjectNode();
-                groups.forEach(group -> appendGroup(root, group));
+                var packs = objectMapper.createArrayNode();
+                groups.forEach(group -> appendGroup(root, packs, group));
+                // Keep the legacy display-name keyed fields for older clients,
+                // while the array is the collision-safe contract used by the
+                // current frontend.
+                root.set("packs", packs);
                 return root;
             });
     }
 
-    private void appendGroup(ObjectNode root, CommentNextEmoteGroup group) {
+    private void appendGroup(ObjectNode root, ArrayNode packs, CommentNextEmoteGroup group) {
         var spec = group.getSpec();
         if (spec == null || !StringUtils.hasText(spec.getDisplayName())) {
             return;
         }
 
+        var provider = normalizeProvider(spec.getProvider());
         var groupNode = objectMapper.createObjectNode();
-        groupNode.put("type", normalizeType(spec.getType()));
+        groupNode.put("provider", provider);
+        groupNode.put("type", provider.equals("LOTTIE") ? "lottie" : normalizeType(spec.getType()));
         var container = objectMapper.createArrayNode();
         Optional.ofNullable(spec.getItems()).orElseGet(java.util.List::of)
             .stream()
-            .filter(item -> item != null && StringUtils.hasText(item.getIcon()))
             .forEach(item -> {
+                if (item == null) {
+                    return;
+                }
                 var itemNode = objectMapper.createObjectNode();
-                itemNode.put("icon", item.getIcon());
                 itemNode.put("text", Optional.ofNullable(item.getText()).orElse(""));
+                if (provider.equals("LOTTIE")) {
+                    if (!StringUtils.hasText(item.getAnimationName())
+                        || !StringUtils.hasText(item.getContentUrl())) {
+                        return;
+                    }
+                    itemNode.put("type", "lottie");
+                    itemNode.put("animationName", item.getAnimationName());
+                    itemNode.put("contentUrl", item.getContentUrl());
+                    if (StringUtils.hasText(item.getFormat())) {
+                        itemNode.put("format", item.getFormat());
+                    }
+                    if (item.getDefaults() != null) {
+                        itemNode.set("defaults", objectMapper.valueToTree(item.getDefaults()));
+                    }
+                } else {
+                    if (!StringUtils.hasText(item.getIcon())) {
+                        return;
+                    }
+                    itemNode.put("icon", item.getIcon());
+                }
                 container.add(itemNode);
             });
         groupNode.set("container", container);
         root.set(spec.getDisplayName(), groupNode);
+
+        var packNode = groupNode.deepCopy();
+        packNode.put("id", groupId(group));
+        packNode.put("name", spec.getDisplayName());
+        packNode.put("provider", provider);
+        packs.add(packNode);
     }
 
     private int priority(CommentNextEmoteGroup group) {
@@ -78,5 +113,22 @@ public class CommentNextEmoteService {
 
     private String normalizeType(String type) {
         return "image".equals(type) ? "image" : "emoticon";
+    }
+
+    private String normalizeProvider(String provider) {
+        return "LOTTIE".equalsIgnoreCase(provider) ? "LOTTIE" : "OWO";
+    }
+
+    private String groupId(CommentNextEmoteGroup group) {
+        return Optional.ofNullable(group.getMetadata())
+            .map(metadata -> metadata.getName())
+            .filter(StringUtils::hasText)
+            .orElseGet(() -> "comment-next-emote-" + createStableId(displayName(group)));
+    }
+
+    private String createStableId(String value) {
+        return value == null ? "group" : value.trim().toLowerCase()
+            .replaceAll("[^a-z0-9\\u3400-\\u9fff]+", "-")
+            .replaceAll("^-|-$", "");
     }
 }

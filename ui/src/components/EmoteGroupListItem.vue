@@ -46,12 +46,16 @@ const previewItems = computed(() => props.group.spec.items.slice(0, 6));
 const isDeleting = computed(() => isDeletingResource(props.group));
 
 function typeText(type: string) {
+  if (type === 'lottie') return 'Lottie 动画';
   return type === 'image' ? '图片表情' : '颜文字';
 }
 
 function sourceText(type: string) {
+  if (type === 'PLUGIN') return 'plugin-lottie';
   return type === 'DEFAULT' ? '默认源' : '自定义源';
 }
+
+const isLottie = computed(() => props.group.spec.provider === 'LOTTIE');
 
 function padDateValue(value: number): string {
   return value.toString().padStart(2, '0');
@@ -60,7 +64,7 @@ function padDateValue(value: number): string {
 
 <template>
   <VEntity :is-selected="isSelected">
-    <template v-if="canManage" #checkbox>
+    <template v-if="canManage && !isLottie" #checkbox>
       <slot name="checkbox" />
     </template>
 
@@ -94,7 +98,9 @@ function padDateValue(value: number): string {
                 class=":uno: block max-h-6 max-w-6 object-contain"
                 loading="lazy"
               />
-              <span v-else class=":uno: max-w-16 truncate">{{ item.icon }}</span>
+              <span v-else class=":uno: max-w-16 truncate">
+                {{ group.spec.provider === 'LOTTIE' ? (item.text || item.animationName) : item.icon }}
+              </span>
             </span>
           </div>
         </template>
@@ -121,7 +127,7 @@ function padDateValue(value: number): string {
       <VDropdownItem @click="emit('toggle', group)">
         {{ group.spec.enabled ? "停用" : "启用" }}
       </VDropdownItem>
-      <VDropdownItem type="danger" @click="emit('remove', group)">
+      <VDropdownItem v-if="!isLottie" type="danger" @click="emit('remove', group)">
         删除
       </VDropdownItem>
     </template>

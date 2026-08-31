@@ -65,6 +65,7 @@ type CommentNextEditorRef = {
     alt?: string,
     kind?: CommentNextEditorImageKind
   ) => void;
+  insertLottie: (item: CommentNextEmoteItem) => void;
   replaceImageSrc: (sourceSrc: string, targetSrc: string, alt?: string) => void;
   consumeCommandTrigger: () => void;
 };
@@ -573,7 +574,7 @@ function hasContent(html: string): boolean {
 
   return Boolean(
     template.content.textContent?.trim() ||
-      template.content.querySelector('img[src]')
+      template.content.querySelector('img[src], halo-lottie[src]')
   );
 }
 
@@ -650,6 +651,11 @@ async function handleAnonymousEmailBlur(email: string) {
 }
 
 function handleEmoteSelect(item: CommentNextEmoteItem) {
+  if (item.type === 'lottie') {
+    editorRef?.insertLottie(item);
+    return;
+  }
+
   if (item.type === 'image') {
     if (!allowImages) {
       return;

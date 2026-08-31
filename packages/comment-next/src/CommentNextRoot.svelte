@@ -14,6 +14,8 @@ import {
 import { fetchEmotePacks } from './services/emotes';
 import type { CommentNextRawEmotePacks } from './types/emote';
 
+const LOTTIE_RUNTIME_URL = '/plugins/lottie/assets/lottie-runtime.js';
+
 const {
   baseUrl = '',
   group = '',
@@ -166,6 +168,7 @@ onMount(() => {
     fetchEmotePacks(baseUrl)
       .then((emotes) => {
         if (!cancelled) {
+          ensureLottieRuntimeLoaded(emotes);
           rawEmotePacks = emotes;
         }
       })
@@ -212,6 +215,7 @@ onMount(() => {
   fetchEmotePacks(baseUrl)
     .then((emotes) => {
       if (!cancelled) {
+        ensureLottieRuntimeLoaded(emotes);
         rawEmotePacks = emotes;
       }
     })
@@ -226,6 +230,65 @@ onMount(() => {
     cancelled = true;
   };
 });
+
+function ensureLottieRuntimeLoaded(emotes: unknown): void {
+  if (
+    !containsLottiePack(emotes)
+    || typeof document === 'undefined'
+    || typeof customElements === 'undefined'
+  ) {
+    return;
+  }
+
+  if (customElements.get('halo-lottie')) {
+    return;
+  }
+
+  if (
+    document.querySelector('script[data-comment-next-lottie-runtime]')
+    || hasLottieRuntimeScript()
+  ) {
+    return;
+  }
+
+  const script = document.createElement('script');
+  script.type = 'module';
+  script.src = LOTTIE_RUNTIME_URL;
+  script.async = true;
+  script.setAttribute('data-comment-next-lottie-runtime', 'true');
+  document.head.appendChild(script);
+}
+
+function hasLottieRuntimeScript(): boolean {
+  return Array.from(document.querySelectorAll('script[src]')).some((script) => {
+    try {
+      return new URL(script.getAttribute('src') ?? '', document.baseURI).pathname
+        === LOTTIE_RUNTIME_URL;
+    } catch {
+      return false;
+    }
+  });
+}
+
+function containsLottiePack(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  const packs = Array.isArray(record.packs)
+    ? record.packs
+    : Object.values(record);
+
+  return packs.some((pack) => {
+    if (!pack || typeof pack !== 'object') {
+      return false;
+    }
+
+    const candidate = pack as { provider?: unknown; type?: unknown };
+    return candidate.provider === 'LOTTIE' || candidate.type === 'lottie';
+  });
+}
 
 function resolvePositiveNumber(
   value: number | undefined,
