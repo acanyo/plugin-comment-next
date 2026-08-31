@@ -1195,6 +1195,7 @@ function resolveMentionName(
         {imageUploading}
         {imageAccept}
         {emotePacks}
+        emotePageSize={emoteConfig?.pageSize}
         onEmoteSelect={handleEmoteSelect}
         onImageUpload={handleImageUpload}
         onLogin={handleLogin}

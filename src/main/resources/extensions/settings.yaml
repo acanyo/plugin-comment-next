@@ -1259,6 +1259,14 @@ spec:
           help: 开启后评论区中选择表情时的 Lottie 只渲染首帧，鼠标悬停时播放。
           value: true
         - $formkit: number
+          label: 表情分页每页数量
+          name: pageSize
+          value: 24
+          min: 1
+          max: 100
+          validation: required|min:1|max:100
+          help: 评论区表情选择器每页显示的表情数量，修改后对新打开的表情面板生效。
+        - $formkit: number
           label: 表情与 Lottie 最大宽度（px）
           name: maxWidth
           value: 512

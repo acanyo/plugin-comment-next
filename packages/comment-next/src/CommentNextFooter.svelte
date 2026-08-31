@@ -40,6 +40,7 @@ const {
   imageUploading = false,
   imageAccept = 'image/*',
   emotePacks = [],
+  emotePageSize,
   onToggleCommandMenu = () => {},
   onCloseCommandMenu = () => {},
   onCommandModeSelect = () => {},
@@ -68,6 +69,7 @@ const {
   imageUploading?: boolean;
   imageAccept?: string;
   emotePacks?: CommentNextEmotePack[];
+  emotePageSize?: number;
   onToggleCommandMenu?: () => void;
   onCloseCommandMenu?: () => void;
   onCommandModeSelect?: (mode: string) => void;
@@ -391,6 +393,7 @@ async function updateAiPanelPosition() {
           fixed={floatingEmotePanel}
           panelStyle={emotePanelStyle}
           packs={emotePacks}
+          pageSize={emotePageSize}
           onSelect={handleEmoteSelect}
           onPreviewChange={(entry) => (emotePreview = entry)}
         />

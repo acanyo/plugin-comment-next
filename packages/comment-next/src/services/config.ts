@@ -97,6 +97,7 @@ export interface CommentNextEmoteConfig {
   defaultPaused?: boolean;
   maxWidth?: number;
   maxHeight?: number;
+  pageSize?: number;
 }
 
 const CONFIG_ENDPOINT = '/apis/api.commentnext.xhhao.com/v1alpha1/config';
