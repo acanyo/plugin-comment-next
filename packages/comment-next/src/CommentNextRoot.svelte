@@ -15,6 +15,7 @@ import {
   fetchPluginConfig,
 } from './services/config';
 import { fetchEmotePacks } from './services/emotes';
+import { sanitizeCommentSubmitHtml, sanitizeConsoleCommentHtml } from './utils/html';
 import type {
   CommentNextEmotePack,
   CommentNextRawEmotePacks,
@@ -339,6 +340,14 @@ function resolvePositiveNumber(
   return normalizedValue;
 }
 
+function handleEditorChange(html: string) {
+  onEditorChange(
+    allowImages
+      ? sanitizeCommentSubmitHtml(html, emoteConfig?.allowedHosts)
+      : sanitizeConsoleCommentHtml(html, emoteConfig?.allowedHosts)
+  );
+}
+
 export function focus() {
   editorComposerRef?.focus();
 }
@@ -373,7 +382,7 @@ export function reset() {
     variant="reply"
     compact
     targetReady={true}
-    onChange={onEditorChange}
+    onChange={handleEditorChange}
   />
 {:else}
   <div class="comment-next-root grid w-full gap-4">

@@ -55,6 +55,7 @@ async function handleSubmit(payload: CommentNextComposerSubmitPayload) {
     baseUrl,
     commentName: commentId,
     content: payload.content,
+    allowedLottieHosts: emoteConfig?.allowedHosts,
     captchaCode: payload.captchaCode,
     quoteReply: quoteReply?.id,
     owner: payload.owner,

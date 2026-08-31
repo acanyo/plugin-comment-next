@@ -41,6 +41,7 @@ interface CreateCommentOptions {
   name: string;
   version: string;
   content: string;
+  allowedLottieHosts?: readonly unknown[];
   hidden?: boolean;
   captchaCode?: string;
   owner?: {
@@ -60,6 +61,7 @@ interface CreateReplyOptions {
   baseUrl?: string;
   commentName: string;
   content: string;
+  allowedLottieHosts?: readonly unknown[];
   captchaCode?: string;
   quoteReply?: string;
   owner?: {
@@ -442,7 +444,10 @@ export async function createReply(
 function createCommentRequest(
   options: CreateCommentOptions
 ): HaloCommentRequest {
-  const content = sanitizeCommentSubmitHtml(options.content);
+  const content = sanitizeCommentSubmitHtml(
+    options.content,
+    options.allowedLottieHosts
+  );
   const request: HaloCommentRequest = {
     raw: content,
     content,
@@ -468,7 +473,10 @@ function createCommentRequest(
 }
 
 function createReplyRequest(options: CreateReplyOptions): HaloReplyRequest {
-  const content = sanitizeCommentSubmitHtml(options.content);
+  const content = sanitizeCommentSubmitHtml(
+    options.content,
+    options.allowedLottieHosts
+  );
   const request: HaloReplyRequest = {
     raw: content,
     content,

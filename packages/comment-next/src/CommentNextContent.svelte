@@ -1,5 +1,6 @@
 <script lang="ts">
 import CommentNextImageLightbox from './CommentNextImageLightbox.svelte';
+import type { CommentNextEmoteConfig } from './services/config';
 import {
   highlightAssistantMentionHtml,
   sanitizeCommentHtml,
@@ -16,11 +17,13 @@ const {
   allowImages = true,
   aiMentionName = '',
   enableImageLightbox = true,
+  allowedLottieHosts = [],
 }: {
   content?: string;
   allowImages?: boolean;
   aiMentionName?: string;
   enableImageLightbox?: boolean;
+  allowedLottieHosts?: CommentNextEmoteConfig['allowedHosts'];
 } = $props();
 
 let lightboxImage = $state<CommentNextLightboxImage | undefined>();
@@ -28,8 +31,8 @@ let lightboxImage = $state<CommentNextLightboxImage | undefined>();
 const safeContent = $derived(
   highlightAssistantMentionHtml(
     allowImages
-      ? sanitizeCommentHtml(content)
-      : sanitizeConsoleCommentHtml(content),
+      ? sanitizeCommentHtml(content, allowedLottieHosts)
+      : sanitizeConsoleCommentHtml(content, allowedLottieHosts),
     aiMentionName
   )
 );

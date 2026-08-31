@@ -70,6 +70,7 @@ async function handleSubmit(payload: CommentNextComposerSubmitPayload) {
     name,
     version,
     content: payload.content,
+    allowedLottieHosts: emoteConfig?.allowedHosts,
     hidden: payload.hidden,
     captchaCode: payload.captchaCode,
     owner: payload.owner,

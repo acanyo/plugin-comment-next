@@ -95,18 +95,40 @@ const LOTTIE_MARKER_PARAMS = new Set([
 interface SanitizeOptions {
   mode: 'display' | 'submit';
   allowImages?: boolean;
+  allowedLottieHosts?: readonly unknown[];
 }
 
-export function sanitizeCommentHtml(value: string): string {
-  return sanitizeHtml(value, { mode: 'display', allowImages: true });
+export function sanitizeCommentHtml(
+  value: string,
+  allowedLottieHosts: readonly unknown[] = []
+): string {
+  return sanitizeHtml(value, {
+    mode: 'display',
+    allowImages: true,
+    allowedLottieHosts,
+  });
 }
 
-export function sanitizeCommentSubmitHtml(value: string): string {
-  return sanitizeHtml(value, { mode: 'submit', allowImages: true });
+export function sanitizeCommentSubmitHtml(
+  value: string,
+  allowedLottieHosts: readonly unknown[] = []
+): string {
+  return sanitizeHtml(value, {
+    mode: 'submit',
+    allowImages: true,
+    allowedLottieHosts,
+  });
 }
 
-export function sanitizeConsoleCommentHtml(value: string): string {
-  return sanitizeHtml(value, { mode: 'display', allowImages: false });
+export function sanitizeConsoleCommentHtml(
+  value: string,
+  allowedLottieHosts: readonly unknown[] = []
+): string {
+  return sanitizeHtml(value, {
+    mode: 'display',
+    allowImages: false,
+    allowedLottieHosts,
+  });
 }
 
 export function highlightAssistantMentionHtml(
@@ -239,7 +261,7 @@ function sanitizeElement(element: Element, options: SanitizeOptions): void {
   const imageClassName = tagName === 'img' ? element.getAttribute('class') : null;
 
   if (tagName === 'img' && options.mode === 'display') {
-    const lottie = decodeLottieImage(element);
+    const lottie = decodeLottieImage(element, options.allowedLottieHosts);
     if (lottie) {
       replaceWithLottie(element, lottie);
       return;
@@ -252,7 +274,7 @@ function sanitizeElement(element: Element, options: SanitizeOptions): void {
   }
 
   if (tagName === 'halo-lottie') {
-    sanitizeLottie(element, options.mode);
+    sanitizeLottie(element, options);
     return;
   }
 
@@ -309,7 +331,8 @@ type LottieImageData = {
   ariaLabel: string;
 };
 
-function sanitizeLottie(element: Element, mode: SanitizeOptions['mode']): void {
+function sanitizeLottie(element: Element, options: SanitizeOptions): void {
+  const mode = options.mode;
   const allowedAttributes = DISPLAY_TAG_ALLOWED_ATTRIBUTES['halo-lottie'];
   for (const attribute of Array.from(element.attributes)) {
     const attributeName = attribute.name.toLowerCase();
@@ -318,7 +341,10 @@ function sanitizeLottie(element: Element, mode: SanitizeOptions['mode']): void {
     }
   }
 
-  const src = normalizeLottieSrc(element.getAttribute('src') ?? '');
+  const src = normalizeLottieSrc(
+    element.getAttribute('src') ?? '',
+    options.allowedLottieHosts
+  );
   if (!src) {
     element.remove();
     return;
@@ -395,7 +421,10 @@ function sanitizeLottie(element: Element, mode: SanitizeOptions['mode']): void {
   element.replaceChildren();
 }
 
-function decodeLottieImage(element: Element): LottieImageData | undefined {
+function decodeLottieImage(
+  element: Element,
+  allowedLottieHosts: readonly unknown[] = []
+): LottieImageData | undefined {
   const value = element.getAttribute('src') ?? '';
   try {
     const url = new URL(unwrapMarkdownLink(value), window.location.origin);
@@ -403,7 +432,7 @@ function decodeLottieImage(element: Element): LottieImageData | undefined {
     const isMarked =
       url.searchParams.get(LOTTIE_MARKER_PARAM) === LOTTIE_MARKER_VALUE ||
       Boolean(metadata);
-    const src = normalizeLottieSrc(url.href);
+    const src = normalizeLottieSrc(url.href, allowedLottieHosts);
     if (!src) {
       return undefined;
     }
@@ -467,7 +496,10 @@ function replaceWithLottie(element: Element, data: LottieImageData): void {
   element.replaceWith(lottie);
 }
 
-function normalizeLottieSrc(value: string): string {
+function normalizeLottieSrc(
+  value: string,
+  allowedLottieHosts: readonly unknown[] = []
+): string {
   const unwrapped = unwrapMarkdownLink(value);
   const normalized = unwrapped.startsWith('//') ? `https:${unwrapped}` : unwrapped.trim();
   try {
@@ -476,10 +508,16 @@ function normalizeLottieSrc(value: string): string {
       return '';
     }
 
-    // Lottie content is served by the installed plugin on this site. A
-    // matching path on another origin must not be allowed to load arbitrary
-    // attacker-controlled animation data.
-    if (url.origin !== window.location.origin) {
+    const isLottieAttachment = isLottieAttachmentPath(url.pathname);
+    const isAllowedExternalHost =
+      isLottieAttachment &&
+      url.protocol === 'https:' &&
+      isAllowedLottieHost(url.host, allowedLottieHosts);
+
+    // Plugin API content stays on this site. Explicitly hosted .lottie
+    // attachments may use a configured HTTPS host, but arbitrary remote
+    // animation URLs remain blocked.
+    if (url.origin !== window.location.origin && !isAllowedExternalHost) {
       return '';
     }
 
@@ -487,9 +525,48 @@ function normalizeLottieSrc(value: string): string {
       url.pathname.startsWith(
         '/apis/api.lottie.halo.run/v1alpha1/animations/'
       ) && url.pathname.endsWith('/content');
-    return isPublicLottieContent || isLottieAttachmentPath(url.pathname)
+    return isPublicLottieContent || isLottieAttachment
       ? url.href
       : '';
+  } catch {
+    return '';
+  }
+}
+
+function isAllowedLottieHost(
+  host: string,
+  allowedLottieHosts: readonly unknown[]
+): boolean {
+  const normalizedHost = host.trim().toLowerCase();
+  if (!normalizedHost) {
+    return false;
+  }
+
+  return allowedLottieHosts.some((value) => {
+    const rawHost =
+      typeof value === 'string'
+        ? value
+        : value && typeof value === 'object' && 'host' in value
+          ? (value as { host?: unknown }).host
+          : undefined;
+    return normalizeAllowedLottieHost(rawHost) === normalizedHost;
+  });
+}
+
+function normalizeAllowedLottieHost(value: unknown): string {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const input = value.trim();
+  if (!input) {
+    return '';
+  }
+
+  try {
+    return new URL(input.includes('://') ? input : `https://${input}`).host
+      .trim()
+      .toLowerCase();
   } catch {
     return '';
   }

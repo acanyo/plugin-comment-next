@@ -1282,3 +1282,18 @@ spec:
           max: 4096
           validation: required|min:24|max:4096
           help: 超出限制的表情图片或 Lottie 无法提交。普通图片仍沿用原有规则。
+        - $formkit: array
+          label: 额外允许的 Host (跨域)
+          name: allowedHosts
+          addLabel: 添加 Host
+          value: []
+          help: 允许从额外的 Host 加载，例如 cdn.example.com；本站 Host 会自动允许。
+          itemLabels:
+            - type: text
+              label: $value.host
+          children:
+            - $formkit: text
+              label: Host
+              name: host
+              placeholder: cdn.example.com
+              validation: required

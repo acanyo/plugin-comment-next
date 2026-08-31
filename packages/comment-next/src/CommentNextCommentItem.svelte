@@ -447,6 +447,7 @@ async function loadReplies({
       content={comment.content}
       {aiMentionName}
       {enableImageLightbox}
+      allowedLottieHosts={emoteConfig?.allowedHosts}
     />
 
     <footer class="comment-next-comment-actions">
@@ -533,6 +534,7 @@ async function loadReplies({
             {loggedIn}
             reactionConfig={reactionConfig}
             reportConfig={reportConfig}
+            {emoteConfig}
             replyToName={resolveReplyToName(reply)}
             onReply={openQuoteReply}
           />

@@ -762,7 +762,10 @@ async function handleImagePaste(files: File[]) {
 
 async function prepareContentForSubmit(rawContent: string): Promise<string> {
   await uploadPendingImagesForSubmit(rawContent);
-  return sanitizeCommentSubmitHtml(editorRef?.getHtml() || editorHtml);
+  return sanitizeCommentSubmitHtml(
+    editorRef?.getHtml() || editorHtml,
+    emoteConfig?.allowedHosts
+  );
 }
 
 async function uploadPendingImagesForSubmit(rawContent: string): Promise<void> {

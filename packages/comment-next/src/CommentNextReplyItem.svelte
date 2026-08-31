@@ -9,6 +9,7 @@ import CommentNextReactionButton from './CommentNextReactionButton.svelte';
 import CommentNextReportButton from './CommentNextReportButton.svelte';
 import { upvoteCommentTarget } from './services/comments';
 import type {
+  CommentNextEmoteConfig,
   CommentNextReactionConfig,
   CommentNextReportConfig,
 } from './services/config';
@@ -39,6 +40,7 @@ const {
   loggedIn = false,
   reactionConfig,
   reportConfig,
+  emoteConfig,
   onReply = () => {},
 }: {
   baseUrl?: string;
@@ -52,6 +54,7 @@ const {
   loggedIn?: boolean;
   reactionConfig?: CommentNextReactionConfig;
   reportConfig?: CommentNextReportConfig;
+  emoteConfig?: CommentNextEmoteConfig;
   onReply?: (reply: CommentNextComment) => void;
 } = $props();
 
@@ -168,6 +171,7 @@ async function handleUpvote() {
       content={reply.content}
       {aiMentionName}
       {enableImageLightbox}
+      allowedLottieHosts={emoteConfig?.allowedHosts}
     />
 
     <div class="comment-next-reply-actions">

@@ -98,6 +98,7 @@ export interface CommentNextEmoteConfig {
   maxWidth?: number;
   maxHeight?: number;
   pageSize?: number;
+  allowedHosts?: Array<{ host?: string }>;
 }
 
 const CONFIG_ENDPOINT = '/apis/api.commentnext.xhhao.com/v1alpha1/config';
