@@ -5,6 +5,7 @@ import com.xhhao.comment.widget.ai.ConditionalOnHaloAiFoundation;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
@@ -18,7 +19,7 @@ public class CommentNextWebsiteMetadataService {
 
     private static final String WAYBACK_SOURCE = "Wayback 快照";
 
-    private final CommentNextWebsiteUriPolicy uriPolicy;
+    private final ObjectProvider<CommentNextWebsiteUriPolicy> uriPolicyProvider;
 
     private final CommentNextSafeHtmlFetcher htmlFetcher;
 
@@ -32,6 +33,12 @@ public class CommentNextWebsiteMetadataService {
                                                     String website) {
         if (!config.isReviewAuthorWebsiteEnabled() || !StringUtils.hasText(website)) {
             return Mono.just(CommentNextWebsiteMetadata.unavailable(""));
+        }
+
+        var uriPolicy = uriPolicyProvider.getIfAvailable();
+        if (uriPolicy == null) {
+            log.debug("Skipped comment author website metadata because URI policy is unavailable");
+            return Mono.just(CommentNextWebsiteMetadata.unavailable(website.strip()));
         }
 
         final URI normalized;

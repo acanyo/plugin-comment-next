@@ -1,7 +1,7 @@
 const AUTO_LINK_PATTERN = /(?:https?:\/\/|www\.)[^\s<]+/gi;
 const TRAILING_PUNCTUATION_PATTERN = /[),.;:!?，。；：！？）]+$/;
 const SKIPPED_PARENT_SELECTOR =
-  "a, button, input, textarea, select, [contenteditable='false']";
+  "a, button, input, textarea, select, img, halo-lottie, [contenteditable='false']";
 
 export function autolinkUrls(root: HTMLElement): boolean {
   const textNodes = collectLinkableTextNodes(root);

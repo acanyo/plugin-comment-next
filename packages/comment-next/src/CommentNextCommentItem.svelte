@@ -12,6 +12,7 @@ import CommentNextTooltip from './CommentNextTooltip.svelte';
 import { fetchReplyPage, upvoteCommentTarget } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextEmoteConfig,
   CommentNextReactionConfig,
   CommentNextReportConfig,
   CommentNextSecurityConfig,
@@ -55,6 +56,7 @@ const {
   reportConfig,
   aiMentionName = '',
   uploadConfig,
+  emoteConfig,
   emotePacks = [],
 }: {
   baseUrl?: string;
@@ -76,6 +78,7 @@ const {
   reportConfig?: CommentNextReportConfig;
   aiMentionName?: string;
   uploadConfig?: CommentNextUploadConfig;
+  emoteConfig?: CommentNextEmoteConfig;
   emotePacks?: CommentNextEmotePack[];
 } = $props();
 
@@ -507,6 +510,7 @@ async function loadReplies({
           {captchaConfig}
           {aiConfig}
           {uploadConfig}
+          {emoteConfig}
           {emotePacks}
           replyToName={comment.author.displayName}
           onCancel={closeReplyComposer}
@@ -544,6 +548,7 @@ async function loadReplies({
                 {captchaConfig}
                 {aiConfig}
                 {uploadConfig}
+                {emoteConfig}
                 {emotePacks}
                 replyToName={reply.author.displayName}
                 quoteReply={reply}

@@ -121,10 +121,13 @@ function openLightbox(image: CommentNextLightboxImage) {
     --at-apply: mx-0.5 inline-block max-h-18 max-w-36 align-middle object-contain;
   }
 
+  .comment-next-comment-content :global(.comment-next-image) {
+    --at-apply: inline-block max-w-full align-middle object-contain;
+  }
+
   .comment-next-comment-content :global(halo-lottie) {
     --at-apply: mx-0.5 inline-flex align-middle;
-    max-width: min(100%, 9rem);
-    max-height: 4.5rem;
+    max-width: 100%;
   }
 
   .comment-next-comment-content :global(.comment-next-lightbox-trigger) {

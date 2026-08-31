@@ -8,6 +8,7 @@ import { createDemoCommentPage, demoBadgeConfig } from './demo/comments';
 import { fetchCommentPage } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextEmoteConfig,
   CommentNextReactionConfig,
   CommentNextReportConfig,
   CommentNextSecurityConfig,
@@ -42,6 +43,7 @@ const {
   reactionConfig,
   reportConfig,
   uploadConfig,
+  emoteConfig,
   emotePacks = [],
 }: {
   baseUrl?: string;
@@ -65,6 +67,7 @@ const {
   reactionConfig?: CommentNextReactionConfig;
   reportConfig?: CommentNextReportConfig;
   uploadConfig?: CommentNextUploadConfig;
+  emoteConfig?: CommentNextEmoteConfig;
   emotePacks?: CommentNextEmotePack[];
 } = $props();
 
@@ -390,6 +393,7 @@ function resolvePaginationItems(
           {reportConfig}
           {aiMentionName}
           {uploadConfig}
+          {emoteConfig}
           {emotePacks}
         />
       {/each}

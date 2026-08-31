@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @ConditionalOnHaloAiFoundation
-class CommentNextWebsiteMetadataCache {
+public class CommentNextWebsiteMetadataCache {
     private static final int MAX_ENTRIES = 512;
 
     private static final Duration AVAILABLE_TTL = Duration.ofHours(24);

@@ -9,27 +9,38 @@ const {
   className = '',
   maxWidth = 144,
   maxHeight = 72,
+  autoplay,
+  hoverPlay,
+  freezeOnOffscreen,
 }: {
   item: CommentNextEmoteItem;
   className?: string;
   maxWidth?: number;
   maxHeight?: number;
+  autoplay?: boolean;
+  hoverPlay?: boolean;
+  freezeOnOffscreen?: boolean;
 } = $props();
 
 const defaults = $derived(item.defaults ?? defaultDefaults());
 const dimensions = $derived(resolveDimensions(defaults, maxWidth, maxHeight));
+const resolvedAutoplay = $derived(autoplay ?? defaults.autoplay);
+const resolvedHoverPlay = $derived(hoverPlay ?? defaults.hoverPlay);
+const resolvedFreezeOnOffscreen = $derived(
+  freezeOnOffscreen ?? defaults.freezeOnOffscreen
+);
 
 function defaultDefaults(): CommentNextLottieDefaults {
   return {
     width: 160,
     height: 160,
-    autoplay: true,
+    autoplay: false,
     loop: true,
     speed: 1,
     fit: 'contain',
     align: 'center',
     controls: false,
-    hoverPlay: false,
+    hoverPlay: true,
     freezeOnOffscreen: true,
     ariaLabel: '',
   };
@@ -52,13 +63,13 @@ function resolveDimensions(value: CommentNextLottieDefaults, maxWidth: number, m
   format={item.format || 'json'}
   width={dimensions.width}
   height={dimensions.height}
-  autoplay={defaults.autoplay ? 'true' : 'false'}
+  autoplay={resolvedAutoplay ? 'true' : 'false'}
   loop={defaults.loop ? 'true' : 'false'}
   speed={defaults.speed}
   fit={defaults.fit}
   align={defaults.align}
   controls={defaults.controls ? 'true' : 'false'}
-  hover-play={defaults.hoverPlay ? 'true' : 'false'}
-  freeze-on-offscreen={defaults.freezeOnOffscreen ? 'true' : 'false'}
+  hover-play={resolvedHoverPlay ? 'true' : 'false'}
+  freeze-on-offscreen={resolvedFreezeOnOffscreen ? 'true' : 'false'}
   aria-label={defaults.ariaLabel || item.label}
 ></halo-lottie>

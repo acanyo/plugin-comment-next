@@ -4,7 +4,10 @@ import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
 import CommentNextBox from './CommentNextBox.svelte';
 import CommentNextCommentList from './CommentNextCommentList.svelte';
 import CommentNextReactionBar from './CommentNextReactionBar.svelte';
-import { normalizeCommentNextEmotePacks } from './emotes/normalize';
+import {
+  normalizeCommentNextEmotePacks,
+  normalizeLottieDefaults,
+} from './emotes/normalize';
 import {
   type CommentNextGlobalInfo,
   type CommentNextPluginConfig,
@@ -12,7 +15,10 @@ import {
   fetchPluginConfig,
 } from './services/config';
 import { fetchEmotePacks } from './services/emotes';
-import type { CommentNextRawEmotePacks } from './types/emote';
+import type {
+  CommentNextEmotePack,
+  CommentNextRawEmotePacks,
+} from './types/emote';
 
 const LOTTIE_RUNTIME_URL = '/plugins/lottie/assets/lottie-runtime.js';
 
@@ -100,6 +106,7 @@ const reactionConfig = $derived(pluginConfig?.reaction);
 const reportConfig = $derived(pluginConfig?.report);
 const editorConfig = $derived(pluginConfig?.editor);
 const badgeConfig = $derived(pluginConfig?.badge);
+const emoteConfig = $derived(pluginConfig?.emote);
 const resolvedAllowAnonymous = $derived(
   globalInfo?.allowAnonymousComments ?? allowAnonymous
 );
@@ -121,10 +128,16 @@ const resolvedEnableImageLightbox = $derived(
 const resolvedPlaceholder = $derived(
   editorConfig?.placeholder?.trim() || placeholder
 );
+const resolvedLottieDefaultPaused = $derived(
+  emoteConfig?.defaultPaused ?? true
+);
 const resolvedEmotePacks = $derived(
-  demoData
-    ? normalizeCommentNextEmotePacks(undefined)
-    : normalizeCommentNextEmotePacks(rawEmotePacks)
+  applyLottiePlaybackDefaults(
+    demoData
+      ? normalizeCommentNextEmotePacks(undefined)
+      : normalizeCommentNextEmotePacks(rawEmotePacks),
+    resolvedLottieDefaultPaused
+  )
 );
 const resolvedWithReplies = $derived(basicConfig?.withReplies ?? withReplies);
 const resolvedPageSize = $derived(
@@ -290,6 +303,29 @@ function containsLottiePack(value: unknown): boolean {
   });
 }
 
+function applyLottiePlaybackDefaults(
+  packs: CommentNextEmotePack[],
+  defaultPaused: boolean
+): CommentNextEmotePack[] {
+  return packs.map((pack) => {
+    if (pack.provider !== 'LOTTIE') {
+      return pack;
+    }
+
+    return {
+      ...pack,
+      items: pack.items.map((item) => ({
+        ...item,
+        defaults: {
+          ...normalizeLottieDefaults(item.defaults),
+          autoplay: !defaultPaused,
+          hoverPlay: defaultPaused,
+        },
+      })),
+    };
+  });
+}
+
 function resolvePositiveNumber(
   value: number | undefined,
   fallback: number
@@ -332,6 +368,7 @@ export function reset() {
     placeholder={resolvedPlaceholder}
     {aiConfig}
     {uploadConfig}
+    {emoteConfig}
     emotePacks={resolvedEmotePacks}
     variant="reply"
     compact
@@ -372,6 +409,7 @@ export function reset() {
       placeholder={resolvedPlaceholder}
       {aiConfig}
       {uploadConfig}
+      {emoteConfig}
       emotePacks={resolvedEmotePacks}
     />
 
@@ -398,6 +436,7 @@ export function reset() {
         {reactionConfig}
         {reportConfig}
         {uploadConfig}
+        {emoteConfig}
         emotePacks={resolvedEmotePacks}
       />
     {/if}

@@ -30,6 +30,7 @@ import {
 } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextEmoteConfig,
   CommentNextSecurityConfig,
   CommentNextUploadConfig,
 } from './services/config';
@@ -53,6 +54,16 @@ import {
 
 type CommentNextComposerVariant = 'comment' | 'reply';
 
+type CommentNextLimitedMedia = {
+  type: 'emote' | 'lottie';
+  width: number;
+  height: number;
+};
+
+const DEFAULT_EMOTE_MEDIA_LIMIT = 512;
+const MIN_EMOTE_MEDIA_LIMIT = 24;
+const MAX_EMOTE_MEDIA_LIMIT = 4096;
+
 type CommentNextEditorRef = {
   getHtml: () => string;
   getText: () => string;
@@ -67,6 +78,7 @@ type CommentNextEditorRef = {
   ) => void;
   insertLottie: (item: CommentNextEmoteItem) => void;
   replaceImageSrc: (sourceSrc: string, targetSrc: string, alt?: string) => void;
+  getLimitedMediaDimensions: () => CommentNextLimitedMedia[];
   consumeCommandTrigger: () => void;
 };
 
@@ -112,6 +124,7 @@ const {
   allowImages = true,
   aiConfig,
   uploadConfig,
+  emoteConfig,
   emotePacks = [],
   loginRedirectHash = '',
   onChange = () => {},
@@ -155,6 +168,7 @@ const {
   allowImages?: boolean;
   aiConfig?: CommentNextAiConfig;
   uploadConfig?: CommentNextUploadConfig;
+  emoteConfig?: CommentNextEmoteConfig;
   emotePacks?: CommentNextEmotePack[];
   loginRedirectHash?: string;
   onChange?: (html: string) => void;
@@ -403,6 +417,13 @@ async function submitComposer({
     return;
   }
 
+  const mediaLimitMessage = validateLimitedMediaDimensions();
+  if (mediaLimitMessage) {
+    showSubmitMessage(mediaLimitMessage);
+    editorRef?.focus();
+    return;
+  }
+
   const resolvedCaptchaCode = captchaCodeOverride ?? captchaCode;
   const captchaMissing = captchaRequired && !resolvedCaptchaCode.trim();
 
@@ -575,6 +596,35 @@ function hasContent(html: string): boolean {
   return Boolean(
     template.content.textContent?.trim() ||
       template.content.querySelector('img[src], halo-lottie[src]')
+  );
+}
+
+function validateLimitedMediaDimensions(): string | undefined {
+  const maxWidth = resolveEmoteMediaLimit(emoteConfig?.maxWidth);
+  const maxHeight = resolveEmoteMediaLimit(emoteConfig?.maxHeight);
+
+  for (const media of editorRef?.getLimitedMediaDimensions() ?? []) {
+    const label = media.type === 'lottie' ? 'Lottie 动画' : '表情图片';
+    if (media.width > maxWidth) {
+      return `${label}宽度不能超过 ${maxWidth}px。`;
+    }
+    if (media.height > maxHeight) {
+      return `${label}高度不能超过 ${maxHeight}px。`;
+    }
+  }
+
+  return undefined;
+}
+
+function resolveEmoteMediaLimit(value: number | undefined): number {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return DEFAULT_EMOTE_MEDIA_LIMIT;
+  }
+
+  return Math.min(
+    MAX_EMOTE_MEDIA_LIMIT,
+    Math.max(MIN_EMOTE_MEDIA_LIMIT, Math.round(numericValue))
   );
 }
 

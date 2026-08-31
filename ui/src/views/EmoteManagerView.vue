@@ -85,7 +85,7 @@ const hasFilters = computed(
 );
 const visibleSelectableGroupNames = computed(() =>
   groups.value
-    .filter((group) => !isDeletingResource(group) && group.spec.provider !== 'LOTTIE')
+    .filter((group) => !isDeletingResource(group))
     .map((group) => group.metadata.name)
     .filter((name): name is string => Boolean(name))
 );
@@ -94,7 +94,6 @@ const selectedVisibleGroups = computed(() => {
   return groups.value.filter(
     (group) =>
       !isDeletingResource(group)
-      && group.spec.provider !== 'LOTTIE'
       && selectedNames.has(group.metadata.name)
   );
 });
@@ -522,7 +521,7 @@ async function syncLottieGroups() {
 }
 
 function removeGroup(group: EmoteGroup) {
-  if (isDeletingResource(group) || group.spec.provider === 'LOTTIE') {
+  if (isDeletingResource(group)) {
     return;
   }
 

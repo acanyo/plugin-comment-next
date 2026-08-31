@@ -11,7 +11,7 @@ import reactor.core.publisher.Mono;
 @Component
 @ConditionalOnHaloAiFoundation
 @RequiredArgsConstructor
-class CommentNextWebsiteUriPolicy {
+public class CommentNextWebsiteUriPolicy {
 
     private final CommentNextOutboundUriPolicy outboundUriPolicy;
 

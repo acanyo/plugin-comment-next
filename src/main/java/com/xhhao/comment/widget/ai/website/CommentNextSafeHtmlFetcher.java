@@ -17,7 +17,7 @@ import reactor.netty.http.client.HttpClient;
 @Component
 @ConditionalOnHaloAiFoundation
 @RequiredArgsConstructor
-class CommentNextSafeHtmlFetcher {
+public class CommentNextSafeHtmlFetcher {
     private static final int MAX_REDIRECTS = 3;
 
     private static final int MAX_BODY_BYTES = 256 * 1024;

@@ -134,13 +134,13 @@ export function normalizeLottieDefaults(value: unknown): CommentNextLottieDefaul
   return {
     width: positiveNumber(defaults.width, 160),
     height: positiveNumber(defaults.height, 160),
-    autoplay: booleanValue(defaults.autoplay, true),
+    autoplay: booleanValue(defaults.autoplay, false),
     loop: booleanValue(defaults.loop, true),
     speed: Math.min(10, positiveNumber(defaults.speed, 1)),
     fit: normalizeEnum(defaults.fit, ['contain', 'cover', 'fill', 'none', 'fit-width', 'fit-height'], 'contain'),
     align: normalizeEnum(defaults.align, ['center', 'top', 'bottom', 'left', 'right'], 'center'),
     controls: booleanValue(defaults.controls, false),
-    hoverPlay: booleanValue(defaults.hoverPlay, false),
+    hoverPlay: booleanValue(defaults.hoverPlay, true),
     freezeOnOffscreen: booleanValue(defaults.freezeOnOffscreen, true),
     ariaLabel: normalizeString(defaults.ariaLabel),
   };

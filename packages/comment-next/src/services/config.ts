@@ -11,6 +11,7 @@ export interface CommentNextPluginConfig {
   report?: CommentNextReportConfig;
   editor?: CommentNextEditorConfig;
   badge?: CommentNextBadgeConfig;
+  emote?: CommentNextEmoteConfig;
 }
 
 export interface CommentNextGlobalInfo {
@@ -90,6 +91,12 @@ export interface CommentNextReportConfig {
 
 export interface CommentNextEditorConfig {
   placeholder?: string;
+}
+
+export interface CommentNextEmoteConfig {
+  defaultPaused?: boolean;
+  maxWidth?: number;
+  maxHeight?: number;
 }
 
 const CONFIG_ENDPOINT = '/apis/api.commentnext.xhhao.com/v1alpha1/config';

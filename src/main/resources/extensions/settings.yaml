@@ -1250,3 +1250,27 @@ spec:
         - $formkit: text
           name: placeholder
           label: 自定义评论框占位符
+    - group: emote
+      label: 表情与 Lottie
+      formSchema:
+        - $formkit: switch
+          label: Lottie 动画默认暂停
+          name: defaultPaused
+          help: 开启后评论区中选择表情时的 Lottie 只渲染首帧，鼠标悬停时播放。
+          value: true
+        - $formkit: number
+          label: 表情与 Lottie 最大宽度（px）
+          name: maxWidth
+          value: 512
+          min: 24
+          max: 4096
+          validation: required|min:24|max:4096
+          help: 超出限制的表情图片或 Lottie 无法提交。普通图片仍沿用原有规则。
+        - $formkit: number
+          label: 表情与 Lottie 最大高度（px）
+          name: maxHeight
+          value: 512
+          min: 24
+          max: 4096
+          validation: required|min:24|max:4096
+          help: 超出限制的表情图片或 Lottie 无法提交。普通图片仍沿用原有规则。

@@ -1,13 +1,18 @@
 <script lang="ts">
-import { onMount } from 'svelte';
+import { onMount, tick } from 'svelte';
 import CommentNextLottie from './CommentNextLottie.svelte';
-import CommentNextEmotePreview from './CommentNextEmotePreview.svelte';
 import type { CommentNextEmoteItem, CommentNextEmotePack } from './types/emote';
 
 type CommentNextEmotePanelEntry = {
   item: CommentNextEmoteItem;
   packName: string;
   packId: string;
+};
+
+export type CommentNextEmotePreviewEntry = {
+  item: CommentNextEmoteItem;
+  packName: string;
+  style: string;
 };
 
 type CommentNextEmotePanelTab = {
@@ -25,13 +30,16 @@ const {
   fixed = false,
   panelStyle = '',
   onSelect = () => {},
+  onPreviewChange = () => {},
 }: {
   packs?: CommentNextEmotePack[];
   fixed?: boolean;
   panelStyle?: string;
   onSelect?: (item: CommentNextEmoteItem) => void;
+  onPreviewChange?: (entry: CommentNextEmotePreviewEntry | undefined) => void;
 } = $props();
 
+let panelElement = $state<HTMLDivElement | undefined>();
 let activePackId = $state('');
 let query = $state('');
 let recentItemIds = $state<string[]>([]);
@@ -97,6 +105,28 @@ const panelCountText = $derived(
 
 onMount(() => {
   recentItemIds = loadRecentItemIds();
+
+  const updatePreview = () => {
+    if (previewEntry) {
+      void updatePreviewPosition(previewEntry);
+    }
+  };
+
+  window.addEventListener('resize', updatePreview);
+  window.addEventListener('scroll', updatePreview, true);
+
+  return () => {
+    window.removeEventListener('resize', updatePreview);
+    window.removeEventListener('scroll', updatePreview, true);
+    emitPreview(undefined);
+  };
+});
+
+$effect(() => {
+  const entry = previewEntry;
+  if (entry) {
+    void updatePreviewPosition(entry);
+  }
 });
 
 $effect(() => {
@@ -136,7 +166,54 @@ function showPreview(entry: CommentNextEmotePanelEntry) {
 function hidePreview(itemId: string) {
   if (previewEntry?.item.id === itemId) {
     previewEntry = undefined;
+    emitPreview(undefined);
   }
+}
+
+function emitPreview(entry: CommentNextEmotePreviewEntry | undefined) {
+  if (typeof onPreviewChange === 'function') {
+    onPreviewChange(entry);
+  }
+}
+
+async function updatePreviewPosition(entry: CommentNextEmotePanelEntry) {
+  if (typeof window === 'undefined' || !panelElement?.isConnected) {
+    return;
+  }
+
+  await tick();
+
+  if (!panelElement?.isConnected || previewEntry?.item.id !== entry.item.id) {
+    return;
+  }
+
+  const panelRect = panelElement.getBoundingClientRect();
+  if (panelRect.width <= 0 || panelRect.height <= 0) {
+    return;
+  }
+
+  const viewportPadding = 12;
+  const gap = 8;
+  const previewWidth = entry.item.type === 'lottie' ? 240 : 136;
+  const previewHeight = entry.item.type === 'lottie' ? 220 : 180;
+  const fitsRight =
+    panelRect.right + gap + previewWidth <= window.innerWidth - viewportPadding;
+  const left = fitsRight
+    ? panelRect.right + gap
+    : Math.max(viewportPadding, panelRect.left - gap - previewWidth);
+  const top = Math.min(
+    Math.max(viewportPadding, panelRect.top),
+    Math.max(viewportPadding, window.innerHeight - previewHeight - viewportPadding)
+  );
+
+  emitPreview({
+    item: entry.item,
+    packName: entry.packName,
+    style: [
+      `--comment-next-emote-preview-left:${Math.round(left)}px`,
+      `--comment-next-emote-preview-top:${Math.round(top)}px`,
+    ].join(';'),
+  });
 }
 
 function emitSelect(item: CommentNextEmoteItem) {
@@ -183,6 +260,7 @@ function saveRecentItemIds(ids: string[]) {
 
 {#if activePack}
   <div
+    bind:this={panelElement}
     class:comment-next-emote-panel-fixed={fixed}
     class="comment-next-emote-panel"
     style={panelStyle}
@@ -268,12 +346,6 @@ function saveRecentItemIds(ids: string[]) {
       </div>
     </div>
 
-    {#if previewEntry}
-      <CommentNextEmotePreview
-        item={previewEntry.item}
-        packName={previewEntry.packName}
-      />
-    {/if}
   </div>
 {/if}
 

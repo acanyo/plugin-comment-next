@@ -10,7 +10,7 @@ import org.springframework.util.StringUtils;
 
 @Component
 @ConditionalOnHaloAiFoundation
-class CommentNextWebsiteMetadataParser {
+public class CommentNextWebsiteMetadataParser {
     private static final int MAX_TITLE_LENGTH = 300;
 
     private static final int MAX_DESCRIPTION_LENGTH = 800;

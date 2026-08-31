@@ -14,7 +14,7 @@ import reactor.core.publisher.Mono;
 @Component
 @ConditionalOnHaloAiFoundation
 @RequiredArgsConstructor
-class CommentNextWaybackClient {
+public class CommentNextWaybackClient {
     private static final int MAX_RESPONSE_BYTES = 64 * 1024;
 
     private static final Duration LOOKUP_TIMEOUT = Duration.ofSeconds(5);

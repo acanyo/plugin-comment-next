@@ -55,8 +55,6 @@ function sourceText(type: string) {
   return type === 'DEFAULT' ? '默认源' : '自定义源';
 }
 
-const isLottie = computed(() => props.group.spec.provider === 'LOTTIE');
-
 function padDateValue(value: number): string {
   return value.toString().padStart(2, '0');
 }
@@ -64,7 +62,7 @@ function padDateValue(value: number): string {
 
 <template>
   <VEntity :is-selected="isSelected">
-    <template v-if="canManage && !isLottie" #checkbox>
+    <template v-if="canManage" #checkbox>
       <slot name="checkbox" />
     </template>
 
@@ -127,7 +125,7 @@ function padDateValue(value: number): string {
       <VDropdownItem @click="emit('toggle', group)">
         {{ group.spec.enabled ? "停用" : "启用" }}
       </VDropdownItem>
-      <VDropdownItem v-if="!isLottie" type="danger" @click="emit('remove', group)">
+      <VDropdownItem type="danger" @click="emit('remove', group)">
         删除
       </VDropdownItem>
     </template>

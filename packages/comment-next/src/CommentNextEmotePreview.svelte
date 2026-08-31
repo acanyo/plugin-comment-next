@@ -5,9 +5,11 @@ import type { CommentNextEmoteItem } from './types/emote';
 const {
   item,
   packName = '',
+  style = '',
 }: {
   item: CommentNextEmoteItem;
   packName?: string;
+  style?: string;
 } = $props();
 
 const previewSrc = $derived(
@@ -18,10 +20,23 @@ const isLottie = $derived(item.type === 'lottie' && Boolean(item.contentUrl));
 </script>
 
 {#if previewSrc || isLottie}
-  <div class="comment-next-emote-preview" role="status" aria-live="polite">
+  <div
+    class:comment-next-emote-preview-lottie={isLottie}
+    class="comment-next-emote-preview"
+    role="status"
+    aria-live="polite"
+    style={style}
+  >
     <div class="comment-next-emote-preview-image">
       {#if isLottie}
-        <CommentNextLottie item={item} maxWidth={144} maxHeight={72} />
+        <CommentNextLottie
+          item={item}
+          maxWidth={220}
+          maxHeight={160}
+          autoplay={true}
+          hoverPlay={false}
+          freezeOnOffscreen={false}
+        />
       {:else}
         <img src={previewSrc} alt={previewLabel} decoding="async" />
       {/if}
@@ -34,12 +49,22 @@ const isLottie = $derived(item.type === 'lottie' && Boolean(item.contentUrl));
 
 <style>
   .comment-next-emote-preview {
-    --at-apply: pointer-events-none absolute right-3 top-13 z-20 flex w-34 flex-col items-center gap-1.5 rounded-[0.75rem] border border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-tooltip-bg-color,rgb(255_255_255_/_0.96))] p-2 text-center text-[var(--comment-next-tooltip-text-color,#172033)] shadow-[var(--comment-next-tooltip-shadow,0_14px_30px_rgb(15_23_42_/_0.18))] backdrop-blur-md;
+    --at-apply: pointer-events-none fixed z-[10000] flex w-34 flex-col items-center gap-1.5 rounded-[0.75rem] border border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-tooltip-bg-color,rgb(255_255_255_/_0.96))] p-2 text-center text-[var(--comment-next-tooltip-text-color,#172033)] shadow-[var(--comment-next-tooltip-shadow,0_14px_30px_rgb(15_23_42_/_0.18))] backdrop-blur-md;
+    left: var(--comment-next-emote-preview-left, 1rem);
+    top: var(--comment-next-emote-preview-top, 1rem);
     animation: comment-next-emote-preview-in 120ms ease-out;
+  }
+
+  .comment-next-emote-preview-lottie {
+    --at-apply: w-60;
   }
 
   .comment-next-emote-preview-image {
     --at-apply: flex h-30 w-full items-center justify-center overflow-hidden rounded-[0.5rem];
+  }
+
+  .comment-next-emote-preview-lottie .comment-next-emote-preview-image {
+    --at-apply: h-40;
   }
 
   .comment-next-emote-preview img {

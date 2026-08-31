@@ -1,5 +1,5 @@
 <script lang="ts">
-import { tick } from 'svelte';
+import { onMount, tick } from 'svelte';
 import CommentNextAiSuggestion from './CommentNextAiSuggestion.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import type { CommentNextEditorImageKind } from './types/editor';
@@ -20,8 +20,31 @@ type PendingMentionTrigger = PendingCommandTrigger & {
   query: string;
 };
 
+type ResizableMedia = HTMLElement;
+type ResizeState = {
+  media: ResizableMedia;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  startWidth: number;
+  startHeight: number;
+  ratio: number;
+  changed: boolean;
+};
+
 const COMMAND_TRIGGER_PATTERN = /(?:^|\s)(\/[^\s/@]*)$/;
 const MENTION_TRIGGER_PATTERN = /(?:^|\s)(@([^\s@/]*)?)$/;
+const RESIZABLE_MEDIA_SELECTOR = [
+  'halo-lottie.comment-next-editor-lottie',
+  'img.comment-next-editor-emote-image',
+  'img.comment-next-editor-image',
+].join(', ');
+const LIMITED_MEDIA_SELECTOR = [
+  'halo-lottie.comment-next-editor-lottie',
+  'img.comment-next-editor-emote-image',
+].join(', ');
+const MIN_MEDIA_SIZE = 24;
+const MAX_MEDIA_SIZE = 4096;
 
 const {
   placeholder = '写下你的评论...',
@@ -73,6 +96,10 @@ let autolinkTimer: number | undefined;
 let pendingCommandTrigger = $state<PendingCommandTrigger | undefined>();
 let pendingMentionTrigger = $state<PendingMentionTrigger | undefined>();
 let mentionPanelStyle = $state('');
+let selectedMedia = $state<ResizableMedia | undefined>();
+let resizeHandleStyle = $state('');
+let resizeHandleElement = $state<HTMLButtonElement | undefined>();
+let resizeState: ResizeState | undefined;
 
 const resolvedMentionName = $derived(
   normalizeMentionName(aiAssistantMentionName || aiAssistantName)
@@ -85,6 +112,26 @@ const mentionSuggestionVisible = $derived(
   )
 );
 
+onMount(() => {
+  window.addEventListener('resize', updateResizeHandlePosition);
+  window.addEventListener('scroll', updateResizeHandlePosition, true);
+  window.addEventListener('pointermove', handleResizePointerMove, true);
+  window.addEventListener('pointerup', handleResizePointerUp, true);
+  window.addEventListener('pointercancel', handleResizePointerUp, true);
+
+  return () => {
+    window.removeEventListener('resize', updateResizeHandlePosition);
+    window.removeEventListener('scroll', updateResizeHandlePosition, true);
+    window.removeEventListener('pointermove', handleResizePointerMove, true);
+    window.removeEventListener('pointerup', handleResizePointerUp, true);
+    window.removeEventListener('pointercancel', handleResizePointerUp, true);
+    if (autolinkTimer) {
+      window.clearTimeout(autolinkTimer);
+    }
+    resizeState = undefined;
+  };
+});
+
 export function getHtml(): string {
   return getSerializableEditorHtml();
 }
@@ -93,12 +140,36 @@ export function getText(): string {
   return getSerializableEditorText();
 }
 
+export function getLimitedMediaDimensions(): Array<{
+  type: 'emote' | 'lottie';
+  width: number;
+  height: number;
+}> {
+  if (!editorElement) {
+    return [];
+  }
+
+  return Array.from(
+    editorElement.querySelectorAll<ResizableMedia>(LIMITED_MEDIA_SELECTOR)
+  ).map((media) => {
+    const bounds = media.getBoundingClientRect();
+    const fallbackWidth = Math.max(MIN_MEDIA_SIZE, Math.round(bounds.width));
+    const fallbackHeight = Math.max(MIN_MEDIA_SIZE, Math.round(bounds.height));
+    return {
+      type: media.matches('halo-lottie') ? 'lottie' : 'emote',
+      width: getMediaDimension(media, 'width', fallbackWidth),
+      height: getMediaDimension(media, 'height', fallbackHeight),
+    };
+  });
+}
+
 export function reset() {
   if (!editorElement) {
     return;
   }
 
   editorElement.innerHTML = '';
+  clearSelectedMedia();
   onChange('');
 }
 
@@ -153,25 +224,21 @@ export function insertLottie(item: CommentNextEmoteItem) {
   const defaults = item.defaults;
   const width = Number(defaults?.width) > 0 ? Number(defaults?.width) : 160;
   const height = Number(defaults?.height) > 0 ? Number(defaults?.height) : 160;
-  const scale = Math.min(1, 144 / width, 72 / height);
   const element = document.createElement('halo-lottie');
   element.className = 'comment-next-editor-lottie';
   element.setAttribute('contenteditable', 'false');
   element.setAttribute('src', item.contentUrl);
   element.setAttribute('format', item.format || 'json');
-  element.setAttribute('width', String(Math.max(1, Math.round(width * scale))));
-  element.setAttribute('height', String(Math.max(1, Math.round(height * scale))));
-  element.setAttribute('autoplay', defaults?.autoplay === false ? 'false' : 'true');
+  element.setAttribute('width', String(Math.max(1, Math.round(width))));
+  element.setAttribute('height', String(Math.max(1, Math.round(height))));
+  element.setAttribute('autoplay', 'true');
   element.setAttribute('loop', defaults?.loop === false ? 'false' : 'true');
   element.setAttribute('speed', String(Number(defaults?.speed) > 0 ? defaults?.speed : 1));
   element.setAttribute('fit', defaults?.fit || 'contain');
   element.setAttribute('align', defaults?.align || 'center');
   element.setAttribute('controls', defaults?.controls ? 'true' : 'false');
-  element.setAttribute('hover-play', defaults?.hoverPlay ? 'true' : 'false');
-  element.setAttribute(
-    'freeze-on-offscreen',
-    defaults?.freezeOnOffscreen === false ? 'false' : 'true'
-  );
+  element.setAttribute('hover-play', 'false');
+  element.setAttribute('freeze-on-offscreen', 'true');
   element.setAttribute('aria-label', defaults?.ariaLabel || item.label);
   insertNodeAtCaret(element, document.createTextNode(' '));
 }
@@ -249,6 +316,151 @@ function handleEditorInput() {
   updateCommandTrigger();
   updateMentionTrigger();
   scheduleAutolink();
+}
+
+function handleEditorPointerDown(event: PointerEvent) {
+  const target = event.target;
+  const media =
+    target instanceof Element
+      ? target.closest<ResizableMedia>(RESIZABLE_MEDIA_SELECTOR)
+      : null;
+
+  if (media && editorElement?.contains(media)) {
+    event.preventDefault();
+    selectMedia(media);
+    return;
+  }
+
+  clearSelectedMedia();
+}
+
+function selectMedia(media: ResizableMedia) {
+  selectedMedia = media;
+  updateResizeHandlePosition();
+}
+
+function clearSelectedMedia() {
+  resizeState = undefined;
+  selectedMedia = undefined;
+  resizeHandleStyle = '';
+}
+
+function updateResizeHandlePosition() {
+  if (!selectedMedia || !editorWrapElement || !editorElement?.contains(selectedMedia)) {
+    if (selectedMedia) {
+      clearSelectedMedia();
+    }
+    return;
+  }
+
+  const mediaRect = selectedMedia.getBoundingClientRect();
+  const wrapRect = editorWrapElement.getBoundingClientRect();
+  if (mediaRect.width <= 0 || mediaRect.height <= 0) {
+    resizeHandleStyle = '';
+    return;
+  }
+
+  resizeHandleStyle = [
+    `left:${Math.round(mediaRect.right - wrapRect.left - 7)}px`,
+    `top:${Math.round(mediaRect.bottom - wrapRect.top - 7)}px`,
+  ].join(';');
+}
+
+function handleResizePointerDown(event: PointerEvent) {
+  if (!selectedMedia) {
+    return;
+  }
+
+  const rect = selectedMedia.getBoundingClientRect();
+  const startWidth = getMediaDimension(selectedMedia, 'width', rect.width);
+  const startHeight = getMediaDimension(selectedMedia, 'height', rect.height);
+  if (startWidth <= 0 || startHeight <= 0) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  resizeState = {
+    media: selectedMedia,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    startWidth,
+    startHeight,
+    ratio: startWidth / Math.max(1, startHeight),
+    changed: false,
+  };
+  resizeHandleElement?.setPointerCapture?.(event.pointerId);
+}
+
+function handleResizePointerMove(event: PointerEvent) {
+  const state = resizeState;
+  if (!state || event.pointerId !== state.pointerId) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  const deltaX = event.clientX - state.startX;
+  const deltaY = (event.clientY - state.startY) * state.ratio;
+  const delta = Math.abs(deltaX) >= Math.abs(deltaY) ? deltaX : deltaY;
+  let width = clampMediaDimension(state.startWidth + delta);
+  let height = clampMediaDimension(width / Math.max(0.01, state.ratio));
+
+  // Keep both dimensions within the runtime's safe range while preserving
+  // the original aspect ratio.
+  if (height >= MAX_MEDIA_SIZE) {
+    height = MAX_MEDIA_SIZE;
+    width = clampMediaDimension(height * state.ratio);
+  }
+
+  if (
+    Math.round(width) === Math.round(state.startWidth) &&
+    Math.round(height) === Math.round(state.startHeight)
+  ) {
+    return;
+  }
+
+  setMediaDimensions(state.media, width, height);
+  state.changed = true;
+  updateResizeHandlePosition();
+}
+
+function handleResizePointerUp(event: PointerEvent) {
+  const state = resizeState;
+  if (!state || event.pointerId !== state.pointerId) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  resizeState = undefined;
+  if (resizeHandleElement?.hasPointerCapture?.(event.pointerId)) {
+    resizeHandleElement.releasePointerCapture(event.pointerId);
+  }
+  if (state.changed) {
+    onChange(getHtml());
+  }
+}
+
+function getMediaDimension(
+  media: ResizableMedia,
+  name: 'width' | 'height',
+  fallback: number
+): number {
+  const attributeValue = Number(media.getAttribute(name));
+  return Number.isFinite(attributeValue) && attributeValue > 0
+    ? attributeValue
+    : fallback;
+}
+
+function setMediaDimensions(media: ResizableMedia, width: number, height: number) {
+  media.setAttribute('width', String(Math.round(width)));
+  media.setAttribute('height', String(Math.round(height)));
+}
+
+function clampMediaDimension(value: number): number {
+  return Math.min(MAX_MEDIA_SIZE, Math.max(MIN_MEDIA_SIZE, Math.round(value)));
 }
 
 function handleEditorKeyDown(event: KeyboardEvent) {
@@ -852,6 +1064,7 @@ function isNodeInsideTransient(node: Node): boolean {
     data-placeholder={placeholder}
     aria-label="评论内容"
     oninput={handleEditorInput}
+    onpointerdown={handleEditorPointerDown}
     onkeydown={handleEditorKeyDown}
     onblur={handleEditorBlur}
     onpaste={handleEditorPaste}
@@ -875,6 +1088,19 @@ function isNodeInsideTransient(node: Node): boolean {
       </p>
     {/if}
   </div>
+
+  {#if selectedMedia && resizeHandleStyle}
+    <button
+      bind:this={resizeHandleElement}
+      class="comment-next-editor-resize-handle"
+      data-comment-next-transient="true"
+      type="button"
+      aria-label="调整媒体大小"
+      title="拖拽调整大小"
+      style={resizeHandleStyle}
+      onpointerdown={handleResizePointerDown}
+    ></button>
+  {/if}
 
   {#if mentionSuggestionVisible}
     <div
@@ -974,20 +1200,33 @@ function isNodeInsideTransient(node: Node): boolean {
 
   .comment-next-editor :global(.comment-next-editor-emote-image) {
     --at-apply: mx-0.5 inline-block align-middle object-contain;
-    width: auto;
-    height: auto;
     max-width: min(100%, var(--comment-next-editor-emote-max-width, 9rem));
     max-height: var(--comment-next-editor-emote-max-height, 4.5rem);
   }
 
   .comment-next-editor :global(.comment-next-editor-image) {
-    --at-apply: inline-block max-h-[16rem] max-w-full align-middle object-contain;
+    --at-apply: inline-block max-w-full align-middle object-contain;
   }
 
   .comment-next-editor :global(.comment-next-editor-lottie) {
     --at-apply: mx-0.5 inline-flex align-middle;
-    max-width: min(100%, 9rem);
-    max-height: 4.5rem;
+    max-width: 100%;
+  }
+
+  .comment-next-editor-resize-handle {
+    --at-apply: absolute z-30 box-border h-3.5 w-3.5 cursor-nwse-resize rounded-[0.1875rem] border-2 border-solid border-white bg-[var(--comment-next-primary-color,rgb(59,130,246))] p-0 shadow-[0_1px_4px_rgb(15_23_42_/_0.35)];
+    touch-action: none;
+  }
+
+  .comment-next-editor-resize-handle::after {
+    content: "";
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    width: 5px;
+    height: 5px;
+    border-right: 1px solid rgb(255 255 255 / 88%);
+    border-bottom: 1px solid rgb(255 255 255 / 88%);
   }
 
   .comment-next-editor-paragraph {

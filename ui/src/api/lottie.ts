@@ -19,6 +19,7 @@ export interface LottieAnimation {
     enabled?: boolean | null;
     tags?: string[] | null;
     defaults?: unknown;
+    attachmentUrl?: string | null;
   };
 }
 
@@ -99,7 +100,9 @@ export function buildLottieEmoteGroups(
       icon: '',
       text: animation.spec?.displayName?.trim() || animation.metadata.name,
       animationName: animation.metadata.name,
-      contentUrl: `${LOTTIE_PUBLIC_ANIMATION_BASE}/${encodeURIComponent(animation.metadata.name)}/content`,
+      contentUrl:
+        animation.spec?.attachmentUrl?.trim()
+        || `${LOTTIE_PUBLIC_ANIMATION_BASE}/${encodeURIComponent(animation.metadata.name)}/content`,
       format: normalizeFormat(animation.spec?.format),
       defaults: normalizeLottieDefaults(animation.spec?.defaults),
     });

@@ -3,6 +3,7 @@ import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
 import { createComment } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextEmoteConfig,
   CommentNextSecurityConfig,
   CommentNextUploadConfig,
 } from './services/config';
@@ -29,6 +30,7 @@ const {
   placeholder = '写下你的评论...',
   aiConfig,
   uploadConfig,
+  emoteConfig,
   emotePacks = [],
 }: {
   baseUrl?: string;
@@ -50,6 +52,7 @@ const {
   placeholder?: string;
   aiConfig?: CommentNextAiConfig;
   uploadConfig?: CommentNextUploadConfig;
+  emoteConfig?: CommentNextEmoteConfig;
   emotePacks?: CommentNextEmotePack[];
 } = $props();
 
@@ -99,6 +102,7 @@ function getSubjectDomId() {
   {placeholder}
   {aiConfig}
   {uploadConfig}
+  {emoteConfig}
   {emotePacks}
   {subject}
   {targetReady}

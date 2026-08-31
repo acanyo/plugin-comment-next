@@ -249,7 +249,7 @@ export function getCommentSubmitErrorMessage(
   }
 
   if (error.status === 400) {
-    return '评论内容或提交信息不完整，请检查后重试。';
+    return detail || title || '评论提交失败，请稍后再试。';
   }
 
   if (error.status === 429) {
