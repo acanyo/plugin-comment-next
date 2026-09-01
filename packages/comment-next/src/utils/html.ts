@@ -96,6 +96,7 @@ interface SanitizeOptions {
   mode: 'display' | 'submit';
   allowImages?: boolean;
   allowedLottieHosts?: readonly unknown[];
+  allowExternalLottie?: boolean;
 }
 
 export function sanitizeCommentHtml(
@@ -106,6 +107,7 @@ export function sanitizeCommentHtml(
     mode: 'display',
     allowImages: true,
     allowedLottieHosts,
+    allowExternalLottie: true,
   });
 }
 
@@ -117,6 +119,7 @@ export function sanitizeCommentSubmitHtml(
     mode: 'submit',
     allowImages: true,
     allowedLottieHosts,
+    allowExternalLottie: false,
   });
 }
 
@@ -128,7 +131,52 @@ export function sanitizeConsoleCommentHtml(
     mode: 'display',
     allowImages: false,
     allowedLottieHosts,
+    allowExternalLottie: true,
   });
+}
+
+/**
+ * Upgrade Lottie images rendered outside the comment widget, such as Halo
+ * theme sidebar widgets. Those widgets render the stored, Halo-safe `<img>`
+ * representation directly instead of going through the comment sanitizer.
+ */
+export function upgradeLottieImages(
+  root: ParentNode,
+  allowedLottieHosts: readonly unknown[] = [],
+  options: LottieImageUpgradeOptions = {}
+): boolean {
+  if (typeof document === 'undefined') {
+    return false;
+  }
+
+  const images: HTMLImageElement[] = [];
+  if (root instanceof Element && root.matches('img[src]')) {
+    images.push(root as HTMLImageElement);
+  }
+  images.push(...root.querySelectorAll<HTMLImageElement>('img[src]'));
+
+  let upgraded = false;
+  for (const image of images) {
+    const data = decodeLottieImage(
+      image,
+      allowedLottieHosts,
+      options.allowExternalLottie ?? true
+    );
+    if (!data || !image.isConnected) {
+      continue;
+    }
+
+    replaceWithLottie(image, limitLottieDimensions(data, options));
+    upgraded = true;
+  }
+
+  return upgraded;
+}
+
+export interface LottieImageUpgradeOptions {
+  maxWidth?: number;
+  maxHeight?: number;
+  allowExternalLottie?: boolean;
 }
 
 export function highlightAssistantMentionHtml(
@@ -261,7 +309,11 @@ function sanitizeElement(element: Element, options: SanitizeOptions): void {
   const imageClassName = tagName === 'img' ? element.getAttribute('class') : null;
 
   if (tagName === 'img' && options.mode === 'display') {
-    const lottie = decodeLottieImage(element, options.allowedLottieHosts);
+    const lottie = decodeLottieImage(
+      element,
+      options.allowedLottieHosts,
+      options.allowExternalLottie ?? false
+    );
     if (lottie) {
       replaceWithLottie(element, lottie);
       return;
@@ -343,7 +395,8 @@ function sanitizeLottie(element: Element, options: SanitizeOptions): void {
 
   const src = normalizeLottieSrc(
     element.getAttribute('src') ?? '',
-    options.allowedLottieHosts
+    options.allowedLottieHosts,
+    options.allowExternalLottie ?? false
   );
   if (!src) {
     element.remove();
@@ -376,11 +429,7 @@ function sanitizeLottie(element: Element, options: SanitizeOptions): void {
       : normalizeBooleanAttribute(element.getAttribute('freeze-on-offscreen'), true)
   );
 
-  const speed = Number(element.getAttribute('speed'));
-  element.setAttribute(
-    'speed',
-    String(Number.isFinite(speed) ? Math.min(10, Math.max(0.1, speed)) : 1)
-  );
+  element.setAttribute('speed', normalizeLottieSpeed(element.getAttribute('speed')));
   element.setAttribute('fit', normalizeLottieFit(element.getAttribute('fit')));
   element.setAttribute('align', normalizeLottieAlign(element.getAttribute('align')));
 
@@ -423,7 +472,8 @@ function sanitizeLottie(element: Element, options: SanitizeOptions): void {
 
 function decodeLottieImage(
   element: Element,
-  allowedLottieHosts: readonly unknown[] = []
+  allowedLottieHosts: readonly unknown[] = [],
+  allowExternalLottie = false
 ): LottieImageData | undefined {
   const value = element.getAttribute('src') ?? '';
   try {
@@ -432,13 +482,21 @@ function decodeLottieImage(
     const isMarked =
       url.searchParams.get(LOTTIE_MARKER_PARAM) === LOTTIE_MARKER_VALUE ||
       Boolean(metadata);
-    const src = normalizeLottieSrc(url.href, allowedLottieHosts);
+    // Displayed comments may contain a direct HTTPS `.lottie` URL from a CDN.
+    // Submitted content still relies on the configured host allowlist.
+    const src = normalizeLottieSrc(
+      url.href,
+      allowedLottieHosts,
+      allowExternalLottie || isMarked
+    );
     if (!src) {
       return undefined;
     }
 
     const sourceUrl = new URL(src);
-    const isLottiePath = isLottieAttachmentPath(sourceUrl.pathname);
+    const isLottiePath =
+      isLottieAttachmentPath(sourceUrl.pathname) ||
+      isPublicLottieContentPath(sourceUrl.pathname);
     if (!isMarked && !isLottiePath) {
       return undefined;
     }
@@ -448,7 +506,6 @@ function decodeLottieImage(
       url.searchParams.get('height') ?? element.getAttribute('height')
     );
     const speedValue = metadata?.speed ?? url.searchParams.get('speed');
-    const speed = Number(speedValue);
     return {
       src: isMarked ? stripLottieMarkerParams(src) : src,
       format: normalizeLottieFormat(
@@ -458,9 +515,7 @@ function decodeLottieImage(
       height: dimensions.height,
       autoplay: normalizeBooleanAttribute(metadata?.autoplay ?? url.searchParams.get('autoplay'), true),
       loop: normalizeBooleanAttribute(metadata?.loop ?? url.searchParams.get('loop'), true),
-      speed: String(Number.isFinite(speed)
-        ? Math.min(10, Math.max(0.1, speed))
-        : Number(metadata?.speed) || 1),
+      speed: normalizeLottieSpeed(speedValue),
       fit: normalizeLottieFit(metadata?.fit ?? url.searchParams.get('fit')),
       align: normalizeLottieAlign(metadata?.align ?? url.searchParams.get('align')),
       controls: normalizeBooleanAttribute(metadata?.controls ?? url.searchParams.get('controls'), false),
@@ -498,7 +553,8 @@ function replaceWithLottie(element: Element, data: LottieImageData): void {
 
 function normalizeLottieSrc(
   value: string,
-  allowedLottieHosts: readonly unknown[] = []
+  allowedLottieHosts: readonly unknown[] = [],
+  allowExternalLottie = false
 ): string {
   const unwrapped = unwrapMarkdownLink(value);
   const normalized = unwrapped.startsWith('//') ? `https:${unwrapped}` : unwrapped.trim();
@@ -513,18 +569,22 @@ function normalizeLottieSrc(
       isLottieAttachment &&
       url.protocol === 'https:' &&
       isAllowedLottieHost(url.host, allowedLottieHosts);
+    const isExternalLottieAllowed =
+      allowExternalLottie &&
+      isLottieAttachment &&
+      url.protocol === 'https:';
 
-    // Plugin API content stays on this site. Explicitly hosted .lottie
-    // attachments may use a configured HTTPS host, but arbitrary remote
-    // animation URLs remain blocked.
-    if (url.origin !== window.location.origin && !isAllowedExternalHost) {
+    // Plugin API content stays on this site. Displayed comments may also use
+    // direct HTTPS `.lottie` attachments; submission keeps the Host allowlist.
+    if (
+      url.origin !== window.location.origin &&
+      !isAllowedExternalHost &&
+      !isExternalLottieAllowed
+    ) {
       return '';
     }
 
-    const isPublicLottieContent =
-      url.pathname.startsWith(
-        '/apis/api.lottie.halo.run/v1alpha1/animations/'
-      ) && url.pathname.endsWith('/content');
+    const isPublicLottieContent = isPublicLottieContentPath(url.pathname);
     return isPublicLottieContent || isLottieAttachment
       ? url.href
       : '';
@@ -586,9 +646,46 @@ function normalizeLottieDimensions(widthValue: string | null, heightValue: strin
   };
 }
 
+function limitLottieDimensions(
+  data: LottieImageData,
+  options: LottieImageUpgradeOptions
+): LottieImageData {
+  const maxWidth = normalizeLottieDimensionLimit(options.maxWidth);
+  const maxHeight = normalizeLottieDimensionLimit(options.maxHeight);
+  if (!maxWidth && !maxHeight) {
+    return data;
+  }
+
+  const scale = Math.min(
+    1,
+    maxWidth ? maxWidth / data.width : 1,
+    maxHeight ? maxHeight / data.height : 1
+  );
+  return {
+    ...data,
+    width: Math.max(1, Math.round(data.width * scale)),
+    height: Math.max(1, Math.round(data.height * scale)),
+  };
+}
+
+function normalizeLottieDimensionLimit(value: number | undefined): number | undefined {
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : undefined;
+}
+
 function parsePositiveDimension(value: string | null, fallback: number): number {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? Math.min(number, 4096) : fallback;
+}
+
+function normalizeLottieSpeed(value: string | null | undefined): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    return '1';
+  }
+
+  const speed = Number(value);
+  return Number.isFinite(speed) && speed > 0
+    ? String(Math.min(10, Math.max(0.1, speed)))
+    : '1';
 }
 
 function normalizeBooleanAttribute(value: string | null, fallback: boolean): string {
@@ -798,6 +895,13 @@ function unwrapMarkdownLink(value: string): string {
 
 function isLottieAttachmentPath(pathname: string): boolean {
   return /\.lottie$/i.test(pathname);
+}
+
+function isPublicLottieContentPath(pathname: string): boolean {
+  return (
+    pathname.startsWith('/apis/api.lottie.halo.run/v1alpha1/animations/') &&
+    pathname.endsWith('/content')
+  );
 }
 
 function stripLottieMarkerParams(value: string): string {

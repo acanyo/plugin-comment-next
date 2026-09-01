@@ -5,11 +5,13 @@ import {
   highlightAssistantMentionHtml,
   sanitizeCommentHtml,
   sanitizeConsoleCommentHtml,
+  upgradeLottieImages,
 } from './utils/html';
 import {
   type CommentNextLightboxImage,
   imageLightboxContent,
 } from './utils/image-lightbox';
+import { ensureLottieRuntimeLoaded } from './utils/lottie-content-adapter';
 import { notifyCommentNextModalOpen } from './utils/overlays';
 
 const {
@@ -27,6 +29,7 @@ const {
 } = $props();
 
 let lightboxImage = $state<CommentNextLightboxImage | undefined>();
+let contentElement = $state<HTMLDivElement | undefined>();
 
 const safeContent = $derived(
   highlightAssistantMentionHtml(
@@ -37,6 +40,26 @@ const safeContent = $derived(
   )
 );
 
+$effect(() => {
+  const content = safeContent;
+  const hosts = allowedLottieHosts;
+
+  if (content.includes('<halo-lottie')) {
+    ensureLottieRuntimeLoaded();
+  }
+
+  // Some consumers (notably the Console extension point) set the custom
+  // element properties after the initial render. Scan the rendered DOM once
+  // more so a stored Halo-safe Lottie <img> cannot remain unconverted.
+  if (!contentElement || !content.includes('<img')) {
+    return;
+  }
+
+  if (upgradeLottieImages(contentElement, hosts)) {
+    ensureLottieRuntimeLoaded();
+  }
+});
+
 function openLightbox(image: CommentNextLightboxImage) {
   notifyCommentNextModalOpen('image-lightbox');
   lightboxImage = image;
@@ -44,6 +67,7 @@ function openLightbox(image: CommentNextLightboxImage) {
 </script>
 
 <div
+  bind:this={contentElement}
   use:imageLightboxContent={{
     enabled: enableImageLightbox && allowImages,
     content: safeContent,

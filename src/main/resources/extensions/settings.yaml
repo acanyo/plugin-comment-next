@@ -1282,6 +1282,14 @@ spec:
           max: 4096
           validation: required|min:24|max:4096
           help: 超出限制的表情图片或 Lottie 无法提交。普通图片仍沿用原有规则。
+        - $formkit: number
+          label: 最新评论 Lottie 最大尺寸（px）
+          name: recentCommentMaxSize
+          value: 100
+          min: 24
+          max: 512
+          validation: required|min:24|max:512
+          help: 最新评论侧边栏中 Lottie 的宽度、高度均不会超过此值。
         - $formkit: array
           label: 额外允许的 Host (跨域)
           name: allowedHosts

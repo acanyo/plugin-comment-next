@@ -15,13 +15,12 @@ import {
   fetchPluginConfig,
 } from './services/config';
 import { fetchEmotePacks } from './services/emotes';
-import { sanitizeCommentSubmitHtml, sanitizeConsoleCommentHtml } from './utils/html';
 import type {
   CommentNextEmotePack,
   CommentNextRawEmotePacks,
 } from './types/emote';
-
-const LOTTIE_RUNTIME_URL = '/plugins/lottie/assets/lottie-runtime.js';
+import { sanitizeCommentSubmitHtml, sanitizeConsoleCommentHtml } from './utils/html';
+import { ensureLottieRuntimeLoaded } from './utils/lottie-content-adapter';
 
 const {
   baseUrl = '',
@@ -182,7 +181,7 @@ onMount(() => {
     fetchEmotePacks(baseUrl)
       .then((emotes) => {
         if (!cancelled) {
-          ensureLottieRuntimeLoaded(emotes);
+          ensureLottieRuntimeForEmotes(emotes);
           rawEmotePacks = emotes;
         }
       })
@@ -229,7 +228,7 @@ onMount(() => {
   fetchEmotePacks(baseUrl)
     .then((emotes) => {
       if (!cancelled) {
-        ensureLottieRuntimeLoaded(emotes);
+        ensureLottieRuntimeForEmotes(emotes);
         rawEmotePacks = emotes;
       }
     })
@@ -245,43 +244,12 @@ onMount(() => {
   };
 });
 
-function ensureLottieRuntimeLoaded(emotes: unknown): void {
-  if (
-    !containsLottiePack(emotes)
-    || typeof document === 'undefined'
-    || typeof customElements === 'undefined'
-  ) {
+function ensureLottieRuntimeForEmotes(emotes: unknown): void {
+  if (!containsLottiePack(emotes)) {
     return;
   }
 
-  if (customElements.get('halo-lottie')) {
-    return;
-  }
-
-  if (
-    document.querySelector('script[data-comment-next-lottie-runtime]')
-    || hasLottieRuntimeScript()
-  ) {
-    return;
-  }
-
-  const script = document.createElement('script');
-  script.type = 'module';
-  script.src = LOTTIE_RUNTIME_URL;
-  script.async = true;
-  script.setAttribute('data-comment-next-lottie-runtime', 'true');
-  document.head.appendChild(script);
-}
-
-function hasLottieRuntimeScript(): boolean {
-  return Array.from(document.querySelectorAll('script[src]')).some((script) => {
-    try {
-      return new URL(script.getAttribute('src') ?? '', document.baseURI).pathname
-        === LOTTIE_RUNTIME_URL;
-    } catch {
-      return false;
-    }
-  });
+  ensureLottieRuntimeLoaded();
 }
 
 function containsLottiePack(value: unknown): boolean {

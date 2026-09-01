@@ -97,6 +97,7 @@ export interface CommentNextEmoteConfig {
   defaultPaused?: boolean;
   maxWidth?: number;
   maxHeight?: number;
+  recentCommentMaxSize?: number;
   pageSize?: number;
   allowedHosts?: Array<{ host?: string }>;
 }
