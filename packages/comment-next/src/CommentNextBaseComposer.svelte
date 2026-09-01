@@ -417,7 +417,7 @@ async function submitComposer({
     return;
   }
 
-  const mediaLimitMessage = validateLimitedMediaDimensions();
+  const mediaLimitMessage = validateLimitedEmoteDimensions();
   if (mediaLimitMessage) {
     showSubmitMessage(mediaLimitMessage);
     editorRef?.focus();
@@ -599,12 +599,16 @@ function hasContent(html: string): boolean {
   );
 }
 
-function validateLimitedMediaDimensions(): string | undefined {
+function validateLimitedEmoteDimensions(): string | undefined {
   const maxWidth = resolveEmoteMediaLimit(emoteConfig?.maxWidth);
   const maxHeight = resolveEmoteMediaLimit(emoteConfig?.maxHeight);
 
   for (const media of editorRef?.getLimitedMediaDimensions() ?? []) {
-    const label = media.type === 'lottie' ? 'Lottie 动画' : '表情图片';
+    if (media.type === 'lottie') {
+      continue;
+    }
+
+    const label = '表情图片';
     if (media.width > maxWidth) {
       return `${label}宽度不能超过 ${maxWidth}px。`;
     }

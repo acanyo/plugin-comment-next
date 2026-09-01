@@ -1273,7 +1273,7 @@ spec:
           min: 24
           max: 4096
           validation: required|min:24|max:4096
-          help: 超出限制的表情图片或 Lottie 无法提交。普通图片仍沿用原有规则。
+          help: "超出限制的 Lottie 会按比例缩小到最大尺寸；普通图片仍沿用原有规则。"
         - $formkit: number
           label: 表情与 Lottie 最大高度（px）
           name: maxHeight
@@ -1281,7 +1281,7 @@ spec:
           min: 24
           max: 4096
           validation: required|min:24|max:4096
-          help: 超出限制的表情图片或 Lottie 无法提交。普通图片仍沿用原有规则。
+          help: "超出限制的 Lottie 会按比例缩小到最大尺寸；普通图片仍沿用原有规则。"
         - $formkit: number
           label: 最新评论 Lottie 最大尺寸（px）
           name: recentCommentMaxSize

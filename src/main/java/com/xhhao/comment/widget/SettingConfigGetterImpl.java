@@ -47,6 +47,12 @@ public class SettingConfigGetterImpl implements SettingConfigGetter {
     }
 
     @Override
+    public Mono<EmoteConfig> getEmoteConfig() {
+        return settingFetcher.fetch(EmoteConfig.GROUP, EmoteConfig.class)
+            .defaultIfEmpty(EmoteConfig.empty());
+    }
+
+    @Override
     public Mono<ReactionConfig> getReactionConfig() {
         return settingFetcher.fetch(ReactionConfig.GROUP, ReactionConfig.class)
             .defaultIfEmpty(ReactionConfig.empty());

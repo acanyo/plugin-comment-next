@@ -41,6 +41,11 @@ public interface SettingConfigGetter {
     /**
      * Never {@link Mono#empty()}.
      */
+    Mono<EmoteConfig> getEmoteConfig();
+
+    /**
+     * Never {@link Mono#empty()}.
+     */
     Mono<ReactionConfig> getReactionConfig();
 
     /**
@@ -1116,6 +1121,36 @@ public interface SettingConfigGetter {
     @Data
     class AllowedOriginConfig {
         private String origin;
+    }
+
+    @Data
+    @Accessors(chain = true)
+    class EmoteConfig {
+        public static final String GROUP = "emote";
+
+        private boolean defaultPaused = true;
+
+        private int maxWidth = 512;
+
+        private int maxHeight = 512;
+
+        private int recentCommentMaxSize = 100;
+
+        public int normalizedMaxWidth() {
+            return normalizeDimension(maxWidth, 24, 4096, 512);
+        }
+
+        public int normalizedMaxHeight() {
+            return normalizeDimension(maxHeight, 24, 4096, 512);
+        }
+
+        private int normalizeDimension(int value, int min, int max, int fallback) {
+            return value <= 0 ? fallback : Math.min(max, Math.max(min, value));
+        }
+
+        public static EmoteConfig empty() {
+            return new EmoteConfig();
+        }
     }
 
     @Data
