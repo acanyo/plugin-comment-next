@@ -41,6 +41,13 @@ public class SettingConfigGetterImpl implements SettingConfigGetter {
     }
 
     @Override
+    public Mono<InteractionPlusConfig> getInteractionPlusConfig() {
+        return settingFetcher.fetch(InteractionPlusConfig.GROUP, InteractionPlusConfig.class)
+            .defaultIfEmpty(InteractionPlusConfig.empty())
+            .onErrorReturn(InteractionPlusConfig.empty());
+    }
+
+    @Override
     public Mono<UploadConfig> getUploadConfig() {
         return settingFetcher.fetch(UploadConfig.GROUP, UploadConfig.class)
             .defaultIfEmpty(UploadConfig.empty());

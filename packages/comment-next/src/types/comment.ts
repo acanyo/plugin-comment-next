@@ -1,3 +1,5 @@
+import type { CommentNextAuthorIdentity } from './interaction-plus';
+
 export type CommentNextAuthorRole = 'admin' | 'member' | 'anonymous';
 
 export type CommentNextBadgeTone =
@@ -31,6 +33,7 @@ export interface CommentNextAuthor {
   role?: CommentNextAuthorRole;
   activeCommentCount?: number;
   badges?: CommentNextBadge[];
+  identity?: CommentNextAuthorIdentity;
 }
 
 export interface CommentNextCommentStats {

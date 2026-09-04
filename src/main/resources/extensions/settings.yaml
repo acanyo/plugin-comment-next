@@ -1244,6 +1244,14 @@ spec:
               label: Halo 用户
               name: username
               validation: required
+    - group: interactionPlus
+      label: 互动增强
+      formSchema:
+        - $formkit: switch
+          label: 在评论区展示装扮
+          name: enabled
+          value: true
+          help: 需要安装并启用「互动增强」插件。开启后，登录用户的头像、身份行和用户卡会使用互动增强组件，并支持跳转用户主页。
     - group: editor
       label: 编辑器
       formSchema:

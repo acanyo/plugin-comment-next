@@ -19,6 +19,11 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 repositories {
+    mavenLocal {
+        content {
+            includeGroup 'com.github.Tim0x0'
+        }
+    }
     maven {
         url = uri('https://central.sonatype.com/repository/maven-snapshots/')
         mavenContent {
@@ -26,18 +31,26 @@ repositories {
         }
     }
     mavenCentral()
+    maven {
+        url = uri('https://jitpack.io')
+        content {
+            includeGroup 'com.github.Tim0x0'
+        }
+    }
 }
 
 dependencies {
     implementation platform('run.halo.tools.platform:plugin:2.25.0')
     compileOnly 'run.halo.app:api'
     compileOnly 'run.halo.aifoundation:api:1.0.0-SNAPSHOT'
+    compileOnly 'com.github.Tim0x0:halo-plugin-interaction-plus:1.0.0'
     implementation 'org.altcha:altcha:2.0.2'
     implementation 'org.json:json:20240303'
     implementation 'org.jsoup:jsoup:1.18.3'
 
     testImplementation 'run.halo.app:api'
     testImplementation 'run.halo.aifoundation:api:1.0.0-SNAPSHOT'
+    testImplementation 'com.github.Tim0x0:halo-plugin-interaction-plus:1.0.0'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

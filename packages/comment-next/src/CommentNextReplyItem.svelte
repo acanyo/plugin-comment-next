@@ -4,6 +4,7 @@ import CommentNextAvatar from './CommentNextAvatar.svelte';
 import CommentNextBadge from './CommentNextBadge.svelte';
 import CommentNextContent from './CommentNextContent.svelte';
 import CommentNextEnvironmentTags from './CommentNextEnvironmentTags.svelte';
+import CommentNextHipAuthor from './CommentNextHipAuthor.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import CommentNextReactionButton from './CommentNextReactionButton.svelte';
 import CommentNextReportButton from './CommentNextReportButton.svelte';
@@ -12,6 +13,7 @@ import type {
   CommentNextReactionConfig,
   CommentNextReportConfig,
 } from './services/config';
+import { hasAuthorIdentity } from './services/interaction-plus';
 import type {
   CommentNextBadgeConfig,
   CommentNextComment,
@@ -60,6 +62,7 @@ let upvoted = $state(false);
 let upvotes = $state(0);
 
 const badges = $derived(resolveCommentBadges(reply, { config: badgeConfig }));
+const useHipAuthor = $derived(hasAuthorIdentity(reply.author));
 const environmentTags = $derived(
   getCommentEnvironmentTags({
     userAgent: reply.userAgent,
@@ -124,11 +127,31 @@ async function handleUpvote() {
   class="comment-next-reply-item"
 >
   <div class="comment-next-reply-avatar">
-    <CommentNextAvatar src={reply.author.avatar} alt={reply.author.displayName} size={28} />
+    {#if useHipAuthor && reply.author.identity}
+      <CommentNextHipAuthor
+        identity={reply.author.identity}
+        displayName={reply.author.displayName}
+        avatar={reply.author.avatar}
+        variant="avatar"
+        size={28}
+      />
+    {:else}
+      <CommentNextAvatar src={reply.author.avatar} alt={reply.author.displayName} size={28} />
+    {/if}
   </div>
   <div class="comment-next-reply-main">
     <header class="comment-next-reply-meta">
-      <span class="comment-next-reply-author">{reply.author.displayName}</span>
+      {#if useHipAuthor && reply.author.identity}
+        <span class="comment-next-reply-author-hip">
+          <CommentNextHipAuthor
+            identity={reply.author.identity}
+            displayName={reply.author.displayName}
+            variant="identity"
+          />
+        </span>
+      {:else}
+        <span class="comment-next-reply-author">{reply.author.displayName}</span>
+      {/if}
       {#each badges as badge}
         <CommentNextBadge {badge} />
       {/each}
@@ -223,7 +246,7 @@ async function handleUpvote() {
   }
 
   .comment-next-reply-avatar {
-    --at-apply: w-[1.75rem] min-w-0 justify-self-start self-start pt-0.5 leading-none;
+    --at-apply: w-[1.75rem] min-w-0 justify-self-start self-start overflow-visible pt-0.5 leading-none;
   }
 
   .comment-next-reply-main {
@@ -240,6 +263,10 @@ async function handleUpvote() {
 
   .comment-next-reply-author {
     --at-apply: max-w-40 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-[var(--comment-next-text-color,#172033)] font-[760] leading-[1.25rem];
+  }
+
+  .comment-next-reply-author-hip {
+    --at-apply: inline-flex max-w-full min-w-0 items-center overflow-visible whitespace-normal text-sm text-[var(--comment-next-text-color,#172033)] font-[760] leading-[1.25rem];
   }
 
   .comment-next-reply-flags {

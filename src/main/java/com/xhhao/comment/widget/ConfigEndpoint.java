@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xhhao.comment.utils.JsonUtils;
 import com.xhhao.comment.widget.ai.CommentNextAiAssistantProfileResolver;
 import com.xhhao.comment.widget.ai.HaloAiFoundationAvailability;
+import com.xhhao.comment.widget.interactionplus.InteractionPlusAvailability;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -81,6 +82,12 @@ public class ConfigEndpoint implements CustomEndpoint {
 
     private static final String FOUNDATION_AVAILABLE = "foundationAvailable";
 
+    private static final String INTERACTION_PLUS_GROUP = "interactionPlus";
+
+    private static final String RUNTIME_AVAILABLE = "runtimeAvailable";
+
+    private static final String RUNTIME_SCRIPT = "runtimeScript";
+
     private static final String ASSISTANT_NAME = "assistantName";
 
     private static final String ASSISTANT_USER_NAME = "assistantUserName";
@@ -109,6 +116,8 @@ public class ConfigEndpoint implements CustomEndpoint {
 
     private final CommentNextAiAssistantProfileResolver aiAssistantProfileResolver;
 
+    private final InteractionPlusAvailability interactionPlusAvailability;
+
     private final ObjectMapper objectMapper = JsonUtils.createObjectMapper();
 
     @Override
@@ -128,6 +137,7 @@ public class ConfigEndpoint implements CustomEndpoint {
             .map(this::applyAiDefaults)
             .flatMap(this::appendAiAssistantProfile)
             .flatMap(this::appendAiFoundationAvailability)
+            .flatMap(this::appendInteractionPlusAvailability)
             .flatMap(rootNode -> ServerResponse.ok().bodyValue(rootNode));
     }
 
@@ -282,6 +292,35 @@ public class ConfigEndpoint implements CustomEndpoint {
                 return rootNode;
             })
             .onErrorReturn(rootNode);
+    }
+
+    private Mono<ObjectNode> appendInteractionPlusAvailability(ObjectNode rootNode) {
+        return interactionPlusAvailability.isEnabled()
+            .map(available -> {
+                var interactionPlusNode = interactionPlusNode(rootNode);
+                if (!interactionPlusNode.has(ENABLED)) {
+                    interactionPlusNode.put(ENABLED, true);
+                }
+                interactionPlusNode.put(RUNTIME_AVAILABLE, available);
+                if (available) {
+                    interactionPlusNode.put(
+                        RUNTIME_SCRIPT,
+                        InteractionPlusAvailability.RUNTIME_SCRIPT
+                    );
+                }
+                return rootNode;
+            })
+            .onErrorReturn(rootNode);
+    }
+
+    private ObjectNode interactionPlusNode(ObjectNode rootNode) {
+        var value = rootNode.get(INTERACTION_PLUS_GROUP);
+        if (value instanceof ObjectNode existingNode) {
+            return existingNode;
+        }
+        var node = objectMapper.createObjectNode();
+        rootNode.set(INTERACTION_PLUS_GROUP, node);
+        return node;
     }
 
     private ObjectNode applyAiDefaults(ObjectNode rootNode) {
