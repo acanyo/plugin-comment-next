@@ -91,6 +91,9 @@ class CommentNextCommentMapper {
         ownerNode.put("activeCommentCount", author.activeCommentCount());
         var badges = ownerNode.putArray("badges");
         author.badges().forEach(badge -> badges.add(objectMapper.valueToTree(badge)));
+        if (author.identity() != null && !author.identity().isEmpty()) {
+            ownerNode.set("identity", author.identity());
+        }
         return ownerNode;
     }
 

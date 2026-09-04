@@ -12,6 +12,10 @@ import {
   fetchPluginConfig,
 } from './services/config';
 import { fetchEmotePacks } from './services/emotes';
+import {
+  ensureInteractionPlusRuntime,
+  shouldLoadInteractionPlusRuntime,
+} from './services/interaction-plus';
 import type { CommentNextRawEmotePacks } from './types/emote';
 
 const {
@@ -186,6 +190,9 @@ onMount(() => {
       if (!cancelled) {
         pluginConfig = config;
         configLoaded = true;
+        if (shouldLoadInteractionPlusRuntime(config.interactionPlus)) {
+          ensureInteractionPlusRuntime(config.interactionPlus?.runtimeScript);
+        }
       }
     })
     .catch((error) => {

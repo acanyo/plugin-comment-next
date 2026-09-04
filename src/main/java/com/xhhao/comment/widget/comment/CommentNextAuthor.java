@@ -1,5 +1,6 @@
 package com.xhhao.comment.widget.comment;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.List;
 
 record CommentNextAuthor(
@@ -9,6 +10,7 @@ record CommentNextAuthor(
     String kind,
     String role,
     long activeCommentCount,
-    List<CommentNextBadge> badges
+    List<CommentNextBadge> badges,
+    ObjectNode identity
 ) {
 }

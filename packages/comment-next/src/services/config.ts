@@ -1,4 +1,5 @@
 import type { CommentNextBadgeConfig } from '../types/comment';
+import type { CommentNextInteractionPlusConfig } from '../types/interaction-plus';
 import { resolveApiUrl } from './api';
 import type { CommentNextCaptchaConfig } from './captcha';
 
@@ -11,6 +12,7 @@ export interface CommentNextPluginConfig {
   report?: CommentNextReportConfig;
   editor?: CommentNextEditorConfig;
   badge?: CommentNextBadgeConfig;
+  interactionPlus?: CommentNextInteractionPlusConfig;
 }
 
 export interface CommentNextGlobalInfo {

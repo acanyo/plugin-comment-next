@@ -3,6 +3,7 @@ import CommentNextAvatar from './CommentNextAvatar.svelte';
 import CommentNextBadge from './CommentNextBadge.svelte';
 import CommentNextContent from './CommentNextContent.svelte';
 import CommentNextEnvironmentTags from './CommentNextEnvironmentTags.svelte';
+import CommentNextHipAuthor from './CommentNextHipAuthor.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import CommentNextReactionButton from './CommentNextReactionButton.svelte';
 import CommentNextReplyComposer from './CommentNextReplyComposer.svelte';
@@ -17,6 +18,7 @@ import type {
   CommentNextSecurityConfig,
   CommentNextUploadConfig,
 } from './services/config';
+import { hasAuthorIdentity } from './services/interaction-plus';
 import type {
   CommentNextBadgeConfig,
   CommentNextBadge as CommentNextBadgeModel,
@@ -105,6 +107,7 @@ const hasUnloadedReplies = $derived(replyCount > 0 && hasMoreReplies);
 const commentReactionEnabled = $derived(
   Boolean(reactionConfig?.enabled && reactionConfig.commentEnabled !== false)
 );
+const useHipAuthor = $derived(hasAuthorIdentity(comment.author));
 
 $effect(() => {
   if (previousCommentId !== comment.id) {
@@ -366,7 +369,15 @@ async function loadReplies({
   class="comment-next-comment-item"
 >
   <div class="comment-next-comment-avatar">
-    {#if comment.author.website}
+    {#if useHipAuthor && comment.author.identity}
+      <CommentNextHipAuthor
+        identity={comment.author.identity}
+        displayName={comment.author.displayName}
+        avatar={comment.author.avatar}
+        variant="avatar"
+        size={38}
+      />
+    {:else if comment.author.website}
       <a href={comment.author.website} target="_blank" rel="noopener noreferrer nofollow ugc" aria-label={comment.author.displayName}>
         <CommentNextAvatar src={comment.author.avatar} alt={comment.author.displayName} size={38} />
       </a>
@@ -377,7 +388,15 @@ async function loadReplies({
 
   <div class="comment-next-comment-main">
     <header class="comment-next-comment-meta">
-      {#if comment.author.website}
+      {#if useHipAuthor && comment.author.identity}
+        <span class="comment-next-comment-author-hip">
+          <CommentNextHipAuthor
+            identity={comment.author.identity}
+            displayName={comment.author.displayName}
+            variant="identity"
+          />
+        </span>
+      {:else if comment.author.website}
         <a
           class="comment-next-comment-author"
           href={comment.author.website}
@@ -585,7 +604,7 @@ async function loadReplies({
   }
 
   .comment-next-comment-avatar {
-    --at-apply: w-[2.625rem] min-w-0 justify-self-start self-start pt-0.5 leading-none;
+    --at-apply: w-[2.625rem] min-w-0 justify-self-start self-start overflow-visible pt-0.5 leading-none;
   }
 
   .comment-next-comment-avatar a {
@@ -608,6 +627,14 @@ async function loadReplies({
 
   .comment-next-comment-author:hover {
     --at-apply: text-[var(--comment-next-primary-color,rgb(59,130,246))];
+  }
+
+  .comment-next-comment-author-hip {
+    --at-apply: inline-flex max-w-full min-w-0 items-center overflow-visible whitespace-normal text-[0.9375rem] text-[var(--comment-next-text-color,#172033)] font-extrabold;
+  }
+
+  .comment-next-comment-author-hip :global(hip-user-identity) {
+    max-width: 100%;
   }
 
   .comment-next-comment-badges {

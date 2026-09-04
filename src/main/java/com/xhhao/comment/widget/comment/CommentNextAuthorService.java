@@ -1,6 +1,7 @@
 package com.xhhao.comment.widget.comment;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xhhao.comment.utils.JsonUtils;
 import com.xhhao.comment.widget.CommentNextRoles;
 import com.xhhao.comment.widget.SettingConfigGetter;
@@ -8,14 +9,18 @@ import com.xhhao.comment.widget.badge.CommentNextBadgeAnnotations;
 import com.xhhao.comment.widget.badge.CommentNextBadgeIdentity;
 import com.xhhao.comment.widget.badge.CommentNextBadgeProfileService;
 import com.xhhao.comment.widget.badge.CommentNextBadgeProfileSnapshot;
+import com.xhhao.comment.widget.interactionplus.AuthorIdentityLoader;
+import com.xhhao.comment.widget.interactionplus.AuthorIdentityProvider;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
@@ -44,13 +49,28 @@ class CommentNextAuthorService {
 
     private final CommentNextBadgeProfileService badgeProfileService;
 
+    private final ObjectProvider<AuthorIdentityProvider> identityProvider;
+
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper =
         JsonUtils.createObjectMapper();
 
     Mono<CommentNextBadgeContext> badgeContext() {
-        return settingConfigGetter.getBadgeConfig()
-            .defaultIfEmpty(SettingConfigGetter.BadgeConfig.empty())
-            .map(CommentNextBadgeContext::new);
+        return Mono.zip(
+                settingConfigGetter.getBadgeConfig()
+                    .defaultIfEmpty(SettingConfigGetter.BadgeConfig.empty()),
+                identityLoader()
+            )
+            .map(tuple -> new CommentNextBadgeContext(tuple.getT1(), tuple.getT2()));
+    }
+
+    private Mono<AuthorIdentityLoader> identityLoader() {
+        var provider = identityProvider.getIfAvailable();
+        if (provider == null) {
+            return Mono.just(AuthorIdentityLoader.disabled());
+        }
+        return provider.newLoader()
+            .defaultIfEmpty(AuthorIdentityLoader.disabled())
+            .onErrorReturn(AuthorIdentityLoader.disabled());
     }
 
     Mono<CommentNextAuthor> resolve(Comment.CommentOwner owner, CommentNextBadgeContext badgeContext) {
@@ -83,9 +103,18 @@ class CommentNextAuthorService {
                 resolveUserRole(username, adminUsernames),
                 badgeProfileService.fetchSnapshot(
                     CommentNextBadgeIdentity.user(username).orElseThrow()
-                )
+                ),
+                badgeContext.identityLoader().load(username)
+                    .map(Optional::of)
+                    .defaultIfEmpty(Optional.empty())
             )
-            .map(tuple -> userAuthor(tuple.getT1(), tuple.getT2(), owner, tuple.getT3()))
+            .map(tuple -> userAuthor(
+                tuple.getT1(),
+                tuple.getT2(),
+                owner,
+                tuple.getT3(),
+                tuple.getT4().orElse(null)
+            ))
             .defaultIfEmpty(userAuthor(owner, ROLE_MEMBER));
     }
 
@@ -124,11 +153,11 @@ class CommentNextAuthorService {
     }
 
     private CommentNextAuthor userAuthor(User user, String role, Comment.CommentOwner fallback,
-        CommentNextBadgeProfileSnapshot profile) {
+        CommentNextBadgeProfileSnapshot profile,
+        ObjectNode identity) {
         var spec = user.getSpec();
         var displayName = spec == null ? null : spec.getDisplayName();
         var avatar = spec == null ? null : spec.getAvatar();
-        var email = spec == null ? null : spec.getEmail();
         var username = user.getMetadata().getName();
         var activeCommentCount = profile.activeCommentCount();
         var badges = userBadges(user);
@@ -142,7 +171,8 @@ class CommentNextAuthorService {
             User.KIND,
             role,
             activeCommentCount,
-            badges
+            badges,
+            identity
         );
     }
 
@@ -154,7 +184,8 @@ class CommentNextAuthorService {
             User.KIND,
             role,
             0,
-            List.of()
+            List.of(),
+            null
         );
     }
 
@@ -168,7 +199,8 @@ class CommentNextAuthorService {
             Comment.CommentOwner.KIND_EMAIL,
             ROLE_ANONYMOUS,
             profile.activeCommentCount(),
-            profile.badges()
+            profile.badges(),
+            null
         );
     }
 
@@ -180,7 +212,8 @@ class CommentNextAuthorService {
             Comment.CommentOwner.KIND_EMAIL,
             ROLE_ANONYMOUS,
             0,
-            List.of()
+            List.of(),
+            null
         );
     }
 
