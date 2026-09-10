@@ -86,8 +86,8 @@ export function buildLottieEmoteGroups(
     const groupRef = animation.spec?.groupName?.trim() || LOTTIE_UNGROUPED_REF;
     const sourceGroup = sourceGroups.get(groupRef);
     const displayName = normalizeDisplayName(
-      sourceGroup?.spec?.displayName
-        || (groupRef === LOTTIE_UNGROUPED_REF ? '未分组' : groupRef)
+      sourceGroup?.spec?.displayName ||
+        (groupRef === LOTTIE_UNGROUPED_REF ? '未分组' : groupRef)
     );
     const bucket = buckets.get(groupRef) ?? {
       sourceRef: groupRef,
@@ -100,9 +100,10 @@ export function buildLottieEmoteGroups(
       icon: '',
       text: animation.spec?.displayName?.trim() || animation.metadata.name,
       animationName: animation.metadata.name,
-      contentUrl:
-        animation.spec?.attachmentUrl?.trim()
-        || `${LOTTIE_PUBLIC_ANIMATION_BASE}/${encodeURIComponent(animation.metadata.name)}/content`,
+      // Keep stored comments on plugin-lottie's stable, same-origin endpoint.
+      // The endpoint resolves the backing attachment without exposing its host
+      // as part of the persisted comment HTML.
+      contentUrl: `${LOTTIE_PUBLIC_ANIMATION_BASE}/${encodeURIComponent(animation.metadata.name)}/content`,
       format: normalizeFormat(animation.spec?.format),
       defaults: normalizeLottieDefaults(animation.spec?.defaults),
     });
@@ -118,8 +119,10 @@ export function buildLottieEmoteGroups(
       .map((group) => [group.spec.sourceRef as string, group])
   );
   const nextPriority = resolveNextPriority(existingGroups);
-  const orderedBuckets = Array.from(buckets.values()).sort((left, right) =>
-    left.sort - right.sort || left.displayName.localeCompare(right.displayName, 'zh-Hans-CN')
+  const orderedBuckets = Array.from(buckets.values()).sort(
+    (left, right) =>
+      left.sort - right.sort ||
+      left.displayName.localeCompare(right.displayName, 'zh-Hans-CN')
   );
   const upserts = orderedBuckets.map((bucket, index) => {
     const existing = existingBySourceRef.get(bucket.sourceRef);

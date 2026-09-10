@@ -6,9 +6,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xhhao.comment.utils.JsonUtils;
 import com.xhhao.comment.widget.SettingConfigGetter;
+import java.io.IOException;
+import org.springframework.core.io.buffer.DataBufferLimitException;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequestDecorator;
 import org.springframework.lang.NonNull;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
@@ -17,12 +20,15 @@ import org.springframework.security.web.server.util.matcher.ServerWebExchangeMat
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilterChain;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import run.halo.app.security.AdditionalWebFilter;
 
 @Component
 public class CommentLottieDimensionFilter implements AdditionalWebFilter {
+
+    static final int MAX_REQUEST_BODY_BYTES = 1024 * 1024;
 
     private final ServerWebExchangeMatcher pathMatcher = new OrServerWebExchangeMatcher(
         pathMatchers(HttpMethod.POST, "/apis/api.halo.run/v1alpha1/comments"),
@@ -33,8 +39,12 @@ public class CommentLottieDimensionFilter implements AdditionalWebFilter {
 
     private final SettingConfigGetter settingConfigGetter;
 
-    public CommentLottieDimensionFilter(SettingConfigGetter settingConfigGetter) {
+    private final CommentLottieSubmissionSanitizer submissionSanitizer;
+
+    public CommentLottieDimensionFilter(SettingConfigGetter settingConfigGetter,
+        CommentLottieSubmissionSanitizer submissionSanitizer) {
         this.settingConfigGetter = settingConfigGetter;
+        this.submissionSanitizer = submissionSanitizer;
     }
 
     @Override
@@ -52,7 +62,15 @@ public class CommentLottieDimensionFilter implements AdditionalWebFilter {
 
     private Mono<Void> rewriteBody(ServerWebExchange exchange, WebFilterChain chain,
         SettingConfigGetter.EmoteConfig config) {
-        return DataBufferUtils.join(exchange.getRequest().getBody())
+        var contentLength = exchange.getRequest().getHeaders().getContentLength();
+        if (contentLength > MAX_REQUEST_BODY_BYTES) {
+            return Mono.error(payloadTooLarge());
+        }
+
+        return DataBufferUtils.join(
+                exchange.getRequest().getBody(),
+                MAX_REQUEST_BODY_BYTES
+            )
             .map(buffer -> {
                 try {
                     var bytes = new byte[buffer.readableByteCount()];
@@ -64,7 +82,7 @@ public class CommentLottieDimensionFilter implements AdditionalWebFilter {
             })
             .defaultIfEmpty(new byte[0])
             .flatMap(bytes -> {
-                var rewritten = rewriteJson(bytes, config);
+                var rewritten = rewriteJson(bytes, config, exchange);
                 var request = new ServerHttpRequestDecorator(exchange.getRequest()) {
                     @Override
                     public HttpHeaders getHeaders() {
@@ -81,10 +99,12 @@ public class CommentLottieDimensionFilter implements AdditionalWebFilter {
                     }
                 };
                 return chain.filter(exchange.mutate().request(request).build());
-            });
+            })
+            .onErrorMap(DataBufferLimitException.class, error -> payloadTooLarge());
     }
 
-    private byte[] rewriteJson(byte[] bytes, SettingConfigGetter.EmoteConfig config) {
+    private byte[] rewriteJson(byte[] bytes, SettingConfigGetter.EmoteConfig config,
+        ServerWebExchange exchange) {
         if (bytes.length == 0) {
             return bytes;
         }
@@ -95,33 +115,40 @@ public class CommentLottieDimensionFilter implements AdditionalWebFilter {
                 return bytes;
             }
 
-            var changed = limitField(objectNode, "content", config)
-                | limitField(objectNode, "raw", config);
+            var changed = sanitizeField(objectNode, "content", config, exchange)
+                | sanitizeField(objectNode, "raw", config, exchange);
             return changed ? objectMapper.writeValueAsBytes(objectNode) : bytes;
-        } catch (Exception ignored) {
+        } catch (IOException ignored) {
             return bytes;
         }
     }
 
-    private boolean limitField(ObjectNode root, String fieldName,
-        SettingConfigGetter.EmoteConfig config) {
+    private boolean sanitizeField(ObjectNode root, String fieldName,
+        SettingConfigGetter.EmoteConfig config, ServerWebExchange exchange) {
         var value = root.get(fieldName);
         if (value == null || !value.isTextual()) {
             return false;
         }
 
         var original = value.textValue();
-        var limited = CommentLottieDimensionLimiter.limit(
+        var sanitized = submissionSanitizer.sanitize(
             original,
-            config.normalizedMaxWidth(),
-            config.normalizedMaxHeight()
+            config,
+            exchange.getRequest()
         );
-        if (original.equals(limited)) {
+        if (original.equals(sanitized)) {
             return false;
         }
 
-        root.put(fieldName, limited);
+        root.put(fieldName, sanitized);
         return true;
+    }
+
+    private ResponseStatusException payloadTooLarge() {
+        return new ResponseStatusException(
+            HttpStatus.PAYLOAD_TOO_LARGE,
+            "评论请求体不能超过 1 MiB"
+        );
     }
 
     @Override

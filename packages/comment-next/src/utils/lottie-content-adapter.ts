@@ -1,5 +1,5 @@
 import { fetchPluginConfig } from '../services/config';
-import { upgradeLottieImages } from './html';
+import { upgradeLottieImages } from './lottie-html';
 
 const LOTTIE_RUNTIME_URL = '/plugins/lottie/assets/lottie-runtime.js';
 const RUNTIME_SCRIPT_MARKER = 'data-comment-next-lottie-runtime';
@@ -81,10 +81,12 @@ export function installLottieContentAdapter(): void {
       return;
     }
 
-    if (upgradeLottieImages(root, allowedLottieHosts, {
-      maxWidth: recentCommentLottieMaxSize,
-      maxHeight: recentCommentLottieMaxSize,
-    })) {
+    if (
+      upgradeLottieImages(root, allowedLottieHosts, {
+        maxWidth: recentCommentLottieMaxSize,
+        maxHeight: recentCommentLottieMaxSize,
+      })
+    ) {
       ensureLottieRuntimeLoaded();
     }
   }
@@ -112,7 +114,9 @@ export function installLottieContentAdapter(): void {
   }
 }
 
-function normalizeRecentCommentLottieMaxSize(value: number | undefined): number {
+function normalizeRecentCommentLottieMaxSize(
+  value: number | undefined
+): number {
   const size = Number(value);
   return Number.isFinite(size) && size > 0
     ? Math.floor(size)

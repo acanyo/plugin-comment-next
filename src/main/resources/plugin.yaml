@@ -20,6 +20,7 @@ spec:
   settingName: plugin-comment-next-settings
   pluginDependencies:
     ai-foundation?: "*"
+    lottie?: "*"
   license:
     - name: "GPL-3.0"
       url: "https://github.com/acanyo/plugin-comment-next/blob/main/LICENSE"

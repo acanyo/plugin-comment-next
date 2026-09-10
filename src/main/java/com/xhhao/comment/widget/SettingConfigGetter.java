@@ -5,6 +5,7 @@ import com.xhhao.comment.widget.security.CommentNextSecurityReviewAction;
 import com.xhhao.comment.widget.upload.ImageUploadProviderType;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import lombok.Data;
 import lombok.Getter;
 import lombok.experimental.Accessors;
@@ -1136,6 +1137,23 @@ public interface SettingConfigGetter {
 
         private int recentCommentMaxSize = 100;
 
+        @Getter(onMethod_ = @NonNull)
+        private List<AllowedLottieHostConfig> allowedHosts = new ArrayList<>();
+
+        public void setAllowedHosts(List<AllowedLottieHostConfig> allowedHosts) {
+            this.allowedHosts = allowedHosts == null ? new ArrayList<>() : allowedHosts;
+        }
+
+        public List<String> allowedHostValues() {
+            return allowedHosts.stream()
+                .filter(Objects::nonNull)
+                .map(AllowedLottieHostConfig::getHost)
+                .filter(host -> host != null && !host.isBlank())
+                .map(String::strip)
+                .distinct()
+                .toList();
+        }
+
         public int normalizedMaxWidth() {
             return normalizeDimension(maxWidth, 24, 4096, 512);
         }
@@ -1151,6 +1169,11 @@ public interface SettingConfigGetter {
         public static EmoteConfig empty() {
             return new EmoteConfig();
         }
+    }
+
+    @Data
+    class AllowedLottieHostConfig {
+        private String host;
     }
 
     @Data

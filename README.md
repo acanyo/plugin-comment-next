@@ -32,6 +32,7 @@ UI 部分基于 Svelte Web Component 构建，由插件自动注入到 Halo 主�
 ## 可选依赖
 
 - AI 相关功能依赖 [Halo AI Foundation](https://www.halo.run/store/apps/app-acslk9nu)。未安装或未启用时，普通评论、上传、验证码、举报、黑灰名单等功能不受影响。
+- Lottie 表情依赖 [Lottie 动画插件](https://github.com/SwaggyMacro/plugin-lottie)。未安装或未启用时，普通 Emoji 与图片表情不受影响；动画素材的授权由站点管理员自行确认。
 - GeeTest、Cap、ImgBB 需要站长自行准备对应服务或密钥。
 - Halo 附件库上传需要在插件设置中选择存储策略和存储组。
 

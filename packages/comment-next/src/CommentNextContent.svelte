@@ -1,17 +1,14 @@
 <script lang="ts">
 import CommentNextImageLightbox from './CommentNextImageLightbox.svelte';
 import type { CommentNextEmoteConfig } from './services/config';
-import {
-  highlightAssistantMentionHtml,
-  sanitizeCommentHtml,
-  sanitizeConsoleCommentHtml,
-  upgradeLottieImages,
-} from './utils/html';
+import { highlightAssistantMentionHtml } from './utils/assistant-mention-html';
+import { sanitizeCommentHtml, sanitizeConsoleCommentHtml } from './utils/html';
 import {
   type CommentNextLightboxImage,
   imageLightboxContent,
 } from './utils/image-lightbox';
 import { ensureLottieRuntimeLoaded } from './utils/lottie-content-adapter';
+import { upgradeLottieImages } from './utils/lottie-html';
 import { notifyCommentNextModalOpen } from './utils/overlays';
 
 const {
