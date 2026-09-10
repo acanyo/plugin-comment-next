@@ -6,6 +6,7 @@ import {
   IconMotionLine,
   IconNotificationBadgeLine,
   IconReplyLine,
+  IconSearch,
   IconShieldUser,
   Toast,
   VDropdownItem,
@@ -60,6 +61,26 @@ export default definePlugin({
     },
   },
   routes: [
+    {
+      parentName: 'CommentsRoot',
+      route: {
+        path: 'comment-next-search',
+        name: 'CommentNextCommentSearch',
+        component: defineAsyncComponent({
+          loader: () => import('./views/CommentSearchView.vue'),
+          loadingComponent: VLoading,
+        }),
+        meta: {
+          title: '评论查询',
+          permissions: ['plugin:comment-next:comment-search:view'],
+          menu: {
+            name: '评论查询',
+            icon: markRaw(IconSearch),
+            priority: 2.05,
+          },
+        },
+      },
+    },
     {
       parentName: 'CommentsRoot',
       route: {

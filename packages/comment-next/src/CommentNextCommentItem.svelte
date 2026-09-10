@@ -1,4 +1,5 @@
 <script lang="ts">
+import { untrack } from 'svelte';
 import CommentNextAvatar from './CommentNextAvatar.svelte';
 import CommentNextBadge from './CommentNextBadge.svelte';
 import CommentNextContent from './CommentNextContent.svelte';
@@ -87,9 +88,15 @@ let upvotes = $state(0);
 let previousCommentId = $state('');
 let replyComposerOpen = $state(false);
 let quoteReply = $state<CommentNextComment | undefined>();
-let replies = $state<CommentNextComment[]>([]);
-let replyPage = $state<CommentNextPageInfo | undefined>();
-let replyAuthors = $state<Record<string, string>>({});
+let replies = $state<CommentNextComment[]>(
+  untrack(() => comment.replies ?? [])
+);
+let replyPage = $state<CommentNextPageInfo | undefined>(
+  untrack(() => comment.replyPage)
+);
+let replyAuthors = $state<Record<string, string>>(
+  buildReplyAuthorMap(untrack(() => comment.replies ?? []))
+);
 let repliesLoading = $state(false);
 let repliesError = $state('');
 
@@ -104,7 +111,7 @@ const replyCount = $derived(
 const hasMoreReplies = $derived(
   Boolean(replyPage?.hasNext) || replyCount > replies.length
 );
-const hasUnloadedReplies = $derived(replyCount > 0 && hasMoreReplies);
+const remainingReplyCount = $derived(Math.max(replyCount - replies.length, 0));
 const commentReactionEnabled = $derived(
   Boolean(reactionConfig?.enabled && reactionConfig.commentEnabled !== false)
 );
@@ -164,13 +171,9 @@ async function handleLocalUpvote() {
   }
 }
 
-async function handleReplyAction() {
+function handleReplyAction() {
   if (repliesLoading) {
     return;
-  }
-
-  if (hasUnloadedReplies) {
-    await loadRemainingReplies();
   }
 
   openCommentReply();
@@ -520,7 +523,7 @@ async function loadReplies({
       </div>
     {/if}
 
-    {#if replies.length || repliesLoading || repliesError}
+    {#if replies.length || repliesLoading || repliesError || hasMoreReplies}
       <div class="comment-next-replies">
         {#each replies as reply (reply.id)}
           <CommentNextReplyItem
@@ -566,12 +569,18 @@ async function loadReplies({
             <span>{repliesError}</span>
             <button type="button" onclick={loadRemainingReplies}>重试</button>
           </div>
-        {:else if repliesLoading && !replies.length}
+        {:else if repliesLoading}
           <div class="comment-next-replies-message">
             <span class="comment-next-replies-more-loading">
               <CommentNextIcon name="loader" size={14} />
             </span>
             <span>正在加载回复</span>
+          </div>
+        {:else if hasMoreReplies}
+          <div class="comment-next-replies-message">
+            <button type="button" onclick={loadRemainingReplies}>
+              展开剩余 {remainingReplyCount} 条回复
+            </button>
           </div>
         {/if}
       </div>

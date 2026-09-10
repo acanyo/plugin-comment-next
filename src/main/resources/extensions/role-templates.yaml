@@ -62,6 +62,24 @@ rules:
 apiVersion: v1alpha1
 kind: Role
 metadata:
+  name: comment-next-view-comment-search
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/dependencies: |
+      [ "role-template-view-comments" ]
+    rbac.authorization.halo.run/module: "评论组件 Next"
+    rbac.authorization.halo.run/display-name: "查询评论邮箱与 IP"
+    rbac.authorization.halo.run/ui-permissions: |
+      [ "plugin:comment-next:comment-search:view" ]
+rules:
+  - apiGroups: [ "console.api.commentnext.xhhao.com" ]
+    resources: [ "comment-search" ]
+    verbs: [ "get", "list" ]
+---
+apiVersion: v1alpha1
+kind: Role
+metadata:
   name: comment-next-view-badge-rules
   labels:
     halo.run/role-template: "true"
