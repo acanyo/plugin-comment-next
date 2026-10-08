@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xhhao.comment.utils.JsonUtils;
+import com.xhhao.comment.widget.iplocation.CommentNextIpLocationService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import lombok.RequiredArgsConstructor;
@@ -21,36 +22,50 @@ class CommentNextCommentMapper {
 
     private final CommentNextAuthorService authorService;
 
+    private final CommentNextIpLocationService ipLocationService;
+
     private final ObjectMapper objectMapper = JsonUtils.createObjectMapper();
 
     Mono<ObjectNode> toCommentNode(Comment comment, CommentNextBadgeContext badgeContext,
         int upvotes) {
+        var spec = comment.getSpec();
         var commentNode = objectMapper.createObjectNode();
         commentNode.set("metadata", objectMapper.valueToTree(comment.getMetadata()));
-        commentNode.set("spec", sanitizedCommentSpec(comment.getSpec()));
+        commentNode.set("spec", sanitizedCommentSpec(spec));
         commentNode.set("status", objectMapper.valueToTree(comment.getStatus()));
         commentNode.set("stats", statsNode(upvotes));
-        applyModerationState(commentNode, comment.getMetadata(), comment.getSpec());
+        applyModerationState(commentNode, comment.getMetadata(), spec);
 
-        return authorService.resolve(comment.getSpec().getOwner(), badgeContext)
-            .map(this::ownerNode)
-            .doOnNext(ownerNode -> commentNode.set("owner", ownerNode))
-            .thenReturn(commentNode);
+        return Mono.zip(
+                authorService.resolve(spec.getOwner(), badgeContext),
+                ipLocationService.resolve(spec.getIpAddress()).defaultIfEmpty("")
+            )
+            .map(tuple -> {
+                commentNode.set("owner", ownerNode(tuple.getT1()));
+                applyIpLocation(commentNode, tuple.getT2());
+                return commentNode;
+            });
     }
 
     Mono<ObjectNode> toReplyNode(Reply reply, CommentNextBadgeContext badgeContext,
         int upvotes) {
+        var spec = reply.getSpec();
         var replyNode = objectMapper.createObjectNode();
         replyNode.set("metadata", objectMapper.valueToTree(reply.getMetadata()));
-        replyNode.set("spec", sanitizedReplySpec(reply.getSpec()));
+        replyNode.set("spec", sanitizedReplySpec(spec));
         replyNode.set("status", objectMapper.valueToTree(reply.getStatus()));
         replyNode.set("stats", statsNode(upvotes));
-        applyModerationState(replyNode, reply.getMetadata(), reply.getSpec());
+        applyModerationState(replyNode, reply.getMetadata(), spec);
 
-        return authorService.resolve(reply.getSpec().getOwner(), badgeContext)
-            .map(this::ownerNode)
-            .doOnNext(ownerNode -> replyNode.set("owner", ownerNode))
-            .thenReturn(replyNode);
+        return Mono.zip(
+                authorService.resolve(reply.getSpec().getOwner(), badgeContext),
+                ipLocationService.resolve(spec.getIpAddress()).defaultIfEmpty("")
+            )
+            .map(tuple -> {
+                replyNode.set("owner", ownerNode(tuple.getT1()));
+                applyIpLocation(replyNode, tuple.getT2());
+                return replyNode;
+            });
     }
 
     ObjectNode pageNode(ListResult<?> page, java.util.List<ObjectNode> items) {
@@ -145,6 +160,19 @@ class CommentNextCommentMapper {
         node.put("top", spec != null && Boolean.TRUE.equals(spec.getTop()));
         node.put("priority", spec == null || spec.getPriority() == null ? 0 : spec.getPriority());
         node.put("featured", isFeatured(metadata));
+    }
+
+    /**
+     * 属地是解析后的聚合信息，原始 IP 仍然不会返回给前台。
+     */
+    private void applyIpLocation(ObjectNode node, String ipLocation) {
+        if (!StringUtils.hasText(ipLocation)) {
+            return;
+        }
+
+        if (node.get("spec") instanceof ObjectNode specNode) {
+            specNode.put("ipLocation", ipLocation);
+        }
     }
 
     private boolean isFeatured(MetadataOperator metadata) {

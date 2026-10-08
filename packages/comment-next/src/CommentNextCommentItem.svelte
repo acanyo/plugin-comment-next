@@ -440,6 +440,22 @@ async function loadReplies({
     {#if comment.creationTime}
       <div class="comment-next-comment-submeta">
         <time>{formatRelativeTime(comment.creationTime)}</time>
+        {#if comment.ipLocation}
+          <span
+            class="comment-next-ip-location"
+            title={`IP 属地：${comment.ipLocation}`}
+          >
+            <span class="comment-next-ip-location-icon">
+              <i
+                class="comment-next-ip-location-glyph i-mdi:map-marker"
+                aria-hidden="true"
+              ></i>
+            </span>
+            <span class="comment-next-ip-location-text">
+              {comment.ipLocation}
+            </span>
+          </span>
+        {/if}
         {#if showCommenterDevice}
           <CommentNextEnvironmentTags tags={environmentTags} compact />
         {/if}
@@ -653,6 +669,22 @@ async function loadReplies({
 
   .comment-next-comment-submeta {
     --at-apply: mb-2 flex-wrap;
+  }
+
+  .comment-next-ip-location {
+    --at-apply: inline-flex min-h-[1.375rem] max-w-48 box-border items-center gap-1 text-xs text-[var(--comment-next-muted-color,#6b7687)] font-[560] leading-none;
+  }
+
+  .comment-next-ip-location-icon {
+    --at-apply: inline-flex text-inherit;
+  }
+
+  .comment-next-ip-location-glyph {
+    --at-apply: inline-block h-[1em] w-[1em] text-[0.8125rem];
+  }
+
+  .comment-next-ip-location-text {
+    --at-apply: min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
   }
 
   .comment-next-comment-actions {

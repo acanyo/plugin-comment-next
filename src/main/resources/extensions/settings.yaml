@@ -121,6 +121,52 @@ spec:
           validation: required
           help: >-
             使用 {qq} 作为 QQ 号占位符，例如 https://example.com/qq/{qq}。接口返回 JSON 时昵称字段可使用 nickname 或 name，例如 {"nickname":"昵称"}。请求由插件后端发起，配置地址不会暴露到前台。
+    - group: ipLocation
+      label: IP 属地
+      formSchema:
+        - $formkit: switch
+          label: 显示评论 IP 属地
+          name: enabled
+          id: ipLocationEnabled
+          key: ipLocationEnabled
+          value: true
+          help: 开启后，评论与回复会显示发表时的 IP 属地，例如「广东」「日本」。属地由插件后端解析，前台不会暴露完整 IP。
+        - $formkit: text
+          if: "$get(ipLocationEnabled).value === true"
+          label: IP 属地接口 URL 模板
+          name: apiUrlTemplate
+          id: ipLocationApiUrlTemplate
+          key: ipLocationApiUrlTemplate
+          value: "https://whois.pconline.com.cn/ipJson.jsp?ip={ip}&json=true"
+          validation: required
+          help: >-
+            使用 {ip} 作为 IP 占位符，必须使用 https（不加密的 http 接口在部分环境下会被拦截）。默认使用太平洋电脑网的 pconline 接口：国内 IP 返回「广东省」这类中文属地，境外 IP 只返回国家；该接口是 GBK 编码，插件会按响应声明的编码解码，不会乱码。插件会读取 pro、province、regionName、region、city、location、addr 等常见字段：国内 IP 显示省份，境外 IP 显示国家，若接口只提供英文地名或国家代码，属地也会相应显示为英文或代码。可替换为其他免费接口，例如 https://api.mir6.com/api/ip?ip={ip}&type=json（境内外都返回中文省市）。请求由插件后端发起，配置地址不会暴露到前台。
+        - $formkit: number
+          if: "$get(ipLocationEnabled).value === true"
+          label: 属地缓存时长（分钟）
+          name: cacheMinutes
+          id: ipLocationCacheMinutes
+          key: ipLocationCacheMinutes
+          value: 1440
+          validation: required
+          help: 同一 IP 在缓存时长内不会重复请求接口，用于降低对第三方接口的调用量。
+        - $formkit: number
+          if: "$get(ipLocationEnabled).value === true"
+          label: 接口超时（毫秒）
+          name: timeoutMillis
+          id: ipLocationTimeoutMillis
+          key: ipLocationTimeoutMillis
+          value: 3000
+          validation: required
+          help: 接口超时、限流或失败时会自动回落到内置离线库（如已开启），评论列表不会因此报错。
+        - $formkit: switch
+          if: "$get(ipLocationEnabled).value === true"
+          label: 使用内置离线库兜底
+          name: offlineFallback
+          id: ipLocationOfflineFallback
+          key: ipLocationOfflineFallback
+          value: true
+          help: 插件内置 ip2region 离线库（IPv4 + IPv6），接口不可用时仍能显示中文属地。数据离线解析、不产生任何外部请求，仅在接口没有结果时使用。
     - group: security
       label: 安全设置
       formSchema:

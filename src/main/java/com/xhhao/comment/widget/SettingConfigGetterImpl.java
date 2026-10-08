@@ -28,6 +28,13 @@ public class SettingConfigGetterImpl implements SettingConfigGetter {
     }
 
     @Override
+    public Mono<IpLocationConfig> getIpLocationConfig() {
+        return settingFetcher.fetch(IpLocationConfig.GROUP, IpLocationConfig.class)
+            .defaultIfEmpty(IpLocationConfig.empty())
+            .onErrorReturn(IpLocationConfig.empty());
+    }
+
+    @Override
     public Mono<SecurityConfig> getSecurityConfig() {
         return settingFetcher.fetch(SecurityConfig.GROUP, SecurityConfig.class)
             .defaultIfEmpty(SecurityConfig.empty())

@@ -19,6 +19,7 @@ export function createDemoCommentPage(): CommentNextCommentPage {
       priority: 0,
       userAgent:
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 26_3_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36',
+      ipLocation: '广东',
       author: {
         displayName: '青栀',
         avatar:
@@ -50,6 +51,7 @@ export function createDemoCommentPage(): CommentNextCommentPage {
           approved: true,
           userAgent:
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 26_3_1) AppleWebKit/537.36 (KHTML, like Gecko) Edg/149.0.0.0 Safari/537.36',
+          ipLocation: '北京',
           author: {
             displayName: 'Handsome',
             role: 'admin',
