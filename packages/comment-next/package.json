@@ -39,19 +39,20 @@
   },
   "devDependencies": {
     "@iconify-json/logos": "^1.2.11",
+    "@iconify-json/mdi": "^1.2.3",
     "@iconify-json/simple-icons": "^1.2.86",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tsconfig/svelte": "^5.0.8",
     "@unocss/reset": "^66.7.2",
     "@unocss/svelte-scoped": "^66.7.2",
+    "jsdom": "^28.1.0",
     "svelte": "^5.56.3",
     "svelte-check": "^4.6.0",
     "terser": "^5.48.0",
     "unocss": "^66.7.2",
     "vite": "^8.0.16",
     "vite-plugin-static-copy": "^4.1.1",
-    "vitest": "^5.0.0",
-    "jsdom": "^28.1.0"
+    "vitest": "^5.0.0"
   },
   "dependencies": {
     "altcha": "^3.1.0",

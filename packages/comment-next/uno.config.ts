@@ -17,6 +17,7 @@ const commentNextIconSafelist = [
   'i-simple-icons:harmonyos',
   'i-simple-icons:huawei',
   'i-simple-icons:xiaomi',
+  'i-mdi:map-marker',
 ];
 
 export default defineConfig({

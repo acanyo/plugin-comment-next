@@ -27,6 +27,11 @@ public interface SettingConfigGetter {
     /**
      * Never {@link Mono#empty()}.
      */
+    Mono<IpLocationConfig> getIpLocationConfig();
+
+    /**
+     * Never {@link Mono#empty()}.
+     */
     Mono<SecurityConfig> getSecurityConfig();
 
     /**
@@ -206,6 +211,33 @@ public interface SettingConfigGetter {
             return new QqProfileConfig()
                 .setEnabled(false)
                 .setApiUrlTemplate("");
+        }
+    }
+
+    @Data
+    @Accessors(chain = true)
+    class IpLocationConfig {
+        public static final String GROUP = "ipLocation";
+
+        public static final String DEFAULT_API_URL_TEMPLATE =
+            "https://whois.pconline.com.cn/ipJson.jsp?ip={ip}&json=true";
+
+        private static final int DEFAULT_CACHE_MINUTES = 1_440;
+
+        private static final int DEFAULT_TIMEOUT_MILLIS = 3_000;
+
+        private boolean enabled = true;
+
+        private String apiUrlTemplate = DEFAULT_API_URL_TEMPLATE;
+
+        private int cacheMinutes = DEFAULT_CACHE_MINUTES;
+
+        private int timeoutMillis = DEFAULT_TIMEOUT_MILLIS;
+
+        private boolean offlineFallback = true;
+
+        public static IpLocationConfig empty() {
+            return new IpLocationConfig();
         }
     }
 

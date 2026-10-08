@@ -147,6 +147,7 @@ interface HaloComment {
     hidden?: boolean;
     quoteReply?: string;
     userAgent?: string;
+    ipLocation?: string;
     top?: boolean;
     priority?: number;
     owner?: {
@@ -567,6 +568,7 @@ function adaptHaloComment(comment: HaloComment): CommentNextComment {
     quoteReplyId: comment.spec?.quoteReply,
     replyToName: textValue(comment.replyToName),
     userAgent: comment.spec?.userAgent,
+    ipLocation: textValue(comment.spec?.ipLocation),
     author: {
       displayName,
       avatar: resolveAuthorAvatar(owner.avatar, kind, emailHash),
