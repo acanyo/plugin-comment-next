@@ -8,6 +8,7 @@ import static run.halo.app.extension.index.query.Queries.or;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -49,8 +50,9 @@ class CommentNextCommentService {
             .flatMap(tuple -> {
                 var access = tuple.getT1();
                 var badgeContext = tuple.getT2();
-                return commentPage(query, access)
-                    .flatMap(comments -> toCommentPageNode(comments, query, access, badgeContext));
+                return Mono.zip(commentPage(query, access), pinnedComments(query, access))
+                    .flatMap(pages -> toCommentPageNode(pages.getT1(), pages.getT2(), query,
+                        access, badgeContext));
             });
     }
 
@@ -164,21 +166,39 @@ class CommentNextCommentService {
             );
     }
 
-    private Mono<ObjectNode> toCommentPageNode(ListResult<Comment> comments,
+    private Mono<ObjectNode> toCommentPageNode(ListResult<Comment> comments, List<Comment> pinned,
         CommentNextCommentQuery query, CommentNextAccessContext access,
         CommentNextBadgeContext badgeContext) {
+        var displayedComments = new ArrayList<>(comments.getItems());
+        displayedComments.addAll(pinned);
         return counterService.fetchUpvotes(
                 CommentNextCounterService.COMMENTS_PLURAL,
-                extensionNames(comments.getItems())
+                extensionNames(displayedComments)
             )
             .flatMap(upvotes -> Mono.zip(
-                    Flux.fromIterable(comments.getItems())
-                        .flatMapSequential(comment -> toCommentNode(comment, query, access,
-                            badgeContext, upvotes.getOrDefault(comment.getMetadata().getName(), 0)))
-                        .collectList(),
+                    commentNodes(comments.getItems(), query, access, badgeContext, upvotes),
+                    commentNodes(pinned, query, access, badgeContext, upvotes),
                     firstCommentName(query.toRef(), access)
                 )
-                .map(tuple -> mapper.pageNode(comments, tuple.getT1(), tuple.getT2())));
+                .map(tuple -> mapper.commentPageNode(comments, tuple.getT1(), tuple.getT2(),
+                    tuple.getT3())));
+    }
+
+    private Mono<List<ObjectNode>> commentNodes(List<Comment> comments,
+        CommentNextCommentQuery query, CommentNextAccessContext access,
+        CommentNextBadgeContext badgeContext, Map<String, Integer> upvotes) {
+        return Flux.fromIterable(comments)
+            .flatMapSequential(comment -> toCommentNode(comment, query, access, badgeContext,
+                upvotes.getOrDefault(comment.getMetadata().getName(), 0)))
+            .collectList();
+    }
+
+    private Mono<List<Comment>> pinnedComments(CommentNextCommentQuery query,
+        CommentNextAccessContext access) {
+        return client.listAll(Comment.class, commentListOptions(query.toRef(), access, true),
+                Sort.by(Sort.Order.asc("spec.priority"), Sort.Order.desc("spec.creationTime"),
+                    Sort.Order.asc("metadata.name")))
+            .collectList();
     }
 
     private Mono<ObjectNode> toCommentNode(Comment comment, CommentNextCommentQuery query,
@@ -220,14 +240,14 @@ class CommentNextCommentService {
             return hotCommentPage(query, access);
         }
 
-        return client.listBy(Comment.class, commentListOptions(query.toRef(), access),
+        return client.listBy(Comment.class, commentListOptions(query.toRef(), access, false),
             PageRequestImpl.of(query.getPage(), query.getSize(), commentSort(query))
         );
     }
 
     private Mono<ListResult<Comment>> hotCommentPage(CommentNextCommentQuery query,
         CommentNextAccessContext access) {
-        return client.listAll(Comment.class, commentListOptions(query.toRef(), access),
+        return client.listAll(Comment.class, commentListOptions(query.toRef(), access, false),
                 firstCommentSort())
             .collectList()
             .flatMap(comments -> counterService.fetchUpvotes(
@@ -262,9 +282,17 @@ class CommentNextCommentService {
     }
 
     private ListOptions commentListOptions(Ref ref, CommentNextAccessContext access) {
+        return commentListOptions(ref, access, null);
+    }
+
+    private ListOptions commentListOptions(Ref ref, CommentNextAccessContext access, Boolean top) {
         var builder = ListOptions.builder()
             .andQuery(isNull("metadata.deletionTimestamp"))
             .andQuery(equal("spec.subjectRef", Comment.toSubjectRefKey(ref)));
+        if (top != null) {
+            builder.andQuery(top ? equal("spec.top", true)
+                : or(equal("spec.top", false), isNull("spec.top")));
+        }
         var visibleQuery = and(
             equal("spec.hidden", false),
             equal("spec.approved", true)

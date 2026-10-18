@@ -72,6 +72,14 @@ class CommentNextCommentMapper {
         return pageNode(page, items, "");
     }
 
+    ObjectNode commentPageNode(ListResult<?> page, java.util.List<ObjectNode> items,
+        java.util.List<ObjectNode> pinnedItems, String firstCommentName) {
+        var pageNode = pageNode(page, items, firstCommentName);
+        var pinnedNodes = pageNode.putArray("pinnedItems");
+        pinnedItems.forEach(pinnedNodes::add);
+        return pageNode;
+    }
+
     ObjectNode pageNode(ListResult<?> page, java.util.List<ObjectNode> items,
         String firstCommentName) {
         var pageNode = objectMapper.createObjectNode();

@@ -76,5 +76,6 @@ export interface CommentNextCommentPage {
   hasNext: boolean;
   hasPrevious: boolean;
   firstCommentId?: string;
+  pinnedItems?: CommentNextComment[];
   items: CommentNextComment[];
 }

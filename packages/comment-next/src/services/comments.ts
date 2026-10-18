@@ -1,16 +1,16 @@
+import {
+  getAnonymousAvatarUrlFromHash,
+  getDefaultAnonymousAvatarUrl,
+} from '../avatar/weavatar';
 import type {
   CommentNextBadge,
   CommentNextComment,
   CommentNextCommentPage,
   CommentNextCommentSort,
 } from '../types/comment';
-import {
-  getAnonymousAvatarUrlFromHash,
-  getDefaultAnonymousAvatarUrl,
-} from '../avatar/weavatar';
-import { getCaptchaCodeHeader, isCaptchaRequired } from './captcha';
-import type { CommentNextCaptchaType } from './captcha';
 import { sanitizeCommentSubmitHtml } from '../utils/html';
+import type { CommentNextCaptchaType } from './captcha';
+import { getCaptchaCodeHeader, isCaptchaRequired } from './captcha';
 
 const COMMENTS_ENDPOINT = '/apis/api.commentnext.xhhao.com/v1alpha1/comments';
 
@@ -118,6 +118,7 @@ interface HaloCommentPage {
   hasNext?: boolean;
   hasPrevious?: boolean;
   firstCommentName?: string;
+  pinnedItems?: HaloComment[];
   items?: HaloComment[];
 }
 
@@ -384,7 +385,10 @@ export async function upvoteCommentTarget(
   options: UpvoteOptions
 ): Promise<void> {
   const response = await fetch(
-    resolveApiUrl(options.baseUrl, '/apis/api.halo.run/v1alpha1/trackers/upvote'),
+    resolveApiUrl(
+      options.baseUrl,
+      '/apis/api.halo.run/v1alpha1/trackers/upvote'
+    ),
     {
       method: 'POST',
       credentials: 'include',
@@ -540,6 +544,7 @@ function adaptHaloCommentPage(
     hasNext: Boolean(data.hasNext),
     hasPrevious: Boolean(data.hasPrevious),
     firstCommentId: data.firstCommentName,
+    pinnedItems: (data.pinnedItems ?? []).map(adaptHaloComment),
     items: (data.items ?? []).map(adaptHaloComment),
   };
 }
@@ -547,10 +552,7 @@ function adaptHaloCommentPage(
 function adaptHaloComment(comment: HaloComment): CommentNextComment {
   const owner = comment.owner ?? {};
   const specOwner = comment.spec?.owner ?? {};
-  const displayName =
-    owner.displayName ||
-    specOwner.displayName ||
-    '匿名用户';
+  const displayName = owner.displayName || specOwner.displayName || '匿名用户';
   const kind = owner.kind || specOwner.kind;
   const role = resolveAuthorRole(owner.role || specOwner.role, kind);
   const emailHash = specOwner.annotations?.['email-hash'];

@@ -137,11 +137,12 @@ export function createDemoCommentPage(): CommentNextCommentPage {
   return {
     page: 1,
     size: 20,
-    total: items.length,
+    total: items.filter((comment) => !comment.top).length,
     totalPages: 1,
     hasNext: false,
     hasPrevious: false,
     firstCommentId: 'demo-comment-2',
-    items,
+    pinnedItems: items.filter((comment) => comment.top),
+    items: items.filter((comment) => !comment.top),
   };
 }

@@ -46,6 +46,7 @@ import type { CommentNextComposerSubmitPayload } from './types/composer';
 import type { CommentNextEditorImageKind } from './types/editor';
 import type { CommentNextEmoteItem, CommentNextEmotePack } from './types/emote';
 import { sanitizeCommentSubmitHtml } from './utils/html';
+import { isolateTypingShortcuts } from './utils/isolate-typing-shortcuts';
 import { inferImageContentType, isImageContentType } from './utils/image-files';
 import {
   COMMENT_NEXT_MODAL_OPEN_EVENT,
@@ -1089,6 +1090,7 @@ function resolveMentionName(
 
 <form
   bind:this={composerElement}
+  use:isolateTypingShortcuts
   class:comment-next-box={variant === "comment"}
   class:comment-next-reply-composer={variant === "reply"}
   class:comment-next-composer-loading={loading}

@@ -72,6 +72,7 @@ const {
 } = $props();
 
 let comments = $state<CommentNextComment[]>([]);
+let pinnedComments = $state<CommentNextComment[]>([]);
 let page = $state(1);
 let total = $state(0);
 let totalPages = $state(1);
@@ -86,8 +87,12 @@ const badgeConfig = $derived<CommentNextBadgeConfig>(
   demoData ? demoBadgeConfig : (configuredBadgeConfig ?? {})
 );
 const visibleComments = $derived(
-  demoData ? sortComments(comments, sortMode) : comments
+  (demoData ? sortComments(comments, sortMode) : comments).filter((comment) => !comment.top)
 );
+const visiblePinnedComments = $derived([
+  ...pinnedComments,
+  ...comments.filter((comment) => comment.top),
+]);
 const paginationItems = $derived(resolvePaginationItems(page, totalPages));
 const sortOptions: Array<{ label: string; value: CommentNextCommentSort }> = [
   { label: '最新', value: 'latest' },
@@ -161,6 +166,7 @@ async function loadComments() {
   if (demoData) {
     const demoPage = createDemoCommentPage();
     comments = demoPage.items;
+    pinnedComments = demoPage.pinnedItems ?? [];
     total = demoPage.total;
     totalPages = demoPage.totalPages;
     hasPrevious = demoPage.hasPrevious;
@@ -172,6 +178,7 @@ async function loadComments() {
 
   if (!group || !kind || !name) {
     comments = [];
+    pinnedComments = [];
     total = 0;
     totalPages = 1;
     hasPrevious = false;
@@ -198,6 +205,7 @@ async function loadComments() {
     });
 
     comments = data.items;
+    pinnedComments = data.pinnedItems ?? [];
     page = data.page;
     total = data.total;
     totalPages = Math.max(data.totalPages || 1, 1);
@@ -208,6 +216,7 @@ async function loadComments() {
     console.error(error);
     errorMessage = '评论列表加载失败';
     comments = [];
+    pinnedComments = [];
     total = 0;
     totalPages = 1;
     hasPrevious = false;
@@ -345,7 +354,43 @@ function resolvePaginationItems(
 }
 </script>
 
+{#snippet renderComment(comment: CommentNextComment)}
+  <CommentNextCommentItem
+    {baseUrl}
+    {comment}
+    badges={resolveCommentBadges(comment, { isFirstComment: isFirstComment(comment), config: badgeConfig })}
+    {badgeConfig}
+    first={isFirstComment(comment)}
+    {loggedIn}
+    {allowAnonymous}
+    {showCaptcha}
+    {captchaType}
+    {captchaConfig}
+    {demoData}
+    {replySize}
+    {showCommenterDevice}
+    {enableImageLightbox}
+    {aiConfig}
+    {reactionConfig}
+    {reportConfig}
+    {aiMentionName}
+    {uploadConfig}
+    {emoteConfig}
+    {emotePacks}
+  />
+{/snippet}
+
 <section class="comment-next-comments" aria-label="评论列表">
+  {#if visiblePinnedComments.length}
+    <section class="comment-next-comments-pinned" aria-label="置顶评论">
+      <div class="comment-next-comments-list">
+        {#each visiblePinnedComments as comment (comment.id)}
+          {@render renderComment(comment)}
+        {/each}
+      </div>
+    </section>
+  {/if}
+
   <div class="comment-next-comments-bar">
     <div class="comment-next-comments-tabs" aria-label="评论排序">
       {#each sortOptions as option}
@@ -368,37 +413,15 @@ function resolvePaginationItems(
     {/if}
   </div>
 
-  {#if loading && !comments.length}
+  {#if loading && !comments.length && !pinnedComments.length}
     <CommentNextCommentSkeleton />
-  {:else if comments.length}
-    <div class="comment-next-comments-list">
+  {:else if visibleComments.length}
+    <div class="comment-next-comments-list" role="region" aria-label="普通评论">
       {#each visibleComments as comment (comment.id)}
-        <CommentNextCommentItem
-          {baseUrl}
-          {comment}
-          badges={resolveCommentBadges(comment, { isFirstComment: isFirstComment(comment), config: badgeConfig })}
-          {badgeConfig}
-          first={isFirstComment(comment)}
-          {loggedIn}
-          {allowAnonymous}
-          {showCaptcha}
-          {captchaType}
-          {captchaConfig}
-          {demoData}
-          {replySize}
-          {showCommenterDevice}
-          {enableImageLightbox}
-          {aiConfig}
-          {reactionConfig}
-          {reportConfig}
-          {aiMentionName}
-          {uploadConfig}
-          {emoteConfig}
-          {emotePacks}
-        />
+        {@render renderComment(comment)}
       {/each}
     </div>
-  {:else}
+  {:else if !visiblePinnedComments.length || errorMessage}
     <div class="comment-next-comments-empty">
       <span class="comment-next-comments-empty-icon">
         <CommentNextIcon name="message" size={18} />
