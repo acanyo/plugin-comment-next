@@ -290,8 +290,8 @@ class CommentNextCommentService {
             .andQuery(isNull("metadata.deletionTimestamp"))
             .andQuery(equal("spec.subjectRef", Comment.toSubjectRefKey(ref)));
         if (top != null) {
-            builder.andQuery(top ? equal("spec.top", true)
-                : or(equal("spec.top", false), isNull("spec.top")));
+            // Halo's non-nullable index maps an omitted top field to false.
+            builder.andQuery(equal("spec.top", top));
         }
         var visibleQuery = and(
             equal("spec.hidden", false),

@@ -114,9 +114,9 @@ class CommentNextCommentListTest {
         var all = ListOptions.builder()
             .andQuery(isNull("metadata.deletionTimestamp"))
             .andQuery(equal("spec.subjectRef", "content.halo.run/Post/post"));
-        // Include both false and null: older comments may omit the top field entirely.
+        // Halo indexes an omitted top field as false; null queries on this index are invalid.
         var normal = ListOptions.builder(all.build())
-            .andQuery(or(equal("spec.top", false), isNull("spec.top")));
+            .andQuery(equal("spec.top", false));
         var pinned = ListOptions.builder(all.build()).andQuery(equal("spec.top", true));
         var first = ListOptions.builder(all.build());
         if (visibility != null) {
