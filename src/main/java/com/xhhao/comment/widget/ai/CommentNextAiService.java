@@ -541,6 +541,11 @@ public class CommentNextAiService {
             );
         }
 
+        body.setTags(CommentNextAiWritingPreferences.normalize(body.getTags()));
+        if (mode == CommentNextAiMode.GENERATE && body.getTags().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择 1 个评论标签");
+        }
+
         if (mode.contentRequired() && !StringUtils.hasText(content)) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
@@ -580,10 +585,19 @@ public class CommentNextAiService {
                                      CommentNextAiAssistantProfile assistant) {
         if (mode == CommentNextAiMode.SUMMARY) {
             return articleContentResolver.resolve(body.getSubject(), config.normalizedMaxInputLength())
-                .map(article -> buildArticleSummaryPrompt(article, assistant));
+                .map(article -> buildArticleSummaryPrompt(article, assistant)
+                    + CommentNextAiWritingPreferences.prompt(body.getTags()));
         }
 
-        return Mono.just(buildInputPrompt(mode, content, body, assistant));
+        var inputPrompt = buildInputPrompt(mode, content, body, assistant)
+            + CommentNextAiWritingPreferences.prompt(body.getTags());
+        if (mode == CommentNextAiMode.GENERATE && StringUtils.hasText(body.getSubject())
+            && CommentNextAiSubjectRef.parse(body.getSubject()).isSupportedContent()) {
+            return articleContentResolver.resolve(body.getSubject(), config.normalizedMaxInputLength())
+                .map(article -> inputPrompt + "\n参考" + article.displayType() + "标题："
+                    + article.title() + "\n参考正文：\n" + article.content());
+        }
+        return Mono.just(inputPrompt);
     }
 
     private Mono<String> buildMentionReplyPrompt(SettingConfigGetter.AiConfig config,

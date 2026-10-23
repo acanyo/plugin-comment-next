@@ -1,3 +1,5 @@
+import aiPanelStyles from '../ai/panel.css?inline';
+
 const PORTAL_VARIABLE_PREFIXES = ['--comment-next-', '--halo-cw-'];
 const PORTAL_STYLE_ID = 'comment-next-portal-styles';
 
@@ -417,149 +419,6 @@ function ensurePortalStyles() {
   outline: 2px solid #fff;
   outline-offset: 3px;
 }
-.comment-next-ai-panel-layer {
-  position: fixed;
-  z-index: 2147482990;
-  left: var(--comment-next-ai-panel-left, 1rem);
-  top: var(--comment-next-ai-panel-top, auto);
-  bottom: var(--comment-next-ai-panel-bottom, auto);
-  width: min(17.25rem, calc(100vw - 2rem));
-}
-.comment-next-ai-panel-backdrop {
-  display: none;
-}
-.comment-next-ai-panel {
-  position: relative;
-  width: 100%;
-  max-height: min(16rem, calc(100vh - 2rem));
-  overflow: auto;
-  border-radius: 0.5rem;
-  border: 1px solid var(--comment-next-menu-border-color, #d5dde7);
-  background: var(--comment-next-modal-bg-color, #fff);
-  padding: 0.375rem;
-  color: var(--comment-next-text-color, #172033);
-  box-shadow: 0 14px 34px rgb(15 23 42 / 0.14), 0 1px 0 rgb(255 255 255 / 0.82) inset;
-  animation: comment-next-ai-menu-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.comment-next-ai-panel-list {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.125rem;
-}
-.comment-next-ai-panel-close {
-  position: absolute;
-  right: 0.375rem;
-  top: 0.375rem;
-  z-index: 1;
-  display: inline-flex;
-  width: 1.5rem;
-  height: 1.5rem;
-  cursor: pointer;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.375rem;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  color: var(--comment-next-muted-color, #667085);
-  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
-}
-.comment-next-ai-panel-close:hover {
-  background: var(--comment-next-control-hover-bg-color, #eef2f4);
-  color: var(--comment-next-text-color, #172033);
-}
-.comment-next-ai-panel-close:active {
-  transform: scale(0.94);
-}
-.comment-next-ai-panel-command {
-  display: flex;
-  min-height: 2.5rem;
-  width: 100%;
-  cursor: pointer;
-  align-items: center;
-  gap: 0.5rem;
-  border-radius: 0.375rem;
-  border: 0;
-  background: transparent;
-  padding: 0.375rem 0.5rem;
-  text-align: left;
-  color: var(--comment-next-text-color, #172033);
-  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
-}
-.comment-next-ai-panel-command:first-child {
-  padding-right: 2rem;
-}
-.comment-next-ai-panel-command-icon {
-  display: inline-flex;
-  width: 1.75rem;
-  height: 1.75rem;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.375rem;
-  color: var(--comment-next-ai-color, rgb(59, 130, 246));
-}
-.comment-next-ai-panel-command-copy {
-  min-width: 0;
-  flex: 1;
-}
-.comment-next-ai-panel-command-label {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.8125rem;
-  font-weight: 720;
-  line-height: 1.15;
-}
-.comment-next-ai-panel-command-hint {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-top: 0.125rem;
-  font-size: 0.71875rem;
-  font-weight: 500;
-  line-height: 1.15;
-  color: var(--comment-next-muted-color, #667085);
-}
-.comment-next-ai-panel-command:hover,
-.comment-next-ai-panel-command-active {
-  background: var(--comment-next-control-hover-bg-color, #eef2f4);
-  color: var(--comment-next-ai-color, rgb(59, 130, 246));
-}
-.comment-next-ai-panel-command:hover .comment-next-ai-panel-command-icon,
-.comment-next-ai-panel-command-active .comment-next-ai-panel-command-icon {
-  background: var(--comment-next-ai-bg-color, rgb(239 246 255));
-}
-.comment-next-ai-panel-command:active {
-  transform: translateY(1px);
-}
-.comment-next-ai-panel-command:disabled {
-  cursor: wait;
-  opacity: 0.64;
-}
-@keyframes comment-next-ai-menu-in {
-  from {
-    opacity: 0;
-    transform: translateY(0.375rem) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-@keyframes comment-next-ai-sheet-in {
-  from {
-    opacity: 0;
-    transform: translateY(1rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 @media (max-width: 640px) {
   .comment-next-report-dialog-shell {
     inset: auto 0.75rem 0.75rem;
@@ -583,49 +442,9 @@ function ensurePortalStyles() {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .comment-next-ai-panel-layer {
-    inset: 0;
-    width: auto;
-    pointer-events: none;
-  }
-  .comment-next-ai-panel-backdrop {
-    position: absolute;
-    inset: 0;
-    display: block;
-    cursor: default;
-    border: 0;
-    background: rgb(15 23 42 / 0.28);
-    padding: 0;
-    pointer-events: auto;
-  }
-  .comment-next-ai-panel {
-    position: absolute;
-    left: 0.75rem;
-    right: 0.75rem;
-    bottom: calc(0.75rem + env(safe-area-inset-bottom));
-    width: auto;
-    border-radius: 1.125rem;
-    padding: 0.5rem;
-    pointer-events: auto;
-    box-shadow: 0 24px 64px rgb(15 23 42 / 0.28), 0 1px 0 rgb(255 255 255 / 0.82) inset;
-    animation: comment-next-ai-sheet-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-  .comment-next-ai-panel-list {
-    gap: 0.25rem;
-  }
-  .comment-next-ai-panel-command {
-    min-height: 3.5rem;
-    padding: 0.625rem 0.75rem;
-  }
-  .comment-next-ai-panel-command-icon {
-    width: 2.25rem;
-    height: 2.25rem;
-  }
+
 }
 @media (prefers-reduced-motion: reduce) {
-  .comment-next-ai-panel,
-  .comment-next-ai-panel-command,
-  .comment-next-ai-panel-close,
   .comment-next-report-dialog-actions button,
   .comment-next-report-dialog-close,
   .comment-next-image-lightbox-close,
@@ -634,6 +453,7 @@ function ensurePortalStyles() {
     transition: none;
   }
 }
+${aiPanelStyles}
 `;
 
   if (!existingStyle) {

@@ -40,19 +40,21 @@ repositories {
 }
 
 dependencies {
-    implementation platform('run.halo.tools.platform:plugin:2.26.0')
+    implementation platform('run.halo.tools.platform:plugin:2.27.0')
     compileOnly 'run.halo.app:api'
     compileOnly 'run.halo.aifoundation:api:1.0.0-SNAPSHOT'
     compileOnly 'com.github.Tim0x0:halo-plugin-interaction-plus:1.0.0'
     implementation 'org.altcha:altcha:2.0.2'
     implementation 'org.json:json:20240303'
-    implementation 'org.jsoup:jsoup:1.18.3'
+    // Halo provides Jsoup; bundling another copy splits its types across class loaders.
+    compileOnly 'org.jsoup:jsoup'
     implementation 'org.lionsoul:ip2region:3.3.7'
 
     testImplementation 'run.halo.app:api'
     testImplementation 'run.halo.aifoundation:api:1.0.0-SNAPSHOT'
     testImplementation 'com.github.Tim0x0:halo-plugin-interaction-plus:1.0.0'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.jsoup:jsoup'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -98,6 +100,6 @@ build {
 }
 
 halo {
-    version = "2.26.0"
+    version = "2.27.0"
     debug = true
 }

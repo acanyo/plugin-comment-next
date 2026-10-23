@@ -11,7 +11,7 @@ class CommentNextWeAvatarUrlTest {
         assertEquals(
             "https://weavatar.com/avatar/"
                 + "70e291390f894d53bb3be88862c123752f7155c493e4103b6212842de0e4b78e"
-                + "?d=mp&f=webp&s=96",
+                + "?d=404&f=webp&s=96",
             CommentNextWeAvatarUrl.forEmail(" 12345@QQ.COM ")
         );
     }
@@ -19,7 +19,7 @@ class CommentNextWeAvatarUrlTest {
     @Test
     void returnsDefaultAvatarForBlankEmail() {
         assertEquals(
-            "https://weavatar.com/avatar/?d=mp&f=webp&s=96",
+            "",
             CommentNextWeAvatarUrl.forEmail(" ")
         );
     }

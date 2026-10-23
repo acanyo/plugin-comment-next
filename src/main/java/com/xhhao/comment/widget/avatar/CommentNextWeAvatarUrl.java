@@ -10,7 +10,7 @@ public final class CommentNextWeAvatarUrl {
 
     private static final String BASE_URL = "https://weavatar.com/avatar/";
 
-    private static final String QUERY = "?d=mp&f=webp&s=96";
+    private static final String QUERY = "?d=404&f=webp&s=96";
 
     private CommentNextWeAvatarUrl() {
     }
@@ -24,7 +24,7 @@ public final class CommentNextWeAvatarUrl {
     }
 
     public static String defaultAvatar() {
-        return BASE_URL + QUERY;
+        return "";
     }
 
     private static String sha256(String value) {

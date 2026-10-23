@@ -1,5 +1,4 @@
-import { rsbuildConfig } from '@halo-dev/ui-plugin-bundler-kit';
-import { pluginVue } from '@rsbuild/plugin-vue';
+import { rsbuildConfig } from '@halo-dev/ui-plugin-bundler-kit/rsbuild';
 import { UnoCSSRspackPlugin } from '@unocss/webpack/rspack';
 
 const MANIFEST_PATH = '../src/main/resources/plugin.yaml';
@@ -17,7 +16,6 @@ export default rsbuildConfig({
           '@': './src',
         },
       },
-      plugins: [pluginVue()],
       tools: {
         rspack: {
           plugins: [UnoCSSRspackPlugin()],

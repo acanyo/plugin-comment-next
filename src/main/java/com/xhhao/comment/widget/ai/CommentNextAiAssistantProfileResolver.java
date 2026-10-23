@@ -39,7 +39,8 @@ public class CommentNextAiAssistantProfileResolver {
         var displayName = spec == null ? null : spec.getDisplayName();
         return new CommentNextAiAssistantProfile(
             normalizedUsername(username),
-            normalizedDisplayName(displayName, fallbackDisplayName)
+            normalizedDisplayName(displayName, fallbackDisplayName),
+            spec == null || !StringUtils.hasText(spec.getAvatar()) ? "" : spec.getAvatar().strip()
         );
     }
 

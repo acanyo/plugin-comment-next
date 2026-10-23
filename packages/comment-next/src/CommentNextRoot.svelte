@@ -23,7 +23,10 @@ import type {
   CommentNextEmotePack,
   CommentNextRawEmotePacks,
 } from './types/emote';
-import { sanitizeCommentSubmitHtml, sanitizeConsoleCommentHtml } from './utils/html';
+import {
+  sanitizeCommentSubmitHtml,
+  sanitizeConsoleCommentHtml,
+} from './utils/html';
 import { ensureLottieRuntimeLoaded } from './utils/lottie-content-adapter';
 
 const {
@@ -111,6 +114,7 @@ const reportConfig = $derived(pluginConfig?.report);
 const editorConfig = $derived(pluginConfig?.editor);
 const badgeConfig = $derived(pluginConfig?.badge);
 const emoteConfig = $derived(pluginConfig?.emote);
+const avatarConfig = $derived(pluginConfig?.avatar);
 const resolvedAllowAnonymous = $derived(
   globalInfo?.allowAnonymousComments ?? allowAnonymous
 );
@@ -353,6 +357,7 @@ export function reset() {
     {aiConfig}
     {uploadConfig}
     {emoteConfig}
+    {avatarConfig}
     emotePacks={resolvedEmotePacks}
     variant="reply"
     compact
@@ -394,6 +399,7 @@ export function reset() {
       {aiConfig}
       {uploadConfig}
       {emoteConfig}
+      {avatarConfig}
       emotePacks={resolvedEmotePacks}
     />
 
@@ -421,6 +427,7 @@ export function reset() {
         {reportConfig}
         {uploadConfig}
         {emoteConfig}
+        {avatarConfig}
         emotePacks={resolvedEmotePacks}
       />
     {/if}

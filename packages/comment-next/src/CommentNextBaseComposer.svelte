@@ -30,6 +30,7 @@ import {
 } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextAvatarConfig,
   CommentNextEmoteConfig,
   CommentNextSecurityConfig,
   CommentNextUploadConfig,
@@ -46,8 +47,8 @@ import type { CommentNextComposerSubmitPayload } from './types/composer';
 import type { CommentNextEditorImageKind } from './types/editor';
 import type { CommentNextEmoteItem, CommentNextEmotePack } from './types/emote';
 import { sanitizeCommentSubmitHtml } from './utils/html';
-import { isolateTypingShortcuts } from './utils/isolate-typing-shortcuts';
 import { inferImageContentType, isImageContentType } from './utils/image-files';
+import { isolateTypingShortcuts } from './utils/isolate-typing-shortcuts';
 import {
   COMMENT_NEXT_MODAL_OPEN_EVENT,
   notifyCommentNextModalOpen,
@@ -71,6 +72,7 @@ type CommentNextEditorRef = {
   reset: () => void;
   focus: () => void;
   insertText: (value: string) => void;
+  mentionAssistant: () => void;
   replaceText: (value: string) => void;
   insertImage: (
     src: string,
@@ -115,7 +117,7 @@ const {
   replyToName = '',
   submitLabel = '提交',
   loginLabel = '登录后评论',
-  aiLabel = 'AI 助手',
+  aiLabel = 'AI 评论',
   aiAssistantName = '评论助手',
   showAi = true,
   showInsertTools = true,
@@ -126,6 +128,7 @@ const {
   aiConfig,
   uploadConfig,
   emoteConfig,
+  avatarConfig,
   emotePacks = [],
   loginRedirectHash = '',
   onChange = () => {},
@@ -170,6 +173,7 @@ const {
   aiConfig?: CommentNextAiConfig;
   uploadConfig?: CommentNextUploadConfig;
   emoteConfig?: CommentNextEmoteConfig;
+  avatarConfig?: CommentNextAvatarConfig;
   emotePacks?: CommentNextEmotePack[];
   loginRedirectHash?: string;
   onChange?: (html: string) => void;
@@ -184,10 +188,11 @@ let isAiPanelOpen = $state(false);
 let showInlineSuggestion = $state(false);
 let showSelectionTools = $state(false);
 let previousVariant = $state<CommentNextComposerVariant | undefined>();
-let aiMode = $state<CommentNextAiMode>('polish');
+let aiMode = $state<CommentNextAiMode>('generate');
 let aiGenerating = $state(false);
 let aiSuggestionText = $state('');
-let aiSuggestionMode = $state<CommentNextAiMode>('polish');
+let aiSuggestionMode = $state<CommentNextAiMode>('generate');
+let aiSuggestionTags = $state<string[]>([]);
 let anonymousDisplayName = $state('');
 let anonymousEmail = $state('');
 let anonymousWebsite = $state('');
@@ -243,8 +248,13 @@ const resolvedSubmitLabel = $derived(
 const imageUploadEnabled = $derived(resolveImageUploadEnabled());
 const imageAccept = 'image/*';
 const aiWritingEnabled = $derived(showAi && resolveAiWritingEnabled());
+const aiMentionEnabled = $derived(
+  aiWritingEnabled && Boolean(aiConfig?.mentionAutoReplyEnabled)
+);
 const resolvedAiLabel = $derived(
-  resolveTextOption(aiConfig?.buttonLabel, aiLabel, 'AI 助手')
+  aiConfig?.buttonLabel?.trim() === 'AI 助手'
+    ? 'AI 评论'
+    : resolveTextOption(aiConfig?.buttonLabel, aiLabel, 'AI 评论')
 );
 const resolvedAiAssistantName = $derived(
   resolveTextOption(
@@ -271,6 +281,10 @@ onMount(() => {
 });
 
 $effect(() => {
+  if (!aiWritingEnabled) isAiPanelOpen = false;
+});
+
+$effect(() => {
   isAiPanelOpen = commandMenuOpen;
   showInlineSuggestion = inlineSuggestion;
   showSelectionTools = selectionTools;
@@ -279,7 +293,7 @@ $effect(() => {
 $effect(() => {
   if (previousVariant !== variant) {
     previousVariant = variant;
-    aiMode = variant === 'reply' ? 'reply' : 'polish';
+    aiMode = variant === 'reply' ? 'reply' : 'generate';
     aiSuggestionMode = aiMode;
   }
 });
@@ -870,7 +884,10 @@ function clearPendingImageUploads() {
   pendingImageUploads.clear();
 }
 
-async function handleAiModeSelect(mode: CommentNextAiMode | string) {
+async function handleAiModeSelect(
+  mode: CommentNextAiMode | string,
+  tags: string[] = []
+) {
   const nextMode = normalizeAiMode(mode);
 
   if (aiGenerating) {
@@ -881,6 +898,7 @@ async function handleAiModeSelect(mode: CommentNextAiMode | string) {
   submitMessage = '';
   aiMode = nextMode;
   aiSuggestionMode = nextMode;
+  aiSuggestionTags = [...tags];
   aiSuggestionText = '';
   isAiPanelOpen = false;
   showSelectionTools = false;
@@ -894,7 +912,7 @@ async function handleAiModeSelect(mode: CommentNextAiMode | string) {
   }
 
   const content = editorRef?.getText() ?? textFromHtml(editorHtml);
-  const localValidationMessage = validateAiInput(nextMode, content);
+  const localValidationMessage = validateAiInput(nextMode, content, tags);
 
   if (localValidationMessage) {
     showInlineSuggestion = false;
@@ -909,6 +927,7 @@ async function handleAiModeSelect(mode: CommentNextAiMode | string) {
     const result = await generateCommentAiSuggestion({
       baseUrl,
       mode: nextMode,
+      tags,
       content,
       variant,
       subject,
@@ -946,7 +965,7 @@ function handleRewriteAiSuggestion() {
     return;
   }
 
-  void handleAiModeSelect(aiSuggestionMode);
+  void handleAiModeSelect(aiSuggestionMode, aiSuggestionTags);
 }
 
 function closeAiSuggestion() {
@@ -960,6 +979,7 @@ function normalizeAiMode(mode: CommentNextAiMode | string): CommentNextAiMode {
   }
 
   if (
+    mode === 'generate' ||
     mode === 'polish' ||
     mode === 'expand' ||
     mode === 'question' ||
@@ -972,7 +992,11 @@ function normalizeAiMode(mode: CommentNextAiMode | string): CommentNextAiMode {
   return variant === 'reply' ? 'reply' : 'polish';
 }
 
-function validateAiInput(mode: CommentNextAiMode, content: string): string {
+function validateAiInput(
+  mode: CommentNextAiMode,
+  content: string,
+  tags: string[]
+): string {
   const normalizedContent = content.trim();
   const maxInputLength = Number(aiConfig?.maxInputLength);
 
@@ -984,7 +1008,16 @@ function validateAiInput(mode: CommentNextAiMode, content: string): string {
     return `AI 输入内容不能超过 ${maxInputLength} 个字符。`;
   }
 
-  if (mode !== 'reply' && mode !== 'summary' && !normalizedContent) {
+  if (mode === 'generate' && !tags.length) {
+    return '请至少选择 1 个评论标签。';
+  }
+
+  if (
+    mode !== 'generate' &&
+    mode !== 'reply' &&
+    mode !== 'summary' &&
+    !normalizedContent
+  ) {
     return '请先输入需要 AI 处理的内容。';
   }
 
@@ -1124,6 +1157,8 @@ function resolveMentionName(
       visible={showAccountBar}
       loggedIn={isLoggedIn}
       avatarUrl={isLoggedIn ? currentUserAvatar : anonymousAvatarUrl}
+      avatarSeed={isLoggedIn ? currentUser?.name : undefined}
+      {avatarConfig}
       avatarAlt={isLoggedIn ? currentUserDisplayName : anonymousDisplayName}
       userDisplayName={currentUserDisplayName}
       displayName={anonymousDisplayName}
@@ -1148,7 +1183,8 @@ function resolveMentionName(
       suggestionLoading={aiGenerating}
       aiAssistantName={resolvedAiAssistantName}
       aiAssistantMentionName={resolvedAiAssistantMentionName}
-      aiMentionEnabled={aiWritingEnabled}
+      aiAssistantAvatar={aiConfig?.assistantAvatar}
+      aiMentionEnabled={aiMentionEnabled && !aiGenerating}
       {allowImages}
       topRounded={editorTopRounded}
       onChange={(html) => {
@@ -1158,7 +1194,7 @@ function resolveMentionName(
       }}
       onImagePaste={handleImagePaste}
       onCommandMenuRequest={() => {
-        if (!aiWritingEnabled) {
+        if (!aiWritingEnabled || aiGenerating) {
           return;
         }
 
@@ -1194,10 +1230,17 @@ function resolveMentionName(
         {loginLabel}
         aiLabel={resolvedAiLabel}
         aiAssistantName={resolvedAiAssistantName}
+        aiAssistantMentionName={resolvedAiAssistantMentionName}
+        aiAssistantAvatar={aiConfig?.assistantAvatar}
         {aiMode}
         aiLoading={aiGenerating}
         {variant}
         showAi={aiWritingEnabled}
+        showMention={aiMentionEnabled}
+        aiHasContent={Boolean(textFromHtml(editorHtml).trim())}
+        aiHasSubject={Boolean(subject.trim())}
+        aiHasReplyTarget={Boolean(replyToName.trim())}
+        onMentionAssistant={() => editorRef?.mentionAssistant()}
         {showInsertTools}
         {showSubmitArea}
         {imageUploadEnabled}
@@ -1213,7 +1256,7 @@ function resolveMentionName(
         }}
         onCommandModeSelect={handleAiModeSelect}
         onToggleCommandMenu={() => {
-          if (!aiWritingEnabled) {
+          if (!aiWritingEnabled || aiGenerating) {
             return;
           }
           isAiPanelOpen = !isAiPanelOpen;

@@ -25,6 +25,7 @@ export interface CommentNextBadgeConfig {
 }
 
 export interface CommentNextAuthor {
+  name?: string;
   displayName: string;
   avatar?: string;
   website?: string;

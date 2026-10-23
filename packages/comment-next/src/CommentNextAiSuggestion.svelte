@@ -22,6 +22,7 @@ const {
 } = $props();
 
 const modeLabels: Record<string, string> = {
+  generate: '标签生成评论',
   polish: '润色',
   expand: '补充观点',
   question: '提问角度',

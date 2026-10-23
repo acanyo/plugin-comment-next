@@ -1,4 +1,6 @@
 import { axiosInstance, consoleApiClient } from '@halo-dev/api-client';
+import { DEFAULT_BADGE_ICONS } from '../../../shared/badge-icons';
+import { materializeBadgeIcon } from '../utils/materialize-badge-icon';
 import type { ResourceMetadata } from './metadata.ts';
 
 export const BADGE_RULES_ENDPOINT =
@@ -295,18 +297,22 @@ export async function deleteBadgeAssignmentsForIdentity(
 }
 
 export async function createBadgeRule(rule: BadgeRule): Promise<BadgeRule> {
+  const payload = normalizeBadgeRule(rule);
+  payload.spec.icon = await materializeBadgeIcon(payload.spec.icon);
   const { data } = await axiosInstance.post<BadgeRule>(
     BADGE_RULES_ENDPOINT,
-    normalizeBadgeRule(rule)
+    payload
   );
   return data;
 }
 
 export async function updateBadgeRule(rule: BadgeRule): Promise<BadgeRule> {
   const name = rule.metadata.name;
+  const payload = normalizeBadgeRule(rule);
+  payload.spec.icon = await materializeBadgeIcon(payload.spec.icon);
   const { data } = await axiosInstance.put<BadgeRule>(
     `${BADGE_RULES_ENDPOINT}/${name}`,
-    normalizeBadgeRule(rule)
+    payload
   );
   return data;
 }
@@ -333,8 +339,9 @@ export function createBadgeRuleDraft(type: BadgeRuleType): BadgeRule {
       type,
       enabled: true,
       label: '',
-      icon:
-        type === 'LEVEL' ? 'mdi:star-four-points-outline' : 'mdi:star-outline',
+      icon: DEFAULT_BADGE_ICONS[
+        type === 'LEVEL' ? 'mdi:star-four-points-outline' : 'mdi:star-outline'
+      ],
       color: type === 'LEVEL' ? '#3b82f6' : '#8b5cf6',
       title: '',
       minComments: type === 'LEVEL' ? 10 : undefined,

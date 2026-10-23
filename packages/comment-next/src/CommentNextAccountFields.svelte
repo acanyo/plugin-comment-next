@@ -1,12 +1,15 @@
 <script lang="ts">
 import CommentNextAvatar from './CommentNextAvatar.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
+import type { CommentNextAvatarConfig } from './services/config';
 
 const {
   visible = true,
   loggedIn = false,
   avatarUrl = '',
   avatarAlt = '',
+  avatarSeed = '',
+  avatarConfig,
   userDisplayName = '',
   displayName = '',
   email = '',
@@ -18,6 +21,8 @@ const {
   loggedIn?: boolean;
   avatarUrl?: string;
   avatarAlt?: string;
+  avatarSeed?: string;
+  avatarConfig?: CommentNextAvatarConfig;
   userDisplayName?: string;
   displayName?: string;
   email?: string;
@@ -46,7 +51,7 @@ function updateField(
 {#if visible}
   <div class:comment-next-account-fields-logged-in={loggedIn} class="comment-next-account-fields" aria-label="评论身份">
     <div class="comment-next-account-avatar">
-      <CommentNextAvatar src={avatarUrl} alt={avatarAlt || displayName || userDisplayName} size={34} />
+      <CommentNextAvatar seed={avatarSeed} config={avatarConfig} src={avatarUrl} alt={avatarAlt || displayName || userDisplayName} size={34} />
     </div>
 
     {#if loggedIn}

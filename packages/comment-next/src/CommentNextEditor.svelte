@@ -1,7 +1,9 @@
 <script lang="ts">
 import { onMount, tick } from 'svelte';
+import { createMentionChip, serializeMentionChips } from './ai/mention-chip';
 import CommentNextAiSuggestion from './CommentNextAiSuggestion.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
+import CommentNextMentionOption from './CommentNextMentionOption.svelte';
 import type { CommentNextEditorImageKind } from './types/editor';
 import type { CommentNextEmoteItem } from './types/emote';
 import {
@@ -56,6 +58,7 @@ const {
   suggestionLoading = false,
   aiAssistantName = '评论助手',
   aiAssistantMentionName = '',
+  aiAssistantAvatar = '',
   aiMentionEnabled = true,
   allowImages = true,
   topRounded = false,
@@ -77,6 +80,7 @@ const {
   suggestionLoading?: boolean;
   aiAssistantName?: string;
   aiAssistantMentionName?: string;
+  aiAssistantAvatar?: string;
   aiMentionEnabled?: boolean;
   allowImages?: boolean;
   topRounded?: boolean;
@@ -98,6 +102,7 @@ let pendingMentionTrigger = $state<PendingMentionTrigger | undefined>();
 let mentionPanelStyle = $state('');
 let selectedMedia = $state<ResizableMedia | undefined>();
 let resizeHandleStyle = $state('');
+// biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
 let resizeHandleElement = $state<HTMLButtonElement | undefined>();
 let resizeState: ResizeState | undefined;
 
@@ -185,6 +190,26 @@ export function insertText(value: string) {
   insertNodeAtCaret(document.createTextNode(value));
 }
 
+export function mentionAssistant() {
+  if (!aiMentionEnabled || !editorElement) {
+    return;
+  }
+  if (getSerializableEditorText().includes(resolvedMentionName)) {
+    focus();
+    return;
+  }
+  const trigger = getActiveMentionTrigger() ?? pendingMentionTrigger;
+  if (trigger && assistantMentionMatchesQuery(trigger.query)) {
+    insertAssistantMention();
+    return;
+  }
+  insertNodeAtCaret(
+    createMentionChip(resolvedMentionName, aiAssistantAvatar),
+    document.createTextNode(' ')
+  );
+  closeMentionPanel();
+}
+
 export function replaceText(value: string) {
   if (!editorElement) {
     return;
@@ -233,7 +258,10 @@ export function insertLottie(item: CommentNextEmoteItem) {
   element.setAttribute('height', String(Math.max(1, Math.round(height))));
   element.setAttribute('autoplay', 'true');
   element.setAttribute('loop', defaults?.loop === false ? 'false' : 'true');
-  element.setAttribute('speed', String(Number(defaults?.speed) > 0 ? defaults?.speed : 1));
+  element.setAttribute(
+    'speed',
+    String(Number(defaults?.speed) > 0 ? defaults?.speed : 1)
+  );
   element.setAttribute('fit', defaults?.fit || 'contain');
   element.setAttribute('align', defaults?.align || 'center');
   element.setAttribute('controls', defaults?.controls ? 'true' : 'false');
@@ -254,7 +282,11 @@ export function replaceImageSrc(
 
   let replaced = false;
 
-  for (const image of Array.from(editorElement.querySelectorAll('img'))) {
+  for (const image of Array.from(
+    editorElement.querySelectorAll<HTMLImageElement>(
+      'img:not([data-comment-next-mention] img)'
+    )
+  )) {
     if (image.getAttribute('src') !== sourceSrc) {
       continue;
     }
@@ -346,7 +378,11 @@ function clearSelectedMedia() {
 }
 
 function updateResizeHandlePosition() {
-  if (!selectedMedia || !editorWrapElement || !editorElement?.contains(selectedMedia)) {
+  if (
+    !selectedMedia ||
+    !editorWrapElement ||
+    !editorElement?.contains(selectedMedia)
+  ) {
     if (selectedMedia) {
       clearSelectedMedia();
     }
@@ -454,7 +490,11 @@ function getMediaDimension(
     : fallback;
 }
 
-function setMediaDimensions(media: ResizableMedia, width: number, height: number) {
+function setMediaDimensions(
+  media: ResizableMedia,
+  width: number,
+  height: number
+) {
   media.setAttribute('width', String(Math.round(width)));
   media.setAttribute('height', String(Math.round(height)));
 }
@@ -665,82 +705,21 @@ function insertAssistantMention() {
     return;
   }
 
-  const mentionText = `${resolvedMentionName} `;
-
-  if (trigger.endOffset <= trigger.startOffset) {
-    closeMentionPanel();
-    insertText(mentionText);
-    return;
-  }
-
-  const fallbackText = replaceTextRange(
-    getSerializableEditorText(),
-    trigger.startOffset,
-    trigger.endOffset,
-    mentionText
-  );
-  const selectionOffset = trigger.startOffset + mentionText.length;
-  const inserted = replaceEditorRangeWithText(trigger, mentionText);
-
-  if (!inserted || !hasTextAtOffset(mentionText, trigger.startOffset)) {
-    replaceEditorText(fallbackText, selectionOffset);
-  }
-
-  closeMentionPanel();
-  onChange(getHtml());
-}
-
-function replaceEditorRangeWithText(
-  trigger: PendingMentionTrigger,
-  text: string
-): boolean {
-  if (!editorElement) {
-    return false;
-  }
-
-  const editor = editorElement;
   const range = createTextOffsetRange(
-    editor,
+    editorElement,
     trigger.startOffset,
     trigger.endOffset
   );
-
   if (!range) {
-    return false;
-  }
-
-  editor.focus();
-  range.deleteContents();
-  range.insertNode(document.createTextNode(text));
-  editor.normalize();
-  restoreTextSelectionOffset(editor, trigger.startOffset + text.length);
-
-  return true;
-}
-
-function replaceTextRange(
-  value: string,
-  startOffset: number,
-  endOffset: number,
-  replacement: string
-): string {
-  return `${value.slice(0, startOffset)}${replacement}${value.slice(endOffset)}`;
-}
-
-function hasTextAtOffset(text: string, offset: number): boolean {
-  return (
-    getSerializableEditorText().slice(offset, offset + text.length) === text
-  );
-}
-
-function replaceEditorText(text: string, selectionOffset: number) {
-  if (!editorElement) {
+    closeMentionPanel();
     return;
   }
-
-  editorElement.textContent = text;
-  editorElement.focus();
-  restoreTextSelectionOffset(editorElement, selectionOffset);
+  insertNodeAtCaret(
+    createMentionChip(resolvedMentionName, aiAssistantAvatar),
+    document.createTextNode(' '),
+    range
+  );
+  closeMentionPanel();
 }
 
 function closeMentionPanel() {
@@ -906,6 +885,7 @@ function getSerializableEditorText(): string {
 }
 
 function removeTransientEditorNodes(root: HTMLElement) {
+  serializeMentionChips(root);
   root
     .querySelectorAll('[data-comment-next-transient="true"]')
     .forEach((node) => {
@@ -949,7 +929,11 @@ function normalizeEditorImages() {
     return;
   }
 
-  for (const image of Array.from(editorElement.querySelectorAll('img'))) {
+  for (const image of Array.from(
+    editorElement.querySelectorAll<HTMLImageElement>(
+      'img:not([data-comment-next-mention] img)'
+    )
+  )) {
     if (!image.classList.contains('comment-next-editor-emote-image')) {
       image.classList.add('comment-next-editor-image');
     }
@@ -967,19 +951,26 @@ function removeEditorImages() {
   }
 
   for (const image of Array.from(editorElement.querySelectorAll('img'))) {
-    image.remove();
+    if (!image.closest('[data-comment-next-mention]')) image.remove();
   }
 }
 
-function insertNodeAtCaret(node: Node, trailingNode?: Node) {
+function insertNodeAtCaret(
+  node: Node,
+  trailingNode?: Node,
+  targetRange?: Range
+) {
   if (!editorElement) {
     return;
   }
 
   editorElement.focus();
 
-  const selection = window.getSelection();
-  const range = resolveEditorRange(selection);
+  const root = editorElement.getRootNode() as ShadowRoot & {
+    getSelection?: () => Selection | null;
+  };
+  const selection = root.getSelection?.() ?? window.getSelection();
+  const range = targetRange ?? resolveEditorRange(selection);
 
   range.deleteContents();
   range.insertNode(node);
@@ -1069,7 +1060,10 @@ function isNodeInsideTransient(node: Node): boolean {
     onblur={handleEditorBlur}
     onpaste={handleEditorPaste}
   >
-    {#if inlineSuggestion}
+  </div>
+
+  {#if inlineSuggestion}
+    <div class="comment-next-editor-suggestion">
       <CommentNextAiSuggestion
         mode={aiMode}
         text={suggestionText}
@@ -1080,14 +1074,16 @@ function isNodeInsideTransient(node: Node): boolean {
         onRewrite={onRewriteSuggestion}
         onReject={onRejectSuggestion}
       />
-    {:else if selectionTools}
+    </div>
+  {:else if selectionTools}
+    <div class="comment-next-editor-suggestion">
       <p class="comment-next-editor-paragraph">
         这篇文章给了我很多启发，尤其是关于
         <mark class="comment-next-selection-mark">长期主义的部分</mark>
         ，让我对产品设计有了新的思考。
       </p>
-    {/if}
-  </div>
+    </div>
+  {/if}
 
   {#if selectedMedia && resizeHandleStyle}
     <button
@@ -1110,32 +1106,11 @@ function isNodeInsideTransient(node: Node): boolean {
       aria-label="AI 助手候选"
       style={mentionPanelStyle}
     >
-      <button
-        class="comment-next-mention-option"
-        type="button"
-        role="option"
-        aria-selected="true"
-        onmousedown={(event) => {
-          event.preventDefault();
-          insertAssistantMention();
-        }}
-        onpointerdown={(event) => {
-          event.preventDefault();
-          insertAssistantMention();
-        }}
-        onclick={(event) => {
-          event.preventDefault();
-          insertAssistantMention();
-        }}
-      >
-        <span class="comment-next-mention-option-icon" aria-hidden="true">
-          <CommentNextIcon name="sparkle" size={15} />
-        </span>
-        <span class="comment-next-mention-option-copy">
-          <span class="comment-next-mention-option-name">{resolvedMentionName}</span>
-          <small>AI 助手</small>
-        </span>
-      </button>
+      <CommentNextMentionOption
+        mentionName={resolvedMentionName}
+        avatar={aiAssistantAvatar}
+        onSelect={insertAssistantMention}
+      />
     </div>
   {/if}
 
@@ -1188,6 +1163,18 @@ function isNodeInsideTransient(node: Node): boolean {
   .comment-next-editor:empty::before {
     content: attr(data-placeholder);
     --at-apply: pointer-events-none text-[var(--comment-next-placeholder-color,#8b96a7)];
+  }
+
+  .comment-next-editor-wrap-inline .comment-next-editor {
+    min-height: 0;
+  }
+
+  .comment-next-editor-wrap-inline .comment-next-editor:empty::before {
+    content: none;
+  }
+
+  .comment-next-editor-suggestion {
+    padding: 0 1.25rem 1.25rem;
   }
 
   .comment-next-editor :global(.comment-next-auto-link) {
@@ -1249,38 +1236,28 @@ function isNodeInsideTransient(node: Node): boolean {
     animation: comment-next-mention-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
-  .comment-next-mention-option,
-  .comment-next-mention-option-icon {
-    --at-apply: flex items-center;
+  .comment-next-editor :global(.comment-next-editor-mention) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    vertical-align: middle;
+    padding: 0.125rem 0.5rem 0.125rem 0.1875rem;
+    border-radius: 999px;
+    background: var(--comment-next-ai-bg-color, #eaf0ff);
+    color: var(--comment-next-ai-color, #3b63db);
+    font-size: 0.875em;
+    font-weight: 650;
+    line-height: 1.5;
+    white-space: nowrap;
+    user-select: all;
   }
-
-  .comment-next-mention-option {
-    --at-apply: min-h-12 w-full cursor-pointer gap-2.5 rounded-[0.6875rem] border-0 bg-transparent px-2.5 py-2 text-left text-[var(--comment-next-text-color,#172033)] font-inherit transition-[background-color,color,transform] duration-140 ease-in-out;
-  }
-
-  .comment-next-mention-option:hover,
-  .comment-next-mention-option:focus-visible {
-    --at-apply: bg-[var(--comment-next-control-hover-bg-color,#eef2f4)] text-[var(--comment-next-ai-color,rgb(59,130,246))] outline-none;
-  }
-
-  .comment-next-mention-option:active {
-    --at-apply: translate-y-px;
-  }
-
-  .comment-next-mention-option-icon {
-    --at-apply: h-8 w-8 flex-none justify-center rounded-lg bg-[var(--comment-next-ai-bg-color,rgb(239_246_255))] text-[var(--comment-next-ai-color,rgb(59,130,246))];
-  }
-
-  .comment-next-mention-option-copy {
-    --at-apply: min-w-0 flex-1;
-  }
-
-  .comment-next-mention-option-name {
-    --at-apply: block truncate text-[0.875rem] font-[760] leading-tight;
-  }
-
-  .comment-next-mention-option-copy small {
-    --at-apply: mt-0.5 block truncate text-[0.75rem] text-[var(--comment-next-muted-color,#667085)] font-medium leading-tight;
+  .comment-next-editor :global(.comment-next-editor-mention img) {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin: 0;
+    border-radius: 999px;
+    object-fit: cover;
+    display: block;
   }
 
   .comment-next-selection-bar button {
@@ -1356,7 +1333,6 @@ function isNodeInsideTransient(node: Node): boolean {
 
   @media (prefers-reduced-motion: reduce) {
     .comment-next-mention-panel,
-    .comment-next-mention-option,
     .comment-next-selection-bar,
     .comment-next-selection-bar button {
       --at-apply: animate-none transition-none;

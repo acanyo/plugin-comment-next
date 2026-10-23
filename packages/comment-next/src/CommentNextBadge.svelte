@@ -1,4 +1,5 @@
 <script lang="ts">
+import { badgeIconImage } from '../../../shared/badge-icon-image';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import CommentNextTooltip from './CommentNextTooltip.svelte';
 import type { CommentNextBadge } from './types/comment';
@@ -9,14 +10,13 @@ const {
   badge: CommentNextBadge;
 } = $props();
 
-type BadgeIcon =
-  | { type: 'builtin'; name: string }
-  | { type: 'mask'; style: string }
-  | { type: 'svg'; svg: string };
-
 const badgeStyle = $derived(resolveBadgeStyle(badge.color));
-const badgeIcon = $derived(resolveBadgeIcon(badge.icon));
+const iconImage = $derived(badgeIconImage(badge.icon, badge.color));
 const tooltipText = $derived(badge.title?.trim() ?? '');
+// biome-ignore lint/style/useConst: Updated by the image error handler in the template.
+let failedIcon = $state<string>();
+
+const showImage = $derived(Boolean(iconImage && failedIcon !== iconImage));
 
 function resolveBadgeStyle(color?: string): string | undefined {
   const badgeColor = normalizeColor(color);
@@ -47,39 +47,6 @@ function normalizeColor(color?: string): string | undefined {
 
   return undefined;
 }
-
-function resolveBadgeIcon(icon?: string): BadgeIcon | undefined {
-  const value = icon?.trim();
-  if (!value) {
-    return undefined;
-  }
-
-  if (value.startsWith('<svg')) {
-    return { type: 'svg', svg: value };
-  }
-
-  const maskUrl = resolveMaskUrl(value);
-  if (maskUrl) {
-    return {
-      type: 'mask',
-      style: `--comment-next-badge-icon-url: url("${maskUrl}")`,
-    };
-  }
-
-  return { type: 'builtin', name: value };
-}
-
-function resolveMaskUrl(icon: string): string | undefined {
-  if (/^(data:image\/svg\+xml|https?:\/\/|\/)/i.test(icon)) {
-    return icon.replaceAll('"', '%22');
-  }
-
-  if (/^[a-z0-9-]+:[a-z0-9-]+$/i.test(icon)) {
-    return `https://api.iconify.design/${icon}.svg`;
-  }
-
-  return undefined;
-}
 </script>
 
 <CommentNextTooltip text={tooltipText} align="start">
@@ -92,24 +59,22 @@ function resolveMaskUrl(icon: string): string | undefined {
     class="comment-next-badge inline-flex items-center box-border h-5 max-w-32 gap-[0.2rem] whitespace-nowrap rounded-md border border-solid [border-color:var(--comment-next-badge-border-color,rgb(15_23_42_/_0.08))] bg-[var(--comment-next-badge-bg-color,#f3f6f8)] px-[0.4rem] text-[0.6875rem] text-[var(--comment-next-badge-color,#4b5870)] font-[760] leading-none"
     style={badgeStyle}
   >
-    {#if badgeIcon}
-      {#if badgeIcon.type === "builtin"}
-        <CommentNextIcon name={badgeIcon.name} size={12} />
-      {:else if badgeIcon.type === "mask"}
-        <span class="comment-next-badge-icon comment-next-badge-icon-mask inline-flex h-3 w-3 flex-none bg-current [mask:var(--comment-next-badge-icon-url)_center_/_contain_no-repeat] [-webkit-mask:var(--comment-next-badge-icon-url)_center_/_contain_no-repeat]" style={badgeIcon.style} aria-hidden="true"></span>
-      {:else}
-        <span class="comment-next-badge-icon comment-next-badge-icon-svg inline-flex h-3 w-3 flex-none items-center justify-center" aria-hidden="true">{@html badgeIcon.svg}</span>
-      {/if}
+    {#if showImage}
+      <img
+        class="comment-next-badge-icon block h-3 w-3 flex-none object-contain"
+        src={iconImage}
+        alt=""
+        aria-hidden="true"
+        onerror={() => { failedIcon = iconImage; }}
+      />
+    {:else if badge.icon?.trim()}
+      <CommentNextIcon name={iconImage ? 'medal' : badge.icon.trim()} size={12} />
     {/if}
     <span class="min-w-0 overflow-hidden text-ellipsis">{badge.label}</span>
   </span>
 </CommentNextTooltip>
 
 <style>
-  .comment-next-badge-icon-svg :global(svg) {
-    --at-apply: block h-full w-full text-current;
-  }
-
   .comment-next-badge-first {
     --comment-next-badge-bg-color: var(--comment-next-badge-first-bg-color, #fff7d7);
     --comment-next-badge-border-color: var(--comment-next-badge-first-border-color, #ead27a);

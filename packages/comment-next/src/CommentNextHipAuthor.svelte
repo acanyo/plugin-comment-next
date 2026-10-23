@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import CommentNextAvatar from './CommentNextAvatar.svelte';
+import type { CommentNextAvatarConfig } from './services/config';
 import {
   bindHipData,
   isInteractionPlusRuntimeReady,
@@ -15,12 +16,14 @@ const {
   size = 36,
   displayName = '',
   avatar = '',
+  avatarConfig,
 }: {
   identity: CommentNextAuthorIdentity;
   variant: 'avatar' | 'identity';
   size?: number;
   displayName?: string;
   avatar?: string;
+  avatarConfig?: CommentNextAvatarConfig;
 } = $props();
 
 const payload = $derived(toIdentityData(identity));
@@ -70,7 +73,7 @@ onMount(() => {
     </span>
   {/if}
 {:else if variant === 'avatar'}
-  <CommentNextAvatar src={resolvedAvatar} alt={resolvedDisplayName} {size} />
+  <CommentNextAvatar config={avatarConfig} seed={identity.userName} src={resolvedAvatar} alt={resolvedDisplayName} {size} />
 {:else}
   <span>{resolvedDisplayName}</span>
 {/if}

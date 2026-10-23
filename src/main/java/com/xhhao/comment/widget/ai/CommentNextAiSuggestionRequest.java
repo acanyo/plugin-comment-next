@@ -1,6 +1,7 @@
 package com.xhhao.comment.widget.ai;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.util.List;
 import lombok.Data;
 
 @Data
@@ -15,4 +16,6 @@ public class CommentNextAiSuggestionRequest {
     private String subject;
 
     private String replyToName;
+
+    private List<String> tags;
 }

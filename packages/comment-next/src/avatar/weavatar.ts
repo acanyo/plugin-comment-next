@@ -1,11 +1,11 @@
 import { hashAvatarIdentity } from './email-hash';
 
 const WEAVATAR_BASE_URL = 'https://weavatar.com';
-const DEFAULT_AVATAR = 'mp';
+const DEFAULT_AVATAR = '404';
 const DEFAULT_SIZE = 96;
 
-export function getDefaultAnonymousAvatarUrl(size = DEFAULT_SIZE): string {
-  return buildWeAvatarUrl({ size });
+export function getDefaultAnonymousAvatarUrl(): string {
+  return '';
 }
 
 export async function getAnonymousAvatarUrl(
@@ -33,8 +33,12 @@ function buildWeAvatarUrl({
   size?: number;
   defaultAvatar?: string;
 }): string {
+  if (!hash.trim()) {
+    return getDefaultAnonymousAvatarUrl();
+  }
+
   const normalizedSize = Math.min(Math.max(Math.round(size), 10), 2000);
-  const avatarPath = hash ? `/avatar/${encodeURIComponent(hash)}` : '/avatar/';
+  const avatarPath = `/avatar/${encodeURIComponent(hash)}`;
   const params = new URLSearchParams({
     d: defaultAvatar,
     f: 'webp',

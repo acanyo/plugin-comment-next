@@ -3,6 +3,7 @@ import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
 import { createComment } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextAvatarConfig,
   CommentNextEmoteConfig,
   CommentNextSecurityConfig,
   CommentNextUploadConfig,
@@ -31,6 +32,7 @@ const {
   aiConfig,
   uploadConfig,
   emoteConfig,
+  avatarConfig,
   emotePacks = [],
 }: {
   baseUrl?: string;
@@ -53,6 +55,7 @@ const {
   aiConfig?: CommentNextAiConfig;
   uploadConfig?: CommentNextUploadConfig;
   emoteConfig?: CommentNextEmoteConfig;
+  avatarConfig?: CommentNextAvatarConfig;
   emotePacks?: CommentNextEmotePack[];
 } = $props();
 
@@ -104,6 +107,7 @@ function getSubjectDomId() {
   {aiConfig}
   {uploadConfig}
   {emoteConfig}
+  {avatarConfig}
   {emotePacks}
   {subject}
   {targetReady}
