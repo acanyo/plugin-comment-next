@@ -6,10 +6,10 @@ import {
   VStatusDot,
 } from '@halo-dev/components';
 import { utils } from '@halo-dev/ui-shared';
-import { Icon } from '@iconify/vue';
 import { computed } from 'vue';
 import type { BadgeRule, BadgeRuleType } from '../api/badge-rules';
 import { isDeletingResource } from '../utils/deletion';
+import BadgeIcon from './BadgeIcon.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -109,9 +109,10 @@ function handleRemove() {
             class="comment-next-console-badge-preview :uno: inline-flex min-w-0 max-w-40 items-center gap-[0.35rem] rounded-full border border-solid [border-color:color-mix(in_srgb,var(--comment-next-console-badge-color),white_68%)] [background:color-mix(in_srgb,var(--comment-next-console-badge-color),white_90%)] px-2 py-1 text-xs text-[var(--comment-next-console-badge-color)] font-bold"
             :style="previewStyle"
           >
-            <Icon
+            <BadgeIcon
               v-if="rule.spec.icon"
               :icon="rule.spec.icon"
+              :color="rule.spec.color"
               class=":uno: h-3.5 w-3.5 shrink-0"
             />
             <span class="comment-next-console-badge-preview-label :uno: truncate">

@@ -5,6 +5,7 @@ import type { CommentNextCaptchaConfig } from './captcha';
 
 export interface CommentNextPluginConfig {
   basic?: CommentNextBasicConfig;
+  avatar?: CommentNextAvatarConfig;
   security?: CommentNextSecurityConfig;
   ai?: CommentNextAiConfig;
   upload?: CommentNextUploadConfig;
@@ -14,6 +15,10 @@ export interface CommentNextPluginConfig {
   badge?: CommentNextBadgeConfig;
   interactionPlus?: CommentNextInteractionPlusConfig;
   emote?: CommentNextEmoteConfig;
+}
+
+export interface CommentNextAvatarConfig {
+  fallbackAvatars?: Array<{ url?: string }>;
 }
 
 export interface CommentNextGlobalInfo {
@@ -42,6 +47,7 @@ export interface CommentNextAiConfig {
   assistantUserName?: string;
   assistantDisplayName?: string;
   assistantMentionName?: string;
+  assistantAvatar?: string;
   buttonLabel?: string;
   maxInputLength?: number;
   foundationAvailable?: boolean;

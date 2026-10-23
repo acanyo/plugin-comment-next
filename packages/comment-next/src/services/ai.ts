@@ -1,13 +1,10 @@
-import {
-  hasChineseText,
-  readProblemDetail,
-  resolveApiUrl,
-} from './api';
+import { hasChineseText, readProblemDetail, resolveApiUrl } from './api';
 
 const AI_SUGGESTION_ENDPOINT =
   '/apis/api.commentnext.xhhao.com/v1alpha1/ai/-/suggestions';
 
 export type CommentNextAiMode =
+  | 'generate'
   | 'polish'
   | 'expand'
   | 'question'
@@ -21,6 +18,7 @@ export interface GenerateCommentAiSuggestionOptions {
   variant: 'comment' | 'reply';
   subject?: string;
   replyToName?: string;
+  tags?: string[];
 }
 
 export interface CommentNextAiSuggestionResult {
@@ -56,6 +54,7 @@ export async function generateCommentAiSuggestion({
   variant,
   subject,
   replyToName,
+  tags = [],
 }: GenerateCommentAiSuggestionOptions): Promise<CommentNextAiSuggestionResult> {
   const response = await fetch(resolveApiUrl(baseUrl, AI_SUGGESTION_ENDPOINT), {
     method: 'POST',
@@ -70,6 +69,7 @@ export async function generateCommentAiSuggestion({
       variant,
       subject,
       replyToName,
+      tags,
     }),
   });
 
@@ -112,9 +112,7 @@ export function getAiSuggestionErrorMessage(error: unknown): string {
   }
 
   if (error.status === 400) {
-    return detail && hasChineseText(detail)
-      ? detail
-      : 'AI 写作参数不正确。';
+    return detail && hasChineseText(detail) ? detail : 'AI 写作参数不正确。';
   }
 
   if (error.status === 404 || error.status === 503) {

@@ -5,12 +5,13 @@
   "scripts": {
     "build": "rsbuild build",
     "dev": "rsbuild build --watch --env-mode=development",
-    "type-check": "vue-tsc --build"
+    "type-check": "vue-tsc --build",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@halo-dev/api-client": "^2.22.0",
-    "@halo-dev/components": "^2.22.0",
-    "@halo-dev/ui-shared": "^2.22.0",
+    "@halo-dev/api-client": "^2.27.0",
+    "@halo-dev/components": "^2.27.0",
+    "@halo-dev/ui-shared": "^2.27.0",
     "@iconify/vue": "^5.0.0",
     "@xhhao/comment-next": "workspace:*",
     "axios": "^1.13.2",
@@ -19,14 +20,16 @@
   },
   "devDependencies": {
     "@formkit/vue": "2.1.0",
-    "@halo-dev/ui-plugin-bundler-kit": "^2.22.0",
+    "@halo-dev/ui-plugin-bundler-kit": "^2.27.0",
     "@rsbuild/core": "^2.0.3",
     "@rsbuild/plugin-vue": "^1.2.7",
+    "@tiptap/pm": "3.32.0",
     "@types/node": "^20.19.24",
     "@unocss/webpack": "^66.7.2",
     "@vue/tsconfig": "^0.8.1",
     "typescript": "~5.9.3",
     "unocss": "^66.7.2",
-    "vue-tsc": "^3.1.8"
+    "vue-tsc": "^3.1.8",
+    "webpack": "^5.112.1"
   }
 }

@@ -70,6 +70,8 @@ application-local.properties
 /packages-lit/*/node_modules/
 node_modules
 /workplace/
+/output/
+/.playwright-cli/
 /src/main/resources/static/
 /src/main/resources/console/
 /src/main/resources/ui/

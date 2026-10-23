@@ -21,6 +21,8 @@ const icons: Record<string, string> = {
     '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
   smile:
     '<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/>',
+  messageSparkle:
+    '<path d="M14 4H10a8 8 0 0 0 0 16h1l4 3v-4a8 8 0 0 0 5-8"/><path d="m19 1 1.2 3.3L23 5.5l-2.8 1.2L19 10l-1.2-3.3L15 5.5l2.8-1.2z" fill="currentColor" stroke-width="1"/>',
   at: '<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>',
   hash: '<path d="M4 9h16"/><path d="M4 15h16"/><path d="M10 3 8 21"/><path d="m16 3-2 18"/>',
   paperclip:
@@ -40,8 +42,7 @@ const icons: Record<string, string> = {
     '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 2-3 4"/><path d="M12 17h.01"/>',
   message:
     '<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>',
-  reply:
-    '<path d="m9 17-5-5 5-5"/><path d="M4 12h11a5 5 0 0 1 0 10h-1"/>',
+  reply: '<path d="m9 17-5-5 5-5"/><path d="M4 12h11a5 5 0 0 1 0 10h-1"/>',
   heart:
     '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>',
   heartFill:
@@ -56,10 +57,11 @@ const icons: Record<string, string> = {
   listChecks:
     '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
+  chevronDown: '<path d="m6 9 6 6 6-6"/>',
+  chevronUp: '<path d="m6 15 6-6 6 6"/>',
   chevronRight: '<path d="m9 18 6-6-6-6"/>',
   chevronLeft: '<path d="m15 18-6-6 6-6"/>',
-  circleCheck:
-    '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  circleCheck: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
   circleAlert:
     '<circle cx="12" cy="12" r="10"/><path d="M12 8v5"/><path d="M12 16h.01"/>',
   x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',

@@ -9,6 +9,7 @@ import type {
   CommentNextBadge,
 } from '../api/badge-rules';
 import { isDeletingResource } from '../utils/deletion';
+import BadgeIcon from './BadgeIcon.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -106,9 +107,10 @@ function handleRevokeBadge(badge: CommentNextBadge) {
               :style="badgeStyle(badge)"
               :title="badge.title || badge.label"
             >
-              <Icon
+              <BadgeIcon
                 v-if="badge.icon"
                 :icon="badge.icon"
+                :color="badge.color"
                 class=":uno: h-3.5 w-3.5 shrink-0"
               />
               <span class="comment-next-console-profile-badge-label :uno: truncate">

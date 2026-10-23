@@ -174,9 +174,15 @@ public class ConfigEndpoint implements CustomEndpoint {
         rootNode.remove(List.of(
             AI_REVIEW_GROUP,
             AI_PROMPTS_GROUP,
-            AVATAR_GROUP,
             QQ_PROFILE_GROUP
         ));
+
+        var avatarValue = rootNode.get(AVATAR_GROUP);
+        if (avatarValue instanceof ObjectNode avatarNode) {
+            avatarNode.retain("fallbackAvatars");
+        } else {
+            rootNode.remove(AVATAR_GROUP);
+        }
 
         var uploadValue = rootNode.get(UPLOAD_GROUP);
         if (uploadValue instanceof ObjectNode uploadNode) {
@@ -289,6 +295,7 @@ public class ConfigEndpoint implements CustomEndpoint {
                 aiNode.put(ASSISTANT_NAME, profile.displayName());
                 aiNode.put(ASSISTANT_DISPLAY_NAME, profile.displayName());
                 aiNode.put(ASSISTANT_MENTION_NAME, profile.mentionName());
+                aiNode.put("assistantAvatar", profile.avatar());
                 return rootNode;
             })
             .onErrorReturn(rootNode);

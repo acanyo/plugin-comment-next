@@ -101,6 +101,24 @@ spec:
           key: showPrivateCommentBadge
           value: true
           help: 开启后，私密评论会显示一个私密状态标识
+    - group: avatar
+      label: 头像设置
+      formSchema:
+        - $formkit: array
+          name: fallbackAvatars
+          label: 默认头像池
+          value: []
+          help: 未设置头像、WeAvatar 无匹配头像或头像加载失败时，从池中为评论者分配头像。同一身份保持一致；留空或所选图片加载失败时，使用本地生成的图案头像。建议从本站附件库选择图片。
+          itemLabels:
+            - type: image
+              label: $value.url
+          children:
+            - $formkit: attachment
+              name: url
+              label: 头像图片
+              validation: required
+              accepts:
+                - image/*
     - group: qqProfile
       label: QQ 资料
       formSchema:
@@ -758,7 +776,7 @@ spec:
           value:
             assistantName: "评论助手"
             assistantUserName: ""
-            buttonLabel: "AI 助手"
+            buttonLabel: "AI 评论"
           children:
             - $formkit: text
               label: 默认 AI 助手名称
@@ -776,7 +794,7 @@ spec:
             - $formkit: text
               label: AI 按钮名称
               name: buttonLabel
-              value: "AI 助手"
+              value: "AI 评论"
               validation: required
               help: 显示在评论框工具栏上的 AI 入口名称，建议保持简短。
         - $formkit: group
@@ -1226,7 +1244,7 @@ spec:
           name: firstCommentBadge
           value:
             label: 首评
-            icon: mdi:medal-outline
+            icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M14.94 19.5L12 17.77L9.06 19.5l.78-3.34l-2.59-2.24l3.41-.29L12 10.5l1.34 3.13l3.41.29l-2.59 2.24M20 2H4v2l4.86 3.64a8 8 0 1 0 6.28 0L20 4m-2 11a6 6 0 1 1-7.18-5.88a5.9 5.9 0 0 1 2.36 0A6 6 0 0 1 18 15m-5.37-8h-1.26l-4-3h9.34Z"/></svg>'
             color: "#f59e0b"
             title: 本文第一位评论者
           children:
@@ -1237,10 +1255,10 @@ spec:
             - $formkit: iconify
               label: Iconify 图标
               name: icon
-              format: name
+              format: svg
               valueOnly: true
-              value: mdi:medal-outline
-              help: 选择 Iconify 图标，留空则只显示文字。
+              value: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M14.94 19.5L12 17.77L9.06 19.5l.78-3.34l-2.59-2.24l3.41-.29L12 10.5l1.34 3.13l3.41.29l-2.59 2.24M20 2H4v2l4.86 3.64a8 8 0 1 0 6.28 0L20 4m-2 11a6 6 0 1 1-7.18-5.88a5.9 5.9 0 0 1 2.36 0A6 6 0 0 1 18 15m-5.37-8h-1.26l-4-3h9.34Z"/></svg>'
+              help: 图标内容随配置保存，前台无需请求 Iconify。旧图标请重新选择并保存；留空只显示文字。
             - $formkit: color
               label: 徽章颜色
               name: color
@@ -1254,7 +1272,7 @@ spec:
           name: adminBadge
           value:
             label: 站长
-            icon: mdi:shield-star-outline
+            icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M21 11c0 5.55-3.84 10.74-9 12c-5.16-1.26-9-6.45-9-12V5l9-4l9 4zm-9 10c3.75-1 7-5.46 7-9.78V6.3l-7-3.12L5 6.3v4.92C5 15.54 8.25 20 12 21m3.05-5l-3.08-1.85L8.9 16l.81-3.5L7 10.16l3.58-.31l1.39-3.3l1.4 3.29l3.58.31l-2.72 2.35z"/></svg>'
             color: "#3b82f6"
             title: 站点管理员
           children:
@@ -1265,9 +1283,9 @@ spec:
             - $formkit: iconify
               label: Iconify 图标
               name: icon
-              format: name
+              format: svg
               valueOnly: true
-              value: mdi:shield-star-outline
+              value: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M21 11c0 5.55-3.84 10.74-9 12c-5.16-1.26-9-6.45-9-12V5l9-4l9 4zm-9 10c3.75-1 7-5.46 7-9.78V6.3l-7-3.12L5 6.3v4.92C5 15.54 8.25 20 12 21m3.05-5l-3.08-1.85L8.9 16l.81-3.5L7 10.16l3.58-.31l1.39-3.3l1.4 3.29l3.58.31l-2.72 2.35z"/></svg>'
             - $formkit: color
               label: 徽章颜色
               name: color

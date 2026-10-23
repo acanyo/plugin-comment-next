@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 enum CommentNextAiMode {
+    GENERATE("generate", "按标签生成评论", false),
     POLISH("polish", "润色建议", true),
     EXPAND("expand", "补充观点", true),
     QUESTION("question", "提问角度", true),

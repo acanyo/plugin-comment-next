@@ -573,6 +573,7 @@ function adaptHaloComment(comment: HaloComment): CommentNextComment {
     userAgent: comment.spec?.userAgent,
     ipLocation: textValue(comment.spec?.ipLocation),
     author: {
+      name: kind === 'User' ? owner.name || specOwner.name : undefined,
       displayName,
       avatar: resolveAuthorAvatar(owner.avatar, kind, emailHash),
       website: specOwner.annotations?.website,

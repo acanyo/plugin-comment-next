@@ -8,6 +8,7 @@ import { createDemoCommentPage, demoBadgeConfig } from './demo/comments';
 import { fetchCommentPage } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextAvatarConfig,
   CommentNextEmoteConfig,
   CommentNextReactionConfig,
   CommentNextReportConfig,
@@ -44,6 +45,7 @@ const {
   reportConfig,
   uploadConfig,
   emoteConfig,
+  avatarConfig,
   emotePacks = [],
 }: {
   baseUrl?: string;
@@ -68,6 +70,7 @@ const {
   reportConfig?: CommentNextReportConfig;
   uploadConfig?: CommentNextUploadConfig;
   emoteConfig?: CommentNextEmoteConfig;
+  avatarConfig?: CommentNextAvatarConfig;
   emotePacks?: CommentNextEmotePack[];
 } = $props();
 
@@ -87,7 +90,9 @@ const badgeConfig = $derived<CommentNextBadgeConfig>(
   demoData ? demoBadgeConfig : (configuredBadgeConfig ?? {})
 );
 const visibleComments = $derived(
-  (demoData ? sortComments(comments, sortMode) : comments).filter((comment) => !comment.top)
+  (demoData ? sortComments(comments, sortMode) : comments).filter(
+    (comment) => !comment.top
+  )
 );
 const visiblePinnedComments = $derived([
   ...pinnedComments,
@@ -376,6 +381,7 @@ function resolvePaginationItems(
     {aiMentionName}
     {uploadConfig}
     {emoteConfig}
+    {avatarConfig}
     {emotePacks}
   />
 {/snippet}

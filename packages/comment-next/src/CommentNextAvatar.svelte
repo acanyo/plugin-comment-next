@@ -1,24 +1,35 @@
 <script lang="ts">
+import { avatarCandidates } from './avatar/fallback';
 import CommentNextIcon from './CommentNextIcon.svelte';
+import type { CommentNextAvatarConfig } from './services/config';
 
 const {
   src = '',
   alt = '',
   size = 36,
+  seed = '',
+  config,
 }: {
   src?: string;
   alt?: string;
   size?: number;
+  seed?: string;
+  config?: CommentNextAvatarConfig;
 } = $props();
 
-let failed = $state(false);
-let previousSrc = $state('');
+let failedSources = $state<string[]>([]);
+let previousCandidates = $state('');
+const candidates = $derived(avatarCandidates(src, seed || alt, config));
+const imageSrc = $derived(
+  candidates.find((candidate) => !failedSources.includes(candidate))
+);
 const placeholderText = $derived(getPlaceholderText(alt));
 
 $effect(() => {
-  if (previousSrc !== src) {
-    previousSrc = src;
-    failed = false;
+  const key = candidates.join('\n');
+  if (previousCandidates !== key) {
+    previousCandidates = key;
+    failedSources = [];
   }
 });
 
@@ -44,14 +55,16 @@ function getPlaceholderText(value: string): string {
   style={`--comment-next-avatar-instance-size: ${size}px`}
   aria-label={alt || "头像"}
 >
-  {#if src && !failed}
+  {#if imageSrc}
     <img
       class="comment-next-avatar-image block object-cover"
-      {src}
+      src={imageSrc}
       {alt}
       loading="lazy"
       decoding="async"
-      onerror={() => (failed = true)}
+      onerror={() => {
+        if (imageSrc) failedSources = [...failedSources, imageSrc];
+      }}
     />
   {:else if placeholderText}
     <span class="comment-next-avatar-placeholder select-none text-[0.8125rem] text-[var(--comment-next-text-color,#172033)] font-[760] leading-none">{placeholderText}</span>

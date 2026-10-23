@@ -10,6 +10,7 @@ import CommentNextReactionButton from './CommentNextReactionButton.svelte';
 import CommentNextReportButton from './CommentNextReportButton.svelte';
 import { upvoteCommentTarget } from './services/comments';
 import type {
+  CommentNextAvatarConfig,
   CommentNextEmoteConfig,
   CommentNextReactionConfig,
   CommentNextReportConfig,
@@ -43,6 +44,7 @@ const {
   reactionConfig,
   reportConfig,
   emoteConfig,
+  avatarConfig,
   onReply = () => {},
 }: {
   baseUrl?: string;
@@ -57,6 +59,7 @@ const {
   reactionConfig?: CommentNextReactionConfig;
   reportConfig?: CommentNextReportConfig;
   emoteConfig?: CommentNextEmoteConfig;
+  avatarConfig?: CommentNextAvatarConfig;
   onReply?: (reply: CommentNextComment) => void;
 } = $props();
 
@@ -133,13 +136,14 @@ async function handleUpvote() {
     {#if useHipAuthor && reply.author.identity}
       <CommentNextHipAuthor
         identity={reply.author.identity}
+        avatarConfig={avatarConfig}
         displayName={reply.author.displayName}
         avatar={reply.author.avatar}
         variant="avatar"
         size={28}
       />
     {:else}
-      <CommentNextAvatar src={reply.author.avatar} alt={reply.author.displayName} size={28} />
+      <CommentNextAvatar config={avatarConfig} seed={reply.author.name} src={reply.author.avatar} alt={reply.author.displayName} size={28} />
     {/if}
   </div>
   <div class="comment-next-reply-main">
@@ -148,6 +152,7 @@ async function handleUpvote() {
         <span class="comment-next-reply-author-hip">
           <CommentNextHipAuthor
             identity={reply.author.identity}
+            avatarConfig={avatarConfig}
             displayName={reply.author.displayName}
             variant="identity"
           />

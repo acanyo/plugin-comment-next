@@ -525,7 +525,7 @@ public interface SettingConfigGetter {
 
         public static final String DEFAULT_ASSISTANT_NAME = "评论助手";
 
-        public static final String DEFAULT_BUTTON_LABEL = "AI 助手";
+        public static final String DEFAULT_BUTTON_LABEL = "AI 评论";
 
         public AiConfig setSecurity(AiSecurityConfig security) {
             this.security = security == null ? AiSecurityConfig.empty() : security;

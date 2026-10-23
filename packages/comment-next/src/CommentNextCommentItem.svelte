@@ -14,6 +14,7 @@ import CommentNextTooltip from './CommentNextTooltip.svelte';
 import { fetchReplyPage, upvoteCommentTarget } from './services/comments';
 import type {
   CommentNextAiConfig,
+  CommentNextAvatarConfig,
   CommentNextEmoteConfig,
   CommentNextReactionConfig,
   CommentNextReportConfig,
@@ -60,6 +61,7 @@ const {
   aiMentionName = '',
   uploadConfig,
   emoteConfig,
+  avatarConfig,
   emotePacks = [],
 }: {
   baseUrl?: string;
@@ -82,6 +84,7 @@ const {
   aiMentionName?: string;
   uploadConfig?: CommentNextUploadConfig;
   emoteConfig?: CommentNextEmoteConfig;
+  avatarConfig?: CommentNextAvatarConfig;
   emotePacks?: CommentNextEmotePack[];
 } = $props();
 
@@ -378,6 +381,7 @@ async function loadReplies({
     {#if useHipAuthor && comment.author.identity}
       <CommentNextHipAuthor
         identity={comment.author.identity}
+        avatarConfig={avatarConfig}
         displayName={comment.author.displayName}
         avatar={comment.author.avatar}
         variant="avatar"
@@ -385,10 +389,10 @@ async function loadReplies({
       />
     {:else if comment.author.website}
       <a href={comment.author.website} target="_blank" rel="noopener noreferrer nofollow ugc" aria-label={comment.author.displayName}>
-        <CommentNextAvatar src={comment.author.avatar} alt={comment.author.displayName} size={38} />
+        <CommentNextAvatar config={avatarConfig} seed={comment.author.name} src={comment.author.avatar} alt={comment.author.displayName} size={38} />
       </a>
     {:else}
-      <CommentNextAvatar src={comment.author.avatar} alt={comment.author.displayName} size={38} />
+      <CommentNextAvatar config={avatarConfig} seed={comment.author.name} src={comment.author.avatar} alt={comment.author.displayName} size={38} />
     {/if}
   </div>
 
@@ -398,6 +402,7 @@ async function loadReplies({
         <span class="comment-next-comment-author-hip">
           <CommentNextHipAuthor
             identity={comment.author.identity}
+            avatarConfig={avatarConfig}
             displayName={comment.author.displayName}
             variant="identity"
           />
@@ -550,6 +555,7 @@ async function loadReplies({
           {aiConfig}
           {uploadConfig}
           {emoteConfig}
+          {avatarConfig}
           {emotePacks}
           replyToName={comment.author.displayName}
           onCancel={closeReplyComposer}
@@ -573,6 +579,7 @@ async function loadReplies({
             reactionConfig={reactionConfig}
             reportConfig={reportConfig}
             {emoteConfig}
+            {avatarConfig}
             replyToName={resolveReplyToName(reply)}
             onReply={openQuoteReply}
           />
@@ -589,6 +596,7 @@ async function loadReplies({
                 {aiConfig}
                 {uploadConfig}
                 {emoteConfig}
+                {avatarConfig}
                 {emotePacks}
                 replyToName={reply.author.displayName}
                 quoteReply={reply}

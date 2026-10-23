@@ -43,6 +43,7 @@ import BadgeProfileListItem from '../components/BadgeProfileListItem.vue';
 import BadgeRuleListItem from '../components/BadgeRuleListItem.vue';
 import { useDeletionRefresh } from '../composables/use-deletion-refresh';
 import { hasDeletingResources, isDeletingResource } from '../utils/deletion';
+import { materializeBadgeIcon } from '../utils/materialize-badge-icon';
 
 const page = ref(1);
 const pageSize = ref(20);
@@ -218,13 +219,19 @@ function openCreate(type: BadgeRuleType) {
   editorVisible.value = true;
 }
 
-function openEdit(rule: BadgeRule) {
+async function openEdit(rule: BadgeRule) {
   if (isDeletingResource(rule)) {
     return;
   }
 
   editing.value = true;
-  form.value = cloneBadgeRule(rule);
+  const draft = cloneBadgeRule(rule);
+  try {
+    draft.spec.icon = await materializeBadgeIcon(draft.spec.icon);
+  } catch {
+    Toast.error('旧图标加载失败，请在编辑器中重新选择图标后保存');
+  }
+  form.value = draft;
   editorVisible.value = true;
 }
 
@@ -754,11 +761,12 @@ function createAssignmentPayload(
       />
       <FormKit
         v-model="form.spec.icon"
-        format="name"
+        format="svg"
         label="Iconify 图标"
         name="icon"
         type="iconify"
         value-only
+        help="图标内容随规则保存，前台无需请求 Iconify。旧图标请重新选择并保存。"
       />
       <FormKit
         v-model="form.spec.color"
