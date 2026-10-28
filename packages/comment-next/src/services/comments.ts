@@ -2,12 +2,14 @@ import {
   getAnonymousAvatarUrlFromHash,
   getDefaultAnonymousAvatarUrl,
 } from '../avatar/weavatar';
+import { snippetRaw } from '../snippets/anchor';
 import type {
   CommentNextBadge,
   CommentNextComment,
   CommentNextCommentPage,
   CommentNextCommentSort,
 } from '../types/comment';
+import type { CommentNextSnippetAnchor } from '../types/snippet';
 import { sanitizeCommentSubmitHtml } from '../utils/html';
 import type { CommentNextCaptchaType } from './captcha';
 import { getCaptchaCodeHeader, isCaptchaRequired } from './captcha';
@@ -35,6 +37,7 @@ interface FetchRepliesOptions {
 }
 
 interface CreateCommentOptions {
+  snippet?: CommentNextSnippetAnchor;
   baseUrl?: string;
   group: string;
   kind: string;
@@ -455,7 +458,7 @@ function createCommentRequest(
     options.allowedLottieHosts
   );
   const request: HaloCommentRequest = {
-    raw: content,
+    raw: snippetRaw(content, options.snippet),
     content,
     allowNotification: true,
     hidden: Boolean(options.hidden),
@@ -550,7 +553,7 @@ function adaptHaloCommentPage(
   };
 }
 
-function adaptHaloComment(comment: HaloComment): CommentNextComment {
+export function adaptHaloComment(comment: HaloComment): CommentNextComment {
   const owner = comment.owner ?? {};
   const specOwner = comment.spec?.owner ?? {};
   const displayName = owner.displayName || specOwner.displayName || '匿名用户';

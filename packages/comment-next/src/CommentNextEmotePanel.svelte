@@ -34,6 +34,7 @@ const {
   fixed = false,
   panelStyle = '',
   pageSize = DEFAULT_EMOTE_PAGE_SIZE,
+  selectedItemId = '',
   onSelect = () => {},
   onPreviewChange = () => {},
 }: {
@@ -41,15 +42,16 @@ const {
   fixed?: boolean;
   panelStyle?: string;
   pageSize?: number;
+  selectedItemId?: string;
   onSelect?: (item: CommentNextEmoteItem) => void;
   onPreviewChange?: (entry: CommentNextEmotePreviewEntry | undefined) => void;
 } = $props();
 
+// biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
 let panelElement = $state<HTMLDivElement | undefined>();
 let activePackId = $state('');
 let query = $state('');
 let recentItemIds = $state<string[]>([]);
-let selectedItemId = $state('');
 let previewEntry = $state<CommentNextEmotePanelEntry | undefined>();
 let currentPage = $state(1);
 let paginationContext = $state('');
@@ -194,7 +196,6 @@ function selectPage(nextPage: number) {
 }
 
 function handleSelect(item: CommentNextEmoteItem) {
-  selectedItemId = item.id;
   recentItemIds = [
     item.id,
     ...recentItemIds.filter((id) => id !== item.id),
@@ -253,7 +254,10 @@ async function updatePreviewPosition(entry: CommentNextEmotePanelEntry) {
     : Math.max(viewportPadding, panelRect.left - gap - previewWidth);
   const top = Math.min(
     Math.max(viewportPadding, panelRect.top),
-    Math.max(viewportPadding, window.innerHeight - previewHeight - viewportPadding)
+    Math.max(
+      viewportPadding,
+      window.innerHeight - previewHeight - viewportPadding
+    )
   );
 
   emitPreview({
@@ -381,6 +385,7 @@ function saveRecentItemIds(ids: string[]) {
                 type="button"
                 title={entry.item.description || entry.item.label}
                 aria-label={entry.item.description || entry.item.label}
+                aria-pressed={selectedItemId === entry.item.id}
                 onpointerenter={() => showPreview(entry)}
                 onpointerleave={() => hidePreview(entry.item.id)}
                 onfocus={() => showPreview(entry)}
@@ -398,6 +403,11 @@ function saveRecentItemIds(ids: string[]) {
                   <CommentNextLottie item={entry.item} maxWidth={40} maxHeight={40} />
                 {:else}
                   <span>{entry.item.value}</span>
+                {/if}
+                {#if selectedItemId === entry.item.id}
+                  <span class="comment-next-emote-selection-mark" aria-hidden="true">
+                    <CommentNextIcon name="check" size={10} />
+                  </span>
                 {/if}
               </button>
             {/each}
@@ -597,13 +607,34 @@ function saveRecentItemIds(ids: string[]) {
     --at-apply: translate-y-px;
   }
 
-  .comment-next-emote-item-selected {
+  .comment-next-emote-item.comment-next-emote-item-selected {
     --at-apply: [border-color:var(--comment-next-primary-color,rgb(59,130,246))] bg-[var(--comment-next-pill-active-bg-color,rgb(239_246_255))] text-[var(--comment-next-primary-color,rgb(59,130,246))];
+    box-shadow: inset 0 0 0 1px var(--comment-next-primary-color, rgb(59, 130, 246));
     animation: comment-next-emote-selected 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .comment-next-emote-item:focus-visible {
+    outline: 2px solid var(--comment-next-primary-color, rgb(59, 130, 246));
+    outline-offset: -4px;
   }
 
   .comment-next-emote-item span {
     --at-apply: block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
+  }
+
+  .comment-next-emote-item .comment-next-emote-selection-mark {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    display: flex;
+    width: 13px;
+    height: 13px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--comment-next-primary-color, rgb(59, 130, 246));
+    color: var(--comment-next-bg-color, #ffffff);
+    pointer-events: none;
   }
 
   .comment-next-emote-item-image {
@@ -702,7 +733,7 @@ function saveRecentItemIds(ids: string[]) {
       --at-apply: transition-none;
     }
 
-    .comment-next-emote-item-selected {
+    .comment-next-emote-item.comment-next-emote-item-selected {
       animation: none;
     }
   }

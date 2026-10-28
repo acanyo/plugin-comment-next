@@ -10,6 +10,7 @@ import type {
 } from './services/config';
 import type { CommentNextComposerSubmitPayload } from './types/composer';
 import type { CommentNextEmotePack } from './types/emote';
+import type { CommentNextSnippetAnchor } from './types/snippet';
 
 const {
   baseUrl = '',
@@ -64,6 +65,13 @@ const subject = $derived(
 );
 const targetReady = $derived(Boolean(group && kind && name));
 const loginRedirectHash = $derived(getSubjectDomId());
+let composerRef:
+  | { quoteSnippet: (anchor: CommentNextSnippetAnchor) => boolean }
+  | undefined;
+
+export function quoteSnippet(anchor: CommentNextSnippetAnchor): boolean {
+  return composerRef?.quoteSnippet(anchor) ?? false;
+}
 
 async function handleSubmit(payload: CommentNextComposerSubmitPayload) {
   return createComment({
@@ -77,6 +85,7 @@ async function handleSubmit(payload: CommentNextComposerSubmitPayload) {
     hidden: payload.hidden,
     captchaCode: payload.captchaCode,
     owner: payload.owner,
+    snippet: payload.snippet,
   });
 }
 
@@ -91,6 +100,7 @@ function getSubjectDomId() {
 </script>
 
 <CommentNextBaseComposer
+  bind:this={composerRef}
   {baseUrl}
   {loggedIn}
   {allowAnonymous}

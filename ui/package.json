@@ -11,6 +11,7 @@
   "dependencies": {
     "@halo-dev/api-client": "^2.27.0",
     "@halo-dev/components": "^2.27.0",
+    "@halo-dev/richtext-editor": "^2.27.0",
     "@halo-dev/ui-shared": "^2.27.0",
     "@iconify/vue": "^5.0.0",
     "@xhhao/comment-next": "workspace:*",

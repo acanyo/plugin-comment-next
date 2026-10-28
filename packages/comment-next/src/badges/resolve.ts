@@ -1,4 +1,3 @@
-import { hasAuthorDecorations } from '../services/interaction-plus';
 import type {
   CommentNextAuthor,
   CommentNextBadge,
@@ -43,23 +42,13 @@ export function resolveCommentBadges(
     });
   }
 
-  const decorated = hasAuthorDecorations(comment.author);
-
-  if (!decorated && isAdminAuthor(comment.author)) {
+  if (isAdminAuthor(comment.author)) {
     badges.push({ ...DEFAULT_ADMIN_BADGE, ...config.adminBadge });
   }
 
-  badges.push(
-    ...(comment.author.badges ?? []).filter((badge) =>
-      decorated ? isRetainedDecoratedBadge(badge) : true
-    )
-  );
+  badges.push(...(comment.author.badges ?? []));
 
   return dedupeBadges(badges);
-}
-
-function isRetainedDecoratedBadge(badge: CommentNextBadge): boolean {
-  return badge.tone === 'first' || badge.tone === 'level';
 }
 
 function isAdminAuthor(author: CommentNextAuthor): boolean {

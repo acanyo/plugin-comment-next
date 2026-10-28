@@ -14,37 +14,6 @@ export function hasAuthorIdentity(
   return Boolean(author?.identity?.userName?.trim());
 }
 
-export function hasAuthorDecorations(
-  author?: Pick<CommentNextAuthor, 'identity'> | null
-): boolean {
-  const identity = author?.identity;
-  if (!identity?.userName?.trim()) {
-    return false;
-  }
-
-  const marks = Array.isArray(identity.identityMarks)
-    ? identity.identityMarks
-    : [];
-  if (marks.length > 0) {
-    return true;
-  }
-
-  const decorations = identity.decorations;
-  if (!decorations || typeof decorations !== 'object') {
-    return false;
-  }
-
-  return Boolean(
-    decorations.avatarFrame ||
-      decorations.title ||
-      decorations.primaryBadge ||
-      decorations.cardBackground ||
-      decorations.nameStyle ||
-      (Array.isArray(decorations.badgeShowcase) &&
-        decorations.badgeShowcase.length > 0)
-  );
-}
-
 export function toIdentityData(
   identity?: CommentNextAuthorIdentity | null
 ): string {

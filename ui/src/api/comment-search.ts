@@ -47,6 +47,10 @@ export interface ListCommentSearchOptions {
   subject?: string;
 }
 
+export interface ReplaceCommentEmailResult {
+  replacedCount: number;
+}
+
 export async function listCommentSearch(
   options: ListCommentSearchOptions
 ): Promise<CommentSearchPage> {
@@ -65,6 +69,20 @@ export async function listCommentSearch(
         content: options.content || undefined,
         subject: options.subject || undefined,
       },
+    }
+  );
+  return data;
+}
+
+export async function replaceCommentEmail(
+  oldEmail: string,
+  newEmail: string
+): Promise<ReplaceCommentEmailResult> {
+  const { data } = await axiosInstance.post<ReplaceCommentEmailResult>(
+    `${COMMENT_SEARCH_ENDPOINT}/replace-email`,
+    {
+      oldEmail,
+      newEmail,
     }
   );
   return data;

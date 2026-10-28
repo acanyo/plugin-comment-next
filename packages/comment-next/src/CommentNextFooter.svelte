@@ -106,6 +106,7 @@ let imageInputElement = $state<HTMLInputElement | undefined>();
 let emotePanelOpen = $state(false);
 let mentionPanelOpen = $state(false);
 let mentionPanelStyle = $state('');
+let selectedEmoteId = $state('');
 let emotePanelStyle = $state('');
 // biome-ignore lint/style/useConst: Updated by the preview callback in the template.
 let emotePreview = $state<CommentNextEmotePreviewState | undefined>();
@@ -277,6 +278,7 @@ function handleInsertToolClick(key: string) {
 }
 
 function handleEmoteSelect(item: CommentNextEmoteItem) {
+  selectedEmoteId = item.id;
   onEmoteSelect(item);
   emotePanelOpen = false;
 }
@@ -433,6 +435,7 @@ async function updateAiPanelPosition(height = aiPanelHeight) {
           panelStyle={emotePanelStyle}
           packs={emotePacks}
           pageSize={emotePageSize}
+          selectedItemId={selectedEmoteId}
           onSelect={handleEmoteSelect}
           onPreviewChange={(entry) => (emotePreview = entry)}
         />

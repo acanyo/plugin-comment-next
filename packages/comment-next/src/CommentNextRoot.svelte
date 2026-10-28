@@ -4,6 +4,7 @@ import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
 import CommentNextBox from './CommentNextBox.svelte';
 import CommentNextCommentList from './CommentNextCommentList.svelte';
 import CommentNextReactionBar from './CommentNextReactionBar.svelte';
+import CommentNextSnippetTrigger from './CommentNextSnippetTrigger.svelte';
 import {
   normalizeCommentNextEmotePacks,
   normalizeLottieDefaults,
@@ -23,6 +24,7 @@ import type {
   CommentNextEmotePack,
   CommentNextRawEmotePacks,
 } from './types/emote';
+import type { CommentNextSnippetAnchor } from './types/snippet';
 import {
   sanitizeCommentSubmitHtml,
   sanitizeConsoleCommentHtml,
@@ -99,6 +101,10 @@ let configLoaded = $state(false);
 let configFailed = $state(false);
 let globalInfoLoaded = $state(false);
 let globalInfoFailed = $state(false);
+// biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
+let boxRef = $state<
+  { quoteSnippet: (anchor: CommentNextSnippetAnchor) => boolean } | undefined
+>();
 
 const pluginConfigReady = $derived(demoData || configLoaded || configFailed);
 const globalInfoReady = $derived(
@@ -379,6 +385,7 @@ export function reset() {
     {/if}
 
     <CommentNextBox
+      bind:this={boxRef}
       {baseUrl}
       {group}
       {kind}
@@ -402,6 +409,10 @@ export function reset() {
       {avatarConfig}
       emotePacks={resolvedEmotePacks}
     />
+
+    {#if configReady && !configFailed && basicConfig?.enableSnippetComment !== false && group === 'content.halo.run' && (kind === 'Post' || kind === 'SinglePage') && name}
+      <CommentNextSnippetTrigger subject={{baseUrl,group,kind,name,version}} onQuote={(anchor) => boxRef?.quoteSnippet(anchor) ?? false} />
+    {/if}
 
     {#if showComments && configReady}
       <CommentNextCommentList

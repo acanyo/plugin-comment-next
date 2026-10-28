@@ -26,6 +26,7 @@ export interface CommentNextGlobalInfo {
 }
 
 export interface CommentNextBasicConfig {
+  enableSnippetComment?: boolean;
   size?: number;
   replySize?: number;
   withReplies?: boolean;

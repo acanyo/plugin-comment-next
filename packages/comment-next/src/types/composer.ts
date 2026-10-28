@@ -5,8 +5,11 @@ export interface CommentNextComposerOwner {
 }
 
 export interface CommentNextComposerSubmitPayload {
+  snippet?: CommentNextSnippetAnchor;
   content: string;
   hidden: boolean;
   captchaCode: string;
   owner?: CommentNextComposerOwner;
 }
+
+import type { CommentNextSnippetAnchor } from './snippet';

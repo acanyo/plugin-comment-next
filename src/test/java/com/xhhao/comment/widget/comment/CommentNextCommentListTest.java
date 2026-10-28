@@ -142,6 +142,24 @@ class CommentNextCommentListTest {
             .thenReturn(Flux.fromIterable(ordinary));
     }
 
+    @Test
+    void snippetSourcesExcludePrivatePendingAndDeletedCommentsForAnonymousVisitors() {
+        var visible = comment("visible", false);
+        var hidden = comment("hidden", false);
+        hidden.getSpec().setHidden(true);
+        var pending = comment("pending", false);
+        pending.getSpec().setApproved(false);
+        var deleted = comment("deleted", false);
+        deleted.getMetadata().setDeletionTimestamp(Instant.now());
+        var options = ListOptions.builder()
+            .andQuery(isNull("metadata.deletionTimestamp"))
+            .andQuery(equal("spec.subjectRef", "content.halo.run/Post/post"))
+            .andQuery(publicVisibility()).build();
+        when(client.listAll(eq(Comment.class), argThat(options::equals), any()))
+            .thenReturn(Flux.just(visible, hidden, pending, deleted));
+        assertEquals(List.of(visible), service.visibleComments(query("latest", 1).toRef()).block());
+    }
+
     private Condition publicVisibility() {
         return and(equal("spec.hidden", false), equal("spec.approved", true));
     }

@@ -45,6 +45,13 @@ class CommentNextCommentService {
 
     private final CommentNextCounterService counterService;
 
+    Mono<List<Comment>> visibleComments(Ref ref) {
+        return accessService.getCurrentAccess().flatMap(access ->
+            client.listAll(Comment.class, commentListOptions(ref, access), firstCommentSort())
+                .filter(comment -> isVisibleComment(comment, access))
+                .collectList());
+    }
+
     Mono<ObjectNode> list(CommentNextCommentQuery query) {
         return Mono.zip(accessService.getCurrentAccess(), authorService.badgeContext())
             .flatMap(tuple -> {

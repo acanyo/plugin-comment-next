@@ -198,6 +198,7 @@ public interface SettingConfigGetter {
         private boolean withReplies;
         private int withReplySize;
         private boolean showCommenterDevice = true;
+        private boolean enableSnippetComment = true;
         private boolean enableImageLightbox = true;
         private boolean enablePrivateComment;
         private boolean showPrivateCommentBadge = true;

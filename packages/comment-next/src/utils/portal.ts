@@ -1,4 +1,5 @@
 import aiPanelStyles from '../ai/panel.css?inline';
+import snippetButtonStyles from '../snippets/button.css?inline';
 
 const PORTAL_VARIABLE_PREFIXES = ['--comment-next-', '--halo-cw-'];
 const PORTAL_STYLE_ID = 'comment-next-portal-styles';
@@ -454,6 +455,7 @@ function ensurePortalStyles() {
   }
 }
 ${aiPanelStyles}
+${snippetButtonStyles}
 `;
 
   if (!existingStyle) {

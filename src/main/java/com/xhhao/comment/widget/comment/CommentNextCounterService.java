@@ -13,17 +13,17 @@ import run.halo.app.extension.ReactiveExtensionClient;
 
 @Service
 @RequiredArgsConstructor
-class CommentNextCounterService {
+public class CommentNextCounterService {
 
     static final String CONTENT_GROUP = "content.halo.run";
 
-    static final String COMMENTS_PLURAL = "comments";
+    public static final String COMMENTS_PLURAL = "comments";
 
-    static final String REPLIES_PLURAL = "replies";
+    public static final String REPLIES_PLURAL = "replies";
 
     private final ReactiveExtensionClient client;
 
-    Mono<Map<String, Integer>> fetchUpvotes(String plural, Collection<String> names) {
+    public Mono<Map<String, Integer>> fetchUpvotes(String plural, Collection<String> names) {
         var uniqueNames = new LinkedHashSet<>(names);
         uniqueNames.removeIf(name -> !StringUtils.hasText(name));
 

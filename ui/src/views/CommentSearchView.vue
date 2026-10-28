@@ -1,7 +1,9 @@
 <script lang="ts" setup>
 import {
+  Dialog,
   IconRefreshLine,
   IconSearch,
+  Toast,
   VButton,
   VCard,
   VEmpty,
@@ -11,12 +13,14 @@ import {
   VPagination,
   VSpace,
 } from '@halo-dev/components';
+import { utils } from '@halo-dev/ui-shared';
 import { computed, onMounted, ref, watch } from 'vue';
 import {
   type CommentSearchItem,
   type CommentSearchStatus,
   type CommentSearchTarget,
   listCommentSearch,
+  replaceCommentEmail,
 } from '../api/comment-search';
 import CommentSearchListItem from '../components/CommentSearchListItem.vue';
 
@@ -36,6 +40,13 @@ const ipAddress = ref('');
 const author = ref('');
 const content = ref('');
 const subject = ref('');
+const emailReplacementVisible = ref(false);
+const replacingEmail = ref(false);
+const oldEmail = ref('');
+const newEmail = ref('');
+const emailReplacementPermissions = [
+  'plugin:comment-next:comment-search:manage',
+];
 
 const targetOptions: Array<{ label: string; value: CommentSearchTarget }> = [
   { label: '全部', value: 'all' },
@@ -60,6 +71,9 @@ const hasFilters = computed(
     status.value !== 'all' ||
     Boolean(keyword.value.trim()) ||
     hasAdvancedFilters.value
+);
+const canReplaceEmail = computed(() =>
+  utils.permission.has(emailReplacementPermissions)
 );
 
 onMounted(() => {
@@ -128,6 +142,59 @@ function clearFilters() {
 function handlePageChange() {
   loadItems();
 }
+
+function openEmailReplacement() {
+  oldEmail.value = email.value.trim();
+  newEmail.value = '';
+  emailReplacementVisible.value = true;
+}
+
+function closeEmailReplacement() {
+  if (!replacingEmail.value) {
+    emailReplacementVisible.value = false;
+  }
+}
+
+function submitEmailReplacement() {
+  const source = oldEmail.value.trim();
+  const targetEmail = newEmail.value.trim();
+  if (!source || !targetEmail) {
+    Toast.error('请输入旧邮箱和新邮箱');
+    return;
+  }
+  if (source.toLowerCase() === targetEmail.toLowerCase()) {
+    Toast.error('新邮箱不能与旧邮箱相同');
+    return;
+  }
+
+  Dialog.warning({
+    title: '确认批量替换邮箱',
+    description: `将所有历史评论和回复中的「${source}」替换为「${targetEmail}」，此操作不可撤销。`,
+    confirmType: 'danger',
+    confirmText: '确认替换',
+    cancelText: '取消',
+    onConfirm: async () => {
+      replacingEmail.value = true;
+      try {
+        const result = await replaceCommentEmail(source, targetEmail);
+        Toast.success(`已替换 ${result.replacedCount} 条评论或回复`);
+        emailReplacementVisible.value = false;
+
+        if (email.value.trim().toLowerCase() === source.toLowerCase()) {
+          email.value = targetEmail;
+          page.value = 1;
+        } else {
+          await loadItems();
+        }
+      } catch (error) {
+        console.error('Failed to replace comment email', error);
+        Toast.error('批量替换邮箱失败');
+      } finally {
+        replacingEmail.value = false;
+      }
+    },
+  });
+}
 </script>
 
 <template>
@@ -162,6 +229,14 @@ function handlePageChange() {
                 @click="advancedVisible = !advancedVisible"
               >
                 {{ advancedVisible ? '收起条件' : '更多条件' }}
+              </VButton>
+              <VButton
+                v-if="canReplaceEmail"
+                size="sm"
+                type="secondary"
+                @click="openEmailReplacement"
+              >
+                批量替换邮箱
               </VButton>
               <button
                 v-tooltip="'刷新'"
@@ -263,4 +338,53 @@ function handlePageChange() {
       </template>
     </VCard>
   </div>
+
+  <VModal
+    v-model:visible="emailReplacementVisible"
+    title="批量替换评论邮箱"
+    :width="520"
+    @close="closeEmailReplacement"
+  >
+    <p class=":uno: mb-4 text-sm leading-6 text-gray-600">
+      只会替换匿名邮箱身份（包括评论和回复），不会修改 Halo 用户账号的邮箱。
+      建议先在查询条件中确认旧邮箱，再执行替换。
+    </p>
+    <FormKit type="form" :actions="false" :config="{ validationVisibility: 'submit' }">
+      <FormKit
+        v-model="oldEmail"
+        type="email"
+        label="旧邮箱"
+        name="oldEmail"
+        placeholder="user@example.com"
+        validation="required|email"
+      />
+      <FormKit
+        v-model="newEmail"
+        type="email"
+        label="新邮箱"
+        name="newEmail"
+        placeholder="new@example.com"
+        validation="required|email"
+      />
+    </FormKit>
+
+    <template #footer>
+      <VSpace>
+        <VButton
+          type="secondary"
+          :disabled="replacingEmail"
+          @click="closeEmailReplacement"
+        >
+          取消
+        </VButton>
+        <VButton
+          type="primary"
+          :disabled="replacingEmail"
+          @click="submitEmailReplacement"
+        >
+          {{ replacingEmail ? '替换中' : '确认替换' }}
+        </VButton>
+      </VSpace>
+    </template>
+  </VModal>
 </template>

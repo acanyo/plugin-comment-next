@@ -32,7 +32,7 @@ rules:
       - "/apis/api.lottie.halo.run/v1alpha1/animations/*"
     verbs: [ "get" ]
   - apiGroups: [ "api.commentnext.xhhao.com" ]
-    resources: [ "comments", "comments/replies", "comments/featured" ]
+    resources: [ "comments", "comments/replies", "comments/featured", "comments/ranking", "comments/snippets" ]
     verbs: [ "get", "list" ]
   - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "uploads/images" ]
@@ -53,6 +53,8 @@ rules:
       - "/apis/api.commentnext.xhhao.com/v1alpha1/uploads/-/images"
       - "/apis/api.commentnext.xhhao.com/v1alpha1/ai/-/suggestions"
       - "/apis/api.commentnext.xhhao.com/v1alpha1/comments/featured"
+      - "/apis/api.commentnext.xhhao.com/v1alpha1/comments/ranking"
+      - "/apis/api.commentnext.xhhao.com/v1alpha1/comments/snippets"
       - "/apis/api.commentnext.xhhao.com/v1alpha1/subject-reactions"
       - "/apis/api.commentnext.xhhao.com/v1alpha1/target-reactions"
       - "/apis/api.commentnext.xhhao.com/v1alpha1/target-reports"
@@ -76,6 +78,24 @@ rules:
   - apiGroups: [ "console.api.commentnext.xhhao.com" ]
     resources: [ "comment-search" ]
     verbs: [ "get", "list" ]
+---
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: comment-next-manage-comment-search
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/dependencies: |
+      [ "comment-next-view-comment-search" ]
+    rbac.authorization.halo.run/module: "评论组件 Next"
+    rbac.authorization.halo.run/display-name: "批量替换评论邮箱"
+    rbac.authorization.halo.run/ui-permissions: |
+      [ "plugin:comment-next:comment-search:manage" ]
+rules:
+  - apiGroups: [ "console.api.commentnext.xhhao.com" ]
+    resources: [ "comment-search/replace-email" ]
+    verbs: [ "create" ]
 ---
 apiVersion: v1alpha1
 kind: Role

@@ -18,6 +18,10 @@ import {
   type CommentModerationState,
   updateCommentModeration,
 } from './api/comment-moderation';
+import {
+  CommentRankingBlockExtension,
+  CommentRankingSidebarBlockExtension,
+} from './editor';
 import { openAiReplyGenerateModal } from './services/ai-reply-modal';
 import 'uno.css';
 
@@ -223,6 +227,10 @@ export default definePlugin({
     },
   ],
   extensionPoints: {
+    'default:editor:extension:create': () => [
+      CommentRankingBlockExtension,
+      CommentRankingSidebarBlockExtension,
+    ],
     'comment:editor:replace': () => ({
       component: markRaw(ConsoleCommentEditor),
     }),

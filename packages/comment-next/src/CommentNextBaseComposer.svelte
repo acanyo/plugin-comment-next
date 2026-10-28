@@ -42,10 +42,12 @@ import {
   getImageUploadErrorMessage,
   uploadCommentImage,
 } from './services/uploads';
+import { createSnippetQuoteHtml, normalizeSnippetText } from './snippets/text';
 import type { CommentNextComment } from './types/comment';
 import type { CommentNextComposerSubmitPayload } from './types/composer';
 import type { CommentNextEditorImageKind } from './types/editor';
 import type { CommentNextEmoteItem, CommentNextEmotePack } from './types/emote';
+import type { CommentNextSnippetAnchor } from './types/snippet';
 import { sanitizeCommentSubmitHtml } from './utils/html';
 import { inferImageContentType, isImageContentType } from './utils/image-files';
 import { isolateTypingShortcuts } from './utils/isolate-typing-shortcuts';
@@ -214,6 +216,8 @@ let localSubmitting = $state(false);
 let imageUploading = $state(false);
 let submitMessage = $state('');
 let submitMessageType = $state<'error' | 'success'>('error');
+let snippetQuote = $state('');
+let snippetAnchor = $state<CommentNextSnippetAnchor | undefined>();
 const pendingImageUploads = new Map<string, PendingImageUpload>();
 
 const isLoggedIn = $derived(Boolean(currentUser) || loggedIn);
@@ -373,8 +377,20 @@ export function focus() {
 export function reset() {
   editorRef?.reset();
   editorHtml = '';
+  snippetQuote = '';
+  snippetAnchor = undefined;
   clearPendingImageUploads();
   onChange('');
+}
+
+export function quoteSnippet(anchor: CommentNextSnippetAnchor): boolean {
+  if (isSubmitting || loading || variant !== 'comment') return false;
+  snippetQuote = normalizeSnippetText(anchor.exact);
+  snippetAnchor = anchor;
+  if (!snippetQuote) return false;
+  composerElement?.scrollIntoView({ block: 'center', behavior: 'instant' });
+  editorRef?.focus();
+  return true;
 }
 
 function handleLogin() {
@@ -458,12 +474,14 @@ async function submitComposer({
     return;
   }
   const formData = new FormData(form);
+  const quote = snippetQuote;
+  const anchor = snippetAnchor;
 
   try {
     localSubmitting = true;
-    const content = await prepareContentForSubmit(rawContent);
+    const editorContent = await prepareContentForSubmit(rawContent);
 
-    if (!hasContent(content)) {
+    if (!hasContent(editorContent)) {
       showSubmitMessage(
         variant === 'reply' ? '请先输入回复内容。' : '请先输入评论内容。'
       );
@@ -472,7 +490,10 @@ async function submitComposer({
     }
 
     const payload: CommentNextComposerSubmitPayload = {
-      content,
+      snippet: quote ? anchor : undefined,
+      content: quote
+        ? `${createSnippetQuoteHtml(quote)}${editorContent}`
+        : editorContent,
       hidden: enablePrivate && isLoggedIn && formData.get('hidden') === 'on',
       captchaCode: resolvedCaptchaCode,
       owner: isLoggedIn
@@ -488,6 +509,8 @@ async function submitComposer({
 
     storeAnonymousAccount();
     editorRef?.reset();
+    snippetQuote = '';
+    snippetAnchor = undefined;
     clearPendingImageUploads();
     captchaCode = '';
     captchaImage = '';
@@ -1172,6 +1195,21 @@ function resolveMentionName(
       onEmailBlur={handleAnonymousEmailBlur}
     />
 
+    {#if snippetQuote}
+      <div class="comment-next-snippet-quote" role="note" aria-label="引用的文章片段">
+        <div>
+          <span>引用文章片段</span>
+          <blockquote>{snippetQuote}</blockquote>
+        </div>
+        <button
+          type="button"
+          aria-label="移除文章片段引用"
+          disabled={isSubmitting}
+          onclick={() => (snippetQuote = '')}
+        >×</button>
+      </div>
+    {/if}
+
     <CommentNextEditor
       bind:this={editorRef}
       {placeholder}
@@ -1300,6 +1338,43 @@ function resolveMentionName(
 </form>
 
 <style>
+  .comment-next-snippet-quote {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin: 12px 16px 0;
+    padding: 10px 12px;
+    border-left: 3px solid var(--comment-next-primary-color, #3b82f6);
+    border-radius: 0 8px 8px 0;
+    background: var(--comment-next-pill-bg-color, #f3f5f8);
+    color: var(--comment-next-muted-color, #6b7687);
+  }
+  .comment-next-snippet-quote > div { flex: 1; min-width: 0; }
+  .comment-next-snippet-quote span { font-size: 11px; }
+  .comment-next-snippet-quote blockquote {
+    margin: 4px 0 0;
+    max-height: 7em;
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--comment-next-text-color, #172033);
+  }
+  .comment-next-snippet-quote button {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font-size: 20px;
+    cursor: pointer;
+  }
+  .comment-next-snippet-quote button:hover { background: var(--comment-next-control-hover-bg-color, #eef2f4); }
+  .comment-next-snippet-quote button:focus-visible { outline: 2px solid var(--comment-next-primary-color, #3b82f6); }
+
   .comment-next-composer {
     --at-apply: relative box-border w-full overflow-visible border border-solid [border-color:var(--comment-next-border-color,#d5dde7)] rounded-[var(--comment-next-radius-lg,0.875rem)] [background:var(--comment-next-box-bg,transparent,var(--comment-next-bg-color,#ffffff))] text-[var(--comment-next-text-color,#172033)] shadow-[0_12px_30px_rgb(15_23_42_/_0.04),0_1px_0_rgb(255_255_255_/_0.48)_inset] transition-[border-color,box-shadow,transform] duration-140 ease-in-out;
     max-width: 100%;

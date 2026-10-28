@@ -82,6 +82,11 @@ spec:
           name: showCommenterDevice
           value: true
         - $formkit: switch
+          label: 启用文章片段评论
+          name: enableSnippetComment
+          value: true
+          help: 鼠标移到正文段落或选中文字后，显示“评论此片段”按钮，将文字引用到现有评论框；引用最多保留 1200 字。适用于已显示本评论组件的文章和页面，无需修改主题模板。
+        - $formkit: switch
           label: 启用评论图片灯箱
           name: enableImageLightbox
           help: 开启后，点击评论或回复中的图片可全屏预览
