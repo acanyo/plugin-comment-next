@@ -103,6 +103,8 @@ $effect(() => {
   :host {
     display: block;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
     container-type: inline-size;
   }
 
@@ -110,15 +112,16 @@ $effect(() => {
     --ranking-accent: var(--comment-ranking-accent-color, var(--halo-cw-primary-1-color, #31536f));
     --ranking-surface: var(--comment-ranking-surface-color, var(--comment-next-surface-bg-color, #fff));
     --ranking-text: var(--comment-ranking-text-color, var(--comment-next-text-color, #172033));
-    --ranking-muted: color-mix(in srgb, var(--ranking-text) 62%, var(--ranking-surface));
-    --ranking-line: color-mix(in srgb, var(--ranking-text) 8%, var(--ranking-surface));
-    --ranking-control: color-mix(in srgb, var(--ranking-text) 3%, var(--ranking-surface));
+    --ranking-muted: var(--comment-ranking-muted-color, var(--comment-next-muted-color, #6b7687));
+    --ranking-line: var(--comment-ranking-line-color, var(--comment-next-border-subtle-color, #e5e9ee));
+    --ranking-control: var(--comment-ranking-control-color, var(--comment-next-surface-bg-color, #f1f4f7));
     --ranking-tab-active: var(--ranking-accent);
     --ranking-tab-text: #fff;
     --ranking-avatar-fallback: var(--ranking-control);
 
     box-sizing: border-box;
     width: 100%;
+    padding: 1.25rem;
     padding: clamp(1rem, 3cqi, 2rem);
     border: 1px solid var(--ranking-line);
     border-radius: var(--comment-next-radius-lg, 1rem);
@@ -132,6 +135,7 @@ $effect(() => {
   }
   .ranking-page__header {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1.5rem;
@@ -142,6 +146,7 @@ $effect(() => {
   }
   h2 {
     margin: 0;
+    font-size: 1.4rem;
     font-size: clamp(1.25rem, 3.2cqi, 1.6rem);
     font-weight: 750;
     letter-spacing: -0.03em;
@@ -167,7 +172,23 @@ $effect(() => {
     color: var(--comment-next-error-color, #dc2626);
   }
 
+  @supports (color: color-mix(in srgb, black, white)) {
+    .ranking-page {
+      --ranking-muted: color-mix(in srgb, var(--ranking-text) 62%, var(--ranking-surface));
+      --ranking-line: color-mix(in srgb, var(--ranking-text) 8%, var(--ranking-surface));
+      --ranking-control: color-mix(in srgb, var(--ranking-text) 3%, var(--ranking-surface));
+    }
+  }
+
   @container (max-width: 38rem) {
+    .ranking-page__header {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 1rem;
+    }
+  }
+
+  @supports not (container-type: inline-size) {
     .ranking-page__header {
       align-items: stretch;
       flex-direction: column;

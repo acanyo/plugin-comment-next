@@ -58,7 +58,7 @@ const { items }: { items: CommentRankingItem[] } = $props();
         </div>
       </div>
       <strong class="ranking-podium__name" title={rankingDisplayName(item)}>{rankingDisplayName(item)}</strong>
-      <CommentRankingBadge rank={index + 1} />
+      <CommentRankingBadge badge={item.levelBadge} />
       <blockquote title={rankingLatestComment(item)}>“{rankingLatestComment(item)}”</blockquote>
       <dl class="ranking-podium__stats">
         <div>
@@ -81,6 +81,7 @@ const { items }: { items: CommentRankingItem[] } = $props();
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: end;
+    gap: 1rem;
     gap: clamp(0.65rem, 2cqi, 1.4rem);
     margin: 0;
     padding: 3rem 0 0;
@@ -90,16 +91,16 @@ const { items }: { items: CommentRankingItem[] } = $props();
   .ranking-podium__reader {
     --medal-color: #d69a20;
     --podium-tint: #ffd362;
+    --ranking-podium-bg: var(--comment-next-badge-first-bg-color, #fff9e9);
     position: relative;
     display: flex;
     min-width: 0;
     flex-direction: column;
     align-items: center;
+    padding: 1.4rem 1rem 1.2rem;
     padding: 1.4rem clamp(0.75rem, 2cqi, 1.4rem) 1.2rem;
     border-radius: 1.1rem;
-    background: linear-gradient(140deg,
-      color-mix(in srgb, var(--podium-tint) 20%, var(--ranking-surface)),
-      color-mix(in srgb, var(--podium-tint) 5%, var(--ranking-surface)));
+    background: var(--ranking-podium-bg);
     text-align: center;
   }
 
@@ -112,6 +113,7 @@ const { items }: { items: CommentRankingItem[] } = $props();
   [data-rank='2'] {
     --medal-color: #9caac0;
     --podium-tint: #bbd0f5;
+    --ranking-podium-bg: var(--comment-next-badge-level-bg-color, #f1f5fc);
     grid-column: 1;
     grid-row: 1;
   }
@@ -119,20 +121,25 @@ const { items }: { items: CommentRankingItem[] } = $props();
   [data-rank='3'] {
     --medal-color: #e69659;
     --podium-tint: #f4bd9c;
+    --ranking-podium-bg: var(--comment-next-badge-custom-bg-color, #fcf4ef);
     grid-column: 3;
     grid-row: 1;
   }
 
   .ranking-podium__portrait {
     position: relative;
+    width: 5.6rem;
     width: clamp(5.6rem, 12cqi, 7rem);
+    height: 5.6rem;
     height: clamp(5.6rem, 12cqi, 7rem);
     flex: none;
     margin: -0.8rem 0 0.85rem;
   }
 
   [data-rank='1'] .ranking-podium__portrait {
+    width: 6.4rem;
     width: clamp(6.4rem, 14cqi, 8.3rem);
+    height: 6.4rem;
     height: clamp(6.4rem, 14cqi, 8.3rem);
     margin-top: -0.7rem;
   }
@@ -143,7 +150,7 @@ const { items }: { items: CommentRankingItem[] } = $props();
     overflow: hidden;
     border: 0.28rem solid var(--ranking-surface);
     border-radius: 50%;
-    outline: 2px solid color-mix(in srgb, var(--medal-color) 45%, var(--ranking-surface));
+    outline: 2px solid var(--medal-color);
   }
 
   .ranking-podium__crown {
@@ -192,6 +199,7 @@ const { items }: { items: CommentRankingItem[] } = $props();
     max-width: 100%;
     overflow: hidden;
     margin-bottom: 0.6rem;
+    font-size: 1.15rem;
     font-size: clamp(1.05rem, 2.4cqi, 1.35rem);
     font-weight: 750;
     line-height: 1.3;
@@ -263,7 +271,42 @@ const { items }: { items: CommentRankingItem[] } = $props();
     grid-column: 1;
   }
 
+  @supports (color: color-mix(in srgb, black, white)) {
+    .ranking-podium__reader {
+      background: linear-gradient(140deg,
+        color-mix(in srgb, var(--podium-tint) 20%, var(--ranking-surface)),
+        color-mix(in srgb, var(--podium-tint) 5%, var(--ranking-surface)));
+    }
+
+    .ranking-podium__avatar {
+      outline: 2px solid color-mix(in srgb, var(--medal-color) 45%, var(--ranking-surface));
+    }
+  }
+
   @container (max-width: 34rem) {
+    .ranking-podium {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 3.2rem;
+      padding-top: 2.8rem;
+    }
+
+    .ranking-podium__reader {
+      grid-column: 1;
+      grid-row: auto;
+      padding: 1.5rem 1rem 1.2rem;
+    }
+
+    blockquote {
+      min-height: 0;
+      max-width: 24rem;
+    }
+    [data-rank='1'] .ranking-podium__portrait {
+      width: 7.5rem;
+      height: 7.5rem;
+    }
+  }
+
+  @supports not (container-type: inline-size) {
     .ranking-podium {
       grid-template-columns: minmax(0, 1fr);
       gap: 3.2rem;

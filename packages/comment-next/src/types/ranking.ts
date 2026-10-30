@@ -1,3 +1,5 @@
+import type { CommentNextBadge } from './comment';
+
 export type CommentRankingPeriod =
   | 'all'
   | 'week'
@@ -13,6 +15,7 @@ export interface CommentRankingItem {
   upvoteCount?: number;
   latestComment?: string;
   latestCommentAt?: string;
+  levelBadge?: CommentNextBadge | null;
 }
 
 export interface CommentRankingResponse {

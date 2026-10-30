@@ -1,6 +1,7 @@
 package com.xhhao.comment.widget;
 
 import com.xhhao.comment.widget.captcha.CaptchaType;
+import com.xhhao.comment.widget.ranking.CommentNextRankingConfig;
 import com.xhhao.comment.widget.security.CommentNextSecurityReviewAction;
 import com.xhhao.comment.widget.upload.ImageUploadProviderType;
 import java.util.ArrayList;
@@ -38,6 +39,9 @@ public interface SettingConfigGetter {
      * Never {@link Mono#empty()}.
      */
     Mono<BadgeConfig> getBadgeConfig();
+
+    /** Never {@link Mono#empty()}. */
+    Mono<CommentNextRankingConfig> getRankingConfig();
 
     /**
      * Never {@link Mono#empty()}.

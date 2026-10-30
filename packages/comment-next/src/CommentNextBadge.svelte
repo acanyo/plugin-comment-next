@@ -24,11 +24,7 @@ function resolveBadgeStyle(color?: string): string | undefined {
     return undefined;
   }
 
-  return [
-    `--comment-next-badge-color: ${badgeColor}`,
-    `--comment-next-badge-bg-color: color-mix(in srgb, ${badgeColor} 10%, transparent)`,
-    `--comment-next-badge-border-color: color-mix(in srgb, ${badgeColor} 26%, transparent)`,
-  ].join(';');
+  return `--comment-next-badge-color: ${badgeColor}`;
 }
 
 function normalizeColor(color?: string): string | undefined {
@@ -75,6 +71,13 @@ function normalizeColor(color?: string): string | undefined {
 </CommentNextTooltip>
 
 <style>
+  @supports (color: color-mix(in srgb, black, white)) {
+    .comment-next-badge[style] {
+      --comment-next-badge-bg-color: color-mix(in srgb, var(--comment-next-badge-color) 10%, transparent);
+      --comment-next-badge-border-color: color-mix(in srgb, var(--comment-next-badge-color) 26%, transparent);
+    }
+  }
+
   .comment-next-badge-first {
     --comment-next-badge-bg-color: var(--comment-next-badge-first-bg-color, #fff7d7);
     --comment-next-badge-border-color: var(--comment-next-badge-first-border-color, #ead27a);

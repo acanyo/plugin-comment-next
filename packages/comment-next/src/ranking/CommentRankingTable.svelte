@@ -35,7 +35,7 @@ const {
             <CommentRankingAvatar src={rankingAvatarUrl(item)} name={rankingDisplayName(item)} loading={index < 6 ? 'eager' : 'lazy'} />
           </span>
           <strong title={rankingDisplayName(item)}>{rankingDisplayName(item)}</strong>
-          <span class="ranking-table__badge"><CommentRankingBadge rank={index + startRank} /></span>
+          {#if item.levelBadge}<span class="ranking-table__badge"><CommentRankingBadge badge={item.levelBadge} /></span>{/if}
         </span>
         <span class="ranking-table__count" role="cell" aria-label={`${rankingCommentCount(item)} 条评论`}>
           <CommentNextIcon name="message" size={15} />{rankingCommentCount(item)}
@@ -105,7 +105,8 @@ const {
   }
 
   .ranking-table__badge {
-    flex: none;
+    min-width: 0;
+    max-width: 50%;
     margin-left: auto;
   }
   .ranking-table__count,
@@ -183,6 +184,39 @@ const {
       font-size: 0.73rem;
     }
     time {
+      display: none;
+    }
+  }
+
+  @supports not (container-type: inline-size) {
+    .ranking-table__head {
+      display: none;
+    }
+    .ranking-table__row {
+      grid-template-columns: 1.5rem minmax(0, 1fr) auto auto;
+      min-height: 4.5rem;
+      column-gap: 0.6rem;
+      row-gap: 0.25rem;
+      padding: 0.8rem 0.2rem;
+    }
+
+    .ranking-table__avatar {
+      width: 2rem;
+      height: 2rem;
+    }
+    .ranking-table__latest {
+      grid-column: 2 / -1;
+      font-size: 0.72rem;
+    }
+    .ranking-table__count,
+    .ranking-table__upvotes {
+      gap: 0.25rem;
+      font-size: 0.73rem;
+    }
+    time {
+      display: none;
+    }
+    .ranking-table__badge {
       display: none;
     }
   }

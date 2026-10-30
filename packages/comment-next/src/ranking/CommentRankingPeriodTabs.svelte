@@ -31,6 +31,8 @@ const {
 <style>
   .ranking-tabs {
     display: flex;
+    max-width: 100%;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.18rem;
     padding: 0.2rem;
@@ -39,7 +41,8 @@ const {
   }
 
   button {
-    min-width: 3.5rem;
+    min-width: 0;
+    flex: 1;
     border: 0;
     border-radius: 0.48rem;
     padding: 0.48rem 0.78rem;

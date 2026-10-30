@@ -1313,6 +1313,37 @@ spec:
               label: Halo 用户
               name: username
               validation: required
+    - group: ranking
+      label: 读者排行
+      formSchema:
+        - $formkit: array
+          label: 不参与排行的用户
+          name: excludedUsers
+          value: []
+          addLabel: 添加用户
+          help: 可选择博主等不参与排行的 Halo 用户，其评论和回复不计入所有周期的排行榜；不影响评论展示及评论徽章。
+          itemLabels:
+            - type: text
+              label: $value.username
+          children:
+            - $formkit: userSelect
+              label: Halo 用户
+              name: username
+              validation: required
+        - $formkit: array
+          label: 不参与排行的邮箱
+          name: excludedEmails
+          value: []
+          addLabel: 添加邮箱
+          help: 按邮箱排除匿名评论者及使用该邮箱的 Halo 用户，不区分邮箱大小写。邮箱仅用于后台匹配，不会公开。
+          itemLabels:
+            - type: text
+              label: $value.email
+          children:
+            - $formkit: email
+              label: 邮箱
+              name: email
+              validation: required|email
     - group: interactionPlus
       label: 互动增强
       formSchema:

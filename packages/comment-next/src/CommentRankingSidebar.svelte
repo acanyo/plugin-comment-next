@@ -129,6 +129,8 @@ $effect(() => {
   :host {
     display: block;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
     container-type: inline-size;
   }
 
@@ -142,9 +144,9 @@ $effect(() => {
       --comment-ranking-text-color,
       var(--comment-next-text-color, #172033)
     );
-    --ranking-muted: color-mix(in srgb, var(--ranking-text) 58%, var(--ranking-surface));
-    --ranking-line: color-mix(in srgb, var(--ranking-text) 10%, var(--ranking-surface));
-    --ranking-control: color-mix(in srgb, var(--ranking-text) 6%, var(--ranking-surface));
+    --ranking-muted: var(--comment-ranking-muted-color, var(--comment-next-muted-color, #6b7687));
+    --ranking-line: var(--comment-ranking-line-color, var(--comment-next-border-subtle-color, #e5e9ee));
+    --ranking-control: var(--comment-ranking-control-color, var(--comment-next-surface-bg-color, #f1f4f7));
     --ranking-tab-active: var(--ranking-accent);
     --ranking-tab-text: #fff;
     --ranking-avatar-fallback: var(--ranking-control);
@@ -152,6 +154,7 @@ $effect(() => {
     box-sizing: border-box;
     width: 100%;
     overflow: hidden;
+    padding: 1rem;
     padding: clamp(1rem, 7cqi, 1.45rem);
     border: 1px solid var(--ranking-line);
     border-radius: var(--comment-next-radius-lg, 1rem);
@@ -167,6 +170,7 @@ $effect(() => {
 
   header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 0.65rem;
@@ -177,6 +181,7 @@ $effect(() => {
     min-width: 0;
     margin: 0;
     overflow: hidden;
+    font-size: 1.1rem;
     font-size: clamp(1rem, 7cqi, 1.18rem);
     font-weight: 800;
     letter-spacing: -0.03em;
@@ -278,7 +283,7 @@ $effect(() => {
   }
 
   .ranking-sidebar__link:hover {
-    background: color-mix(in srgb, var(--ranking-text) 10%, var(--ranking-surface));
+    background: var(--ranking-line);
   }
 
   .ranking-sidebar__link:focus-visible {
@@ -296,7 +301,26 @@ $effect(() => {
     color: var(--comment-next-error-color, #dc2626);
   }
 
+  @supports (color: color-mix(in srgb, black, white)) {
+    .ranking-sidebar {
+      --ranking-muted: color-mix(in srgb, var(--ranking-text) 58%, var(--ranking-surface));
+      --ranking-line: color-mix(in srgb, var(--ranking-text) 10%, var(--ranking-surface));
+      --ranking-control: color-mix(in srgb, var(--ranking-text) 6%, var(--ranking-surface));
+    }
+
+    .ranking-sidebar__link:hover {
+      background: color-mix(in srgb, var(--ranking-text) 10%, var(--ranking-surface));
+    }
+  }
+
   @container (max-width: 17rem) {
+    header {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  }
+
+  @supports not (container-type: inline-size) {
     header {
       align-items: stretch;
       flex-direction: column;

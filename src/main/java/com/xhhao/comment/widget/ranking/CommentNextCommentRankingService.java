@@ -1,6 +1,9 @@
 package com.xhhao.comment.widget.ranking;
 
+import com.xhhao.comment.widget.SettingConfigGetter;
 import com.xhhao.comment.widget.avatar.CommentNextWeAvatarUrl;
+import com.xhhao.comment.widget.badge.CommentNextBadgeIdentity;
+import com.xhhao.comment.widget.badge.CommentNextBadgeProfileService;
 import com.xhhao.comment.widget.comment.CommentNextCounterService;
 import java.time.Duration;
 import java.time.Instant;
@@ -38,20 +41,31 @@ public class CommentNextCommentRankingService {
 
     private final ReactiveExtensionClient client;
     private final CommentNextCounterService counterService;
+    private final SettingConfigGetter settingConfigGetter;
+    private final CommentNextBadgeProfileService badgeProfileService;
 
-    private final Map<CommentNextCommentRankingPeriod, Mono<List<CommentNextCommentRankingItem>>>
+    private final Map<CommentNextCommentRankingPeriod, Mono<List<RankedReader>>>
         rankingCache = new ConcurrentHashMap<>();
 
     public Mono<CommentNextCommentRankingResponse> list(String periodValue, String limitValue) {
         var period = CommentNextCommentRankingPeriod.from(periodValue);
         var limit = parseLimit(limitValue);
-        return rankingCache.computeIfAbsent(period, this::cachedRanking)
-            .map(items -> new CommentNextCommentRankingResponse(
-                period.value(), limit, items.stream().limit(limit).toList()
-            ));
+        return Mono.zip(
+                rankingCache.computeIfAbsent(period, this::cachedRanking),
+                settingConfigGetter.getRankingConfig()
+            )
+            .flatMapMany(tuple -> Flux.fromIterable(tuple.getT1())
+                .filter(reader -> !tuple.getT2().excludes(reader.identity(), reader.memberEmail())))
+            .take(limit)
+            .flatMapSequential(reader -> badgeProfileService.fetchSnapshot(reader.identity())
+                .map(snapshot -> reader.item().withLevelBadge(snapshot.badges().stream()
+                    .filter(badge -> badge != null && "level".equals(badge.tone()))
+                    .findFirst().orElse(null))), 8)
+            .collectList()
+            .map(items -> new CommentNextCommentRankingResponse(period.value(), limit, items));
     }
 
-    private Mono<List<CommentNextCommentRankingItem>> cachedRanking(
+    private Mono<List<RankedReader>> cachedRanking(
         CommentNextCommentRankingPeriod period
     ) {
         // One public request must not scan every comment for every visitor. Recalculate
@@ -131,7 +145,7 @@ public class CommentNextCommentRankingService {
             && !Boolean.TRUE.equals(spec.getHidden());
     }
 
-    private Mono<List<CommentNextCommentRankingItem>> rankingWithUpvotes(
+    private Mono<List<RankedReader>> rankingWithUpvotes(
         Map<String, User> users,
         List<RankingOwner> owners
     ) {
@@ -149,7 +163,7 @@ public class CommentNextCommentRankingService {
         ).map(tuple -> rank(users, owners, tuple.getT1(), tuple.getT2()));
     }
 
-    private List<CommentNextCommentRankingItem> rank(
+    private List<RankedReader> rank(
         Map<String, User> users,
         List<RankingOwner> owners,
         Map<String, Integer> commentUpvotes,
@@ -165,10 +179,10 @@ public class CommentNextCommentRankingService {
         });
 
         return counts.values().stream()
-            .map(RankingAccumulator::toItem)
-            .sorted(Comparator.comparingLong(CommentNextCommentRankingItem::commentCount)
+            .map(RankingAccumulator::toReader)
+            .sorted(Comparator.comparingLong((RankedReader reader) -> reader.item().commentCount())
                 .reversed()
-                .thenComparing(CommentNextCommentRankingItem::displayName,
+                .thenComparing(reader -> reader.item().displayName(),
                     String.CASE_INSENSITIVE_ORDER))
             .toList();
     }
@@ -241,6 +255,14 @@ public class CommentNextCommentRankingService {
         }
     }
 
+    // Identity and email stay inside the cache and never enter the public response.
+    private record RankedReader(
+        CommentNextBadgeIdentity identity,
+        String memberEmail,
+        CommentNextCommentRankingItem item
+    ) {
+    }
+
     private static final class RankingAccumulator {
         private Comment.CommentOwner owner;
         private final User user;
@@ -264,6 +286,14 @@ public class CommentNextCommentRankingService {
             }
         }
 
+        private RankedReader toReader() {
+            return new RankedReader(
+                CommentNextBadgeIdentity.fromOwner(owner).orElseThrow(),
+                user != null && user.getSpec() != null ? user.getSpec().getEmail() : null,
+                toItem()
+            );
+        }
+
         private CommentNextCommentRankingItem toItem() {
             if (user != null && user.getSpec() != null) {
                 var displayName = firstText(
@@ -282,7 +312,8 @@ public class CommentNextCommentRankingService {
                     count,
                     upvoteCount,
                     latestComment,
-                    latestCommentAt
+                    latestCommentAt,
+                    null
                 );
             }
 
@@ -295,7 +326,8 @@ public class CommentNextCommentRankingService {
                     count,
                     upvoteCount,
                     latestComment,
-                    latestCommentAt
+                    latestCommentAt,
+                    null
                 );
             }
 
@@ -311,7 +343,8 @@ public class CommentNextCommentRankingService {
                 count,
                 upvoteCount,
                 latestComment,
-                latestCommentAt
+                latestCommentAt,
+                null
             );
         }
 

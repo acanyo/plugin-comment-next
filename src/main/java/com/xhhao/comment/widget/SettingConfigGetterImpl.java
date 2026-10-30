@@ -1,5 +1,6 @@
 package com.xhhao.comment.widget;
 
+import com.xhhao.comment.widget.ranking.CommentNextRankingConfig;
 import com.xhhao.comment.widget.security.CommentNextSecurityReviewAction;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +46,12 @@ public class SettingConfigGetterImpl implements SettingConfigGetter {
     public Mono<BadgeConfig> getBadgeConfig() {
         return settingFetcher.fetch(BadgeConfig.GROUP, BadgeConfig.class)
             .defaultIfEmpty(BadgeConfig.empty());
+    }
+
+    @Override
+    public Mono<CommentNextRankingConfig> getRankingConfig() {
+        return settingFetcher.fetch(CommentNextRankingConfig.GROUP, CommentNextRankingConfig.class)
+            .defaultIfEmpty(new CommentNextRankingConfig());
     }
 
     @Override

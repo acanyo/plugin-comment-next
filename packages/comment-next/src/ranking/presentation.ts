@@ -17,18 +17,6 @@ export function rankingUpvoteCount(item: CommentRankingItem): number {
   return Math.max(0, Number(item.upvoteCount) || 0);
 }
 
-export function rankingReaderBadge(rank: number): {
-  label: string;
-  tone: string;
-} {
-  if (rank === 1) return { label: '超活跃读者', tone: 'gold' };
-  if (rank === 2) return { label: '深度读者', tone: 'violet' };
-  if (rank === 3) return { label: '忠实读者', tone: 'blue' };
-  if (rank <= 5) return { label: '活跃读者', tone: 'green' };
-  if (rank <= 8) return { label: '热心读者', tone: 'blue' };
-  return { label: '潜力读者', tone: 'neutral' };
-}
-
 export function rankingLatestComment(item: CommentRankingItem): string {
   return item.latestComment?.trim() || '暂无评论摘要';
 }
