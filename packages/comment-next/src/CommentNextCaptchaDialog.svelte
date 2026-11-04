@@ -3,11 +3,12 @@ import { tick } from 'svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import CommentNextImageCaptcha from './CommentNextImageCaptcha.svelte';
 import {
-  getAltchaChallengeUrl,
-  isLocalImageCaptcha,
-  resolveApiUrl,
   type CommentNextCaptchaConfig,
   type CommentNextCaptchaType,
+  getAltchaChallengeUrl,
+  getRecaptchaScriptUrl,
+  isLocalImageCaptcha,
+  resolveApiUrl,
 } from './services/captcha';
 
 type GeeTestInstance = {
@@ -28,12 +29,16 @@ type CaptchaWindow = Window &
       config: Record<string, unknown>,
       callback: (captcha: GeeTestInstance) => void
     ) => void;
+    turnstile?: TurnstileApi;
+    grecaptcha?: GrecaptchaApi;
   };
 
 type AltchaWidgetElement = HTMLElement & {
   configure?: (config: Record<string, unknown>) => Promise<void>;
   reset?: () => void;
-  verify?: (options?: { minDuration?: number }) => Promise<{ payload: string } | null>;
+  verify?: (options?: {
+    minDuration?: number;
+  }) => Promise<{ payload: string } | null>;
 };
 
 type CapWidgetElement = HTMLElement & {
@@ -41,10 +46,26 @@ type CapWidgetElement = HTMLElement & {
   token?: string | null;
 };
 
+type TurnstileApi = {
+  render: (container: HTMLElement, options: Record<string, unknown>) => string;
+  reset: (widgetId?: string) => void;
+  remove?: (widgetId?: string) => void;
+};
+
+type GrecaptchaApi = {
+  ready: (callback: () => void) => void;
+  render: (container: HTMLElement, options: Record<string, unknown>) => number;
+  reset: (widgetId?: number) => void;
+  execute: (siteKey: string, options?: { action?: string }) => Promise<string>;
+};
+
 const GEETEST_SCRIPT = 'https://static.geetest.com/v4/gt4.js';
 const PLUGIN_STATIC_BASE = '/plugins/PluginCommentNext/assets/static';
 const ALTCHA_SCRIPT = `${PLUGIN_STATIC_BASE}/vendor/altcha/altcha.i18n.min.js`;
 const CAP_SCRIPT = `${PLUGIN_STATIC_BASE}/vendor/cap/cap.min.js`;
+const TURNSTILE_SCRIPT =
+  'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&hl=zh-CN';
+const RECAPTCHA_DEFAULT_ACTION = 'comment';
 
 const scriptPromises = new Map<string, Promise<void>>();
 
@@ -80,9 +101,11 @@ const {
   onClose?: () => void;
 } = $props();
 
-let geeTestElement = $state<HTMLDivElement | undefined>();
-let altchaElement = $state<AltchaWidgetElement | undefined>();
-let capElement = $state<CapWidgetElement | undefined>();
+const geeTestElement = $state<HTMLDivElement | undefined>();
+const altchaElement = $state<AltchaWidgetElement | undefined>();
+const capElement = $state<CapWidgetElement | undefined>();
+const turnstileElement = $state<HTMLDivElement | undefined>();
+const recaptchaElement = $state<HTMLDivElement | undefined>();
 let providerLoading = $state(false);
 let providerReady = $state(false);
 let providerError = $state('');
@@ -91,12 +114,17 @@ let altchaVerifiedListener: ((event: Event) => void) | undefined;
 let altchaStateChangeListener: ((event: Event) => void) | undefined;
 let capSolveListener: ((event: Event) => void) | undefined;
 let capErrorListener: ((event: Event) => void) | undefined;
+let turnstileWidgetId: string | undefined;
+let recaptchaWidgetId: number | undefined;
 let lastSessionKey = $state('');
 let geeTestStyleSyncTimers: number[] = [];
 let altchaStyleSyncTimers: number[] = [];
 
 const localImageMode = $derived(isLocalImageCaptcha(type));
 const externalProviderMode = $derived(!localImageMode);
+const recaptchaVersion = $derived(
+  captchaConfig?.recaptcha?.version === 'V3' ? 'V3' : 'V2'
+);
 const canConfirm = $derived(Boolean(value.trim()) && !submitting);
 const dialogDescription = $derived(resolveDialogDescription());
 const resolvedError = $derived(providerError || error.trim());
@@ -162,6 +190,36 @@ $effect(() => {
   };
 });
 
+$effect(() => {
+  if (!open || type !== 'TURNSTILE' || !turnstileElement) {
+    return;
+  }
+
+  const currentRefreshKey = refreshKey;
+  let cancelled = false;
+  void currentRefreshKey;
+  void renderTurnstile(() => cancelled);
+  return () => {
+    cancelled = true;
+    cleanupTurnstile();
+  };
+});
+
+$effect(() => {
+  if (!open || type !== 'RECAPTCHA' || !recaptchaElement) {
+    return;
+  }
+
+  const currentRefreshKey = refreshKey;
+  let cancelled = false;
+  void currentRefreshKey;
+  void renderRecaptcha(() => cancelled);
+  return () => {
+    cancelled = true;
+    cleanupRecaptcha();
+  };
+});
+
 async function renderGeeTest(isCancelled: () => boolean) {
   const captchaId = captchaConfig?.geeTest?.captchaId?.trim();
   if (!captchaId) {
@@ -189,48 +247,47 @@ async function renderGeeTest(isCancelled: () => boolean) {
       product: 'bind',
       language: 'zho',
     };
-    const apiServers = resolveGeeTestApiServers(captchaConfig?.geeTest?.apiServer);
+    const apiServers = resolveGeeTestApiServers(
+      captchaConfig?.geeTest?.apiServer
+    );
     if (apiServers) {
       geeTestOptions.apiServers = apiServers;
     }
 
-    initGeetest4(
-      geeTestOptions,
-      (captcha: GeeTestInstance) => {
-        if (isCancelled() || !geeTestElement) {
-          captcha.destroy?.();
-          return;
-        }
-
-        geeTestInstance = captcha;
-        scheduleGeeTestStyleSync();
-        captcha
-          .onReady(() => {
-            providerReady = true;
-            providerLoading = false;
-            scheduleGeeTestStyleSync();
-            showGeeTestCaptcha(captcha);
-          })
-          .onSuccess(() => {
-            scheduleGeeTestStyleSync();
-            const validate = captcha.getValidate();
-            if (!validate) {
-              reportProviderError('GeeTest 未返回验证结果，请重新验证。');
-              onChange('');
-              return;
-            }
-
-            const token = JSON.stringify(validate);
-            providerError = '';
-            onChange(token);
-            onVerified(token);
-          })
-          .onError(() => {
-            reportProviderError('GeeTest 加载失败，请稍后重试。');
-            onChange('');
-          });
+    initGeetest4(geeTestOptions, (captcha: GeeTestInstance) => {
+      if (isCancelled() || !geeTestElement) {
+        captcha.destroy?.();
+        return;
       }
-    );
+
+      geeTestInstance = captcha;
+      scheduleGeeTestStyleSync();
+      captcha
+        .onReady(() => {
+          providerReady = true;
+          providerLoading = false;
+          scheduleGeeTestStyleSync();
+          showGeeTestCaptcha(captcha);
+        })
+        .onSuccess(() => {
+          scheduleGeeTestStyleSync();
+          const validate = captcha.getValidate();
+          if (!validate) {
+            reportProviderError('GeeTest 未返回验证结果，请重新验证。');
+            onChange('');
+            return;
+          }
+
+          const token = JSON.stringify(validate);
+          providerError = '';
+          onChange(token);
+          onVerified(token);
+        })
+        .onError(() => {
+          reportProviderError('GeeTest 加载失败，请稍后重试。');
+          onChange('');
+        });
+    });
   } catch (error) {
     console.error(error);
     reportProviderError('GeeTest 加载失败，请稍后重试。');
@@ -319,10 +376,195 @@ async function renderCap(isCancelled: () => boolean) {
   }
 }
 
+async function renderTurnstile(isCancelled: () => boolean) {
+  const siteKey = captchaConfig?.turnstile?.siteKey?.trim();
+  if (!siteKey) {
+    reportProviderError('请先在后台配置 Turnstile Site Key。');
+    return;
+  }
+  if (!turnstileElement) {
+    return;
+  }
+
+  try {
+    providerLoading = true;
+    providerReady = false;
+    providerError = '';
+    onChange('');
+    cleanupTurnstile();
+    await loadScript(TURNSTILE_SCRIPT);
+    await waitForTurnstileApi(isCancelled);
+    if (isCancelled() || !turnstileElement) {
+      providerLoading = false;
+      return;
+    }
+
+    const turnstile = captchaWindow().turnstile;
+    if (!turnstile) {
+      providerLoading = false;
+      return;
+    }
+
+    turnstileWidgetId = turnstile.render(turnstileElement, {
+      sitekey: siteKey,
+      theme: resolveWidgetTheme(),
+      language: 'zh-cn',
+      size: 'normal',
+      appearance: 'always',
+      callback: (token: string) => {
+        if (isCancelled()) {
+          return;
+        }
+        if (!token) {
+          reportProviderError('Turnstile 未返回验证结果，请重新验证。');
+          onChange('');
+          return;
+        }
+
+        providerError = '';
+        onChange(token);
+        onVerified(token);
+      },
+      'error-callback': () => {
+        if (isCancelled()) {
+          return;
+        }
+        reportProviderError('Turnstile 验证失败，请重试。');
+        onChange('');
+      },
+      'expired-callback': () => {
+        if (isCancelled()) {
+          return;
+        }
+        reportProviderError('Turnstile 验证已过期，请重新验证。');
+        onChange('');
+      },
+      'timeout-callback': () => {
+        if (isCancelled()) {
+          return;
+        }
+        reportProviderError('Turnstile 验证超时，请重新验证。');
+        onChange('');
+      },
+    });
+    providerReady = true;
+    providerLoading = false;
+  } catch (error) {
+    console.error(error);
+    providerLoading = false;
+    reportProviderError('Turnstile 加载失败，请稍后重试。');
+    onChange('');
+  }
+}
+
+async function renderRecaptcha(isCancelled: () => boolean) {
+  const config = captchaConfig?.recaptcha;
+  const siteKey = config?.siteKey?.trim();
+  const version = config?.version === 'V3' ? 'V3' : 'V2';
+  if (!siteKey) {
+    reportProviderError('请先在后台配置 reCAPTCHA Site Key。');
+    return;
+  }
+  if (!recaptchaElement) {
+    return;
+  }
+
+  try {
+    providerLoading = true;
+    providerReady = false;
+    providerError = '';
+    onChange('');
+    cleanupRecaptcha();
+    await loadScript(getRecaptchaScriptUrl(config?.apiServer));
+    await waitForRecaptchaApi(isCancelled);
+    if (isCancelled() || !recaptchaElement) {
+      providerLoading = false;
+      return;
+    }
+
+    const grecaptcha = captchaWindow().grecaptcha;
+    if (!grecaptcha) {
+      providerLoading = false;
+      return;
+    }
+
+    if (version === 'V3') {
+      const action = config?.action?.trim() || RECAPTCHA_DEFAULT_ACTION;
+      const token = await withTimeout(
+        (async () => {
+          await waitForRecaptchaReady(grecaptcha);
+          return grecaptcha.execute(siteKey, { action });
+        })(),
+        15000,
+        'reCAPTCHA verification timed out'
+      );
+      if (isCancelled()) {
+        providerLoading = false;
+        return;
+      }
+      if (!token) {
+        reportProviderError('reCAPTCHA 未返回验证结果，请稍后重试。');
+        onChange('');
+        providerLoading = false;
+        return;
+      }
+
+      providerReady = true;
+      providerLoading = false;
+      onChange(token);
+      onVerified(token);
+      return;
+    }
+
+    recaptchaWidgetId = grecaptcha.render(recaptchaElement, {
+      sitekey: siteKey,
+      theme: resolveWidgetTheme(),
+      size: 'normal',
+      callback: (token: string) => {
+        if (isCancelled()) {
+          return;
+        }
+        if (!token) {
+          reportProviderError('reCAPTCHA 未返回验证结果，请重新验证。');
+          onChange('');
+          return;
+        }
+
+        providerError = '';
+        onChange(token);
+        onVerified(token);
+      },
+      'expired-callback': () => {
+        if (isCancelled()) {
+          return;
+        }
+        reportProviderError('reCAPTCHA 验证已过期，请重新验证。');
+        onChange('');
+      },
+      'error-callback': () => {
+        if (isCancelled()) {
+          return;
+        }
+        reportProviderError('reCAPTCHA 验证失败，请重试。');
+        onChange('');
+      },
+    });
+    providerReady = true;
+    providerLoading = false;
+  } catch (error) {
+    console.error(error);
+    providerLoading = false;
+    reportProviderError('reCAPTCHA 加载失败，请稍后重试。');
+    onChange('');
+  }
+}
+
 function cleanupProviderWidgets() {
   cleanupGeeTest();
   cleanupAltcha();
   cleanupCap();
+  cleanupTurnstile();
+  cleanupRecaptcha();
 }
 
 function captchaWindow(): CaptchaWindow {
@@ -376,6 +618,119 @@ function cleanupCap() {
   capElement?.reset?.();
 }
 
+function cleanupTurnstile() {
+  const turnstile = captchaWindow().turnstile;
+  if (turnstileWidgetId && turnstile?.remove) {
+    try {
+      turnstile.remove(turnstileWidgetId);
+    } catch (error) {
+      console.warn(error);
+    }
+  }
+  turnstileWidgetId = undefined;
+  if (turnstileElement) {
+    turnstileElement.innerHTML = '';
+  }
+}
+
+function cleanupRecaptcha() {
+  const grecaptcha = captchaWindow().grecaptcha;
+  if (recaptchaWidgetId !== undefined && grecaptcha) {
+    try {
+      grecaptcha.reset(recaptchaWidgetId);
+    } catch (error) {
+      console.warn(error);
+    }
+  }
+  recaptchaWidgetId = undefined;
+  if (recaptchaElement) {
+    recaptchaElement.innerHTML = '';
+  }
+}
+
+async function waitForTurnstileApi(isCancelled: () => boolean) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const turnstile = captchaWindow().turnstile;
+    if (turnstile && typeof turnstile.render === 'function') {
+      return;
+    }
+    if (isCancelled()) {
+      return;
+    }
+    await delay(50);
+  }
+  throw new Error('Turnstile API is not ready');
+}
+
+async function waitForRecaptchaApi(isCancelled: () => boolean) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const grecaptcha = captchaWindow().grecaptcha;
+    if (grecaptcha && typeof grecaptcha.render === 'function') {
+      return;
+    }
+    if (isCancelled()) {
+      return;
+    }
+    await delay(50);
+  }
+  throw new Error('reCAPTCHA API is not ready');
+}
+
+function waitForRecaptchaReady(grecaptcha: GrecaptchaApi): Promise<void> {
+  return new Promise((resolve) => {
+    grecaptcha.ready(() => resolve());
+  });
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  message: string
+): Promise<T> {
+  let timer: number | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error(message)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+    }
+  }
+}
+
+function resolveWidgetTheme(): 'light' | 'dark' {
+  const nodes = [document.documentElement, document.body].filter(
+    (node): node is HTMLElement => Boolean(node)
+  );
+  const isDark = nodes.some(
+    (node) =>
+      node.classList.contains('dark') ||
+      node.classList.contains('color-scheme-dark') ||
+      node.getAttribute('data-color-scheme') === 'dark'
+  );
+  if (isDark) {
+    return 'dark';
+  }
+
+  const isLight = nodes.some(
+    (node) =>
+      node.classList.contains('light') ||
+      node.classList.contains('color-scheme-light') ||
+      node.getAttribute('data-color-scheme') === 'light'
+  );
+  if (isLight) {
+    return 'light';
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light';
+}
+
 async function waitForAltchaElement(
   element: AltchaWidgetElement,
   isCancelled: () => boolean
@@ -402,7 +757,8 @@ function attachAltchaListeners(
     if (isCancelled()) {
       return;
     }
-    const token = (event as CustomEvent<{ payload?: string }>).detail?.payload ?? '';
+    const token =
+      (event as CustomEvent<{ payload?: string }>).detail?.payload ?? '';
     if (!token) {
       reportProviderError('ALTCHA 未返回验证结果，请重新验证。');
       onChange('');
@@ -466,21 +822,31 @@ function configureCapElement(element: CapWidgetElement, apiEndpoint: string) {
   element.setAttribute('data-cap-i18n-solved-label', '验证通过');
   element.setAttribute('data-cap-i18n-error-label', '验证失败，请重试');
   element.setAttribute('data-cap-i18n-verify-aria-label', '开始安全验证');
-  element.setAttribute('data-cap-i18n-verifying-aria-label', '正在进行安全验证');
+  element.setAttribute(
+    'data-cap-i18n-verifying-aria-label',
+    '正在进行安全验证'
+  );
   element.setAttribute('data-cap-i18n-verified-aria-label', '安全验证已通过');
-  element.setAttribute('data-cap-i18n-error-aria-label', '安全验证失败，请重试');
+  element.setAttribute(
+    'data-cap-i18n-error-aria-label',
+    '安全验证失败，请重试'
+  );
   element.setAttribute('data-cap-disable-haptics', '');
 }
 
-function attachCapListeners(element: CapWidgetElement, isCancelled: () => boolean) {
+function attachCapListeners(
+  element: CapWidgetElement,
+  isCancelled: () => boolean
+) {
   cleanupCapListeners();
   capSolveListener = (event: Event) => {
     if (isCancelled()) {
       return;
     }
-    const token = (event as CustomEvent<{ token?: string }>).detail?.token
-      || element.token
-      || '';
+    const token =
+      (event as CustomEvent<{ token?: string }>).detail?.token ||
+      element.token ||
+      '';
     if (!token) {
       reportProviderError('Cap 未返回验证结果，请重新验证。');
       onChange('');
@@ -495,8 +861,9 @@ function attachCapListeners(element: CapWidgetElement, isCancelled: () => boolea
     if (isCancelled()) {
       return;
     }
-    const message = (event as CustomEvent<{ message?: string }>).detail?.message
-      || 'Cap 验证失败，请重试。';
+    const message =
+      (event as CustomEvent<{ message?: string }>).detail?.message ||
+      'Cap 验证失败，请重试。';
     reportProviderError(message);
     onChange('');
   };
@@ -521,7 +888,9 @@ function delay(ms: number): Promise<void> {
   });
 }
 
-function resolveGeeTestApiServers(apiServer: string | undefined): string[] | undefined {
+function resolveGeeTestApiServers(
+  apiServer: string | undefined
+): string[] | undefined {
   const value = apiServer?.trim();
   if (!value) {
     return undefined;
@@ -562,7 +931,9 @@ function scheduleAltchaStyleSync() {
 }
 
 function clearAltchaStyleSyncTimers() {
-  altchaStyleSyncTimers.forEach((timer) => window.clearTimeout(timer));
+  altchaStyleSyncTimers.forEach((timer) => {
+    window.clearTimeout(timer);
+  });
   altchaStyleSyncTimers = [];
 }
 
@@ -576,10 +947,9 @@ function syncAltchaStylesIntoShadowRoots() {
     return;
   }
 
-  const roots = [
-    altchaElement.shadowRoot,
-    altchaElement.getRootNode(),
-  ].filter((root): root is ShadowRoot => root instanceof ShadowRoot);
+  const roots = [altchaElement.shadowRoot, altchaElement.getRootNode()].filter(
+    (root): root is ShadowRoot => root instanceof ShadowRoot
+  );
 
   roots.forEach((root) => {
     if (root.querySelector('[data-comment-next-altcha-style="altcha-css"]')) {
@@ -602,7 +972,9 @@ function scheduleGeeTestStyleSync() {
 }
 
 function clearGeeTestStyleSyncTimers() {
-  geeTestStyleSyncTimers.forEach((timer) => window.clearTimeout(timer));
+  geeTestStyleSyncTimers.forEach((timer) => {
+    window.clearTimeout(timer);
+  });
   geeTestStyleSyncTimers = [];
 }
 
@@ -624,7 +996,9 @@ function syncGeeTestStylesIntoShadowRoot() {
       return;
     }
 
-    const clonedNode = node.cloneNode(true) as HTMLStyleElement | HTMLLinkElement;
+    const clonedNode = node.cloneNode(true) as
+      | HTMLStyleElement
+      | HTMLLinkElement;
     clonedNode.setAttribute('data-comment-next-geetest-style', key);
     root.appendChild(clonedNode);
   });
@@ -680,7 +1054,12 @@ function loadScript(src: string): Promise<void> {
     script.src = src;
     script.async = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+    script.onerror = () => {
+      // Allow a later attempt to reload after transient network failures.
+      scriptPromises.delete(src);
+      script.remove();
+      reject(new Error(`Failed to load script: ${src}`));
+    };
     document.head.appendChild(script);
   });
 
@@ -871,6 +1250,107 @@ function loadScript(src: string): Promise<void> {
   </div>
 {/if}
 
+{#if open && type === 'TURNSTILE'}
+  <div class="comment-next-captcha-dialog-layer" role="presentation" onclick={handleLayerClick}>
+    <div
+      class="comment-next-captcha-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="comment-next-turnstile-title"
+    >
+      <header class="comment-next-captcha-dialog-header">
+        <div>
+          <h3 id="comment-next-turnstile-title">安全验证</h3>
+          <p>完成验证后继续提交</p>
+        </div>
+        <button
+          class="comment-next-captcha-dialog-close"
+          type="button"
+          aria-label="关闭验证码"
+          disabled={submitting}
+          onclick={onClose}
+        >
+          <CommentNextIcon name="x" size={16} />
+        </button>
+      </header>
+
+      <div class="comment-next-captcha-dialog-body">
+        <div class="comment-next-provider-widget-shell" data-loading={providerLoading}>
+          {#if providerLoading}
+            <div class="comment-next-provider-loading">
+              <span class="comment-next-captcha-dialog-loading">
+                <CommentNextIcon name="loader" size={16} />
+              </span>
+              正在加载安全验证...
+            </div>
+          {/if}
+          <div bind:this={turnstileElement} class="comment-next-turnstile-widget"></div>
+        </div>
+
+        {#if resolvedError}
+          <p class="comment-next-captcha-dialog-error">{resolvedError}</p>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if open && type === 'RECAPTCHA'}
+  <div class="comment-next-captcha-dialog-layer" role="presentation" onclick={handleLayerClick}>
+    <div
+      class="comment-next-captcha-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="comment-next-recaptcha-title"
+    >
+      <header class="comment-next-captcha-dialog-header">
+        <div>
+          <h3 id="comment-next-recaptcha-title">安全验证</h3>
+          <p>
+            {recaptchaVersion === 'V3'
+              ? '正在完成安全验证，请稍候'
+              : '完成验证后继续提交'}
+          </p>
+        </div>
+        <button
+          class="comment-next-captcha-dialog-close"
+          type="button"
+          aria-label="关闭验证码"
+          disabled={submitting}
+          onclick={onClose}
+        >
+          <CommentNextIcon name="x" size={16} />
+        </button>
+      </header>
+
+      <div class="comment-next-captcha-dialog-body">
+        <div
+          class="comment-next-provider-widget-shell"
+          data-loading={providerLoading}
+        >
+          {#if providerLoading}
+            <div class="comment-next-provider-loading">
+              <span class="comment-next-captcha-dialog-loading">
+                <CommentNextIcon name="loader" size={16} />
+              </span>
+              {recaptchaVersion === 'V3' ? '正在完成安全验证...' : '正在加载安全验证...'}
+            </div>
+          {/if}
+          <div
+            bind:this={recaptchaElement}
+            class="comment-next-recaptcha-widget"
+            data-version={recaptchaVersion}
+          ></div>
+        </div>
+
+        {#if resolvedError}
+          <p class="comment-next-captcha-dialog-error">{resolvedError}</p>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
   .comment-next-captcha-dialog-layer {
     --at-apply: fixed inset-0 z-[9999] flex items-center justify-center bg-[rgb(15_23_42_/_0.30)] px-4 py-6;
@@ -916,8 +1396,19 @@ function loadScript(src: string): Promise<void> {
   }
 
   .comment-next-cap-widget-shell,
-  .comment-next-altcha-widget-shell {
+  .comment-next-altcha-widget-shell,
+  .comment-next-provider-widget-shell {
     --at-apply: relative flex min-h-[58px] items-center justify-center;
+  }
+
+  .comment-next-provider-widget-shell[data-loading="true"] .comment-next-turnstile-widget,
+  .comment-next-provider-widget-shell[data-loading="true"] .comment-next-recaptcha-widget {
+    --at-apply: opacity-0;
+  }
+
+  .comment-next-turnstile-widget,
+  .comment-next-recaptcha-widget {
+    --at-apply: flex w-full items-center justify-center;
   }
 
   .comment-next-cap-widget-shell[data-loading="true"] .comment-next-cap-widget {
@@ -940,7 +1431,8 @@ function loadScript(src: string): Promise<void> {
   }
 
   .comment-next-cap-loading,
-  .comment-next-altcha-loading {
+  .comment-next-altcha-loading,
+  .comment-next-provider-loading {
     --at-apply: absolute inset-0 flex items-center justify-center gap-2 rounded-[0.875rem] border border-solid [border-color:rgb(226_232_240)] bg-[rgb(248_250_252)] text-sm text-[var(--comment-next-muted-color,#6b7687)];
   }
 

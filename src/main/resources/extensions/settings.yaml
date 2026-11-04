@@ -210,6 +210,16 @@ spec:
             cap:
               apiEndpoint: ""
               secretKey: ""
+            turnstile:
+              siteKey: ""
+              secretKey: ""
+            recaptcha:
+              siteKey: ""
+              secretKey: ""
+              version: "V2"
+              scoreThreshold: 0.5
+              action: "comment"
+              apiServer: "https://www.recaptcha.net"
           children:
             - $formkit: switch
               label: 匿名评论需要验证码
@@ -234,6 +244,10 @@ spec:
                   value: "ALTCHA"
                 - label: Cap
                   value: "CAP"
+                - label: Cloudflare Turnstile
+                  value: "TURNSTILE"
+                - label: Google reCAPTCHA
+                  value: "RECAPTCHA"
             - $formkit: number
               if: "$get(type).value === 'ALPHANUMERIC'"
               name: captchaLength
@@ -371,6 +385,103 @@ spec:
                   label: Cap Secret Key
                   validation: required
                   help: 后端调用 Cap siteverify 校验 token 使用，不会暴露给前台。
+            - $formkit: group
+              if: "$get(type).value === 'TURNSTILE'"
+              name: turnstile
+              id: captchaTurnstile
+              key: captchaTurnstile
+              label: Cloudflare Turnstile
+              value:
+                siteKey: ""
+                secretKey: ""
+              children:
+                - $formkit: text
+                  name: siteKey
+                  id: turnstileSiteKey
+                  key: turnstileSiteKey
+                  label: Turnstile Site Key
+                  validation: required
+                  help: Cloudflare 控制台 Turnstile 小部件中的站点密钥，会下发到前台用于渲染。
+                - $formkit: password
+                  name: secretKey
+                  id: turnstileSecretKey
+                  key: turnstileSecretKey
+                  label: Turnstile Secret Key
+                  validation: required
+                  help: 仅后端用于调用 Cloudflare siteverify，不会暴露给前台。
+            - $formkit: group
+              if: "$get(type).value === 'RECAPTCHA'"
+              name: recaptcha
+              id: captchaRecaptcha
+              key: captchaRecaptcha
+              label: Google reCAPTCHA
+              value:
+                siteKey: ""
+                secretKey: ""
+                version: "V2"
+                scoreThreshold: 0.5
+                action: "comment"
+                apiServer: "https://www.recaptcha.net"
+              children:
+                - $formkit: radio
+                  name: version
+                  id: recaptchaVersion
+                  key: recaptchaVersion
+                  label: reCAPTCHA 版本
+                  value: "V2"
+                  options:
+                    - label: v2 复选框
+                      value: "V2"
+                    - label: v3 评分
+                      value: "V3"
+                  help: v2 需要用户点击「我不是机器人」；v3 无感打分，按分数阈值判定。
+                - $formkit: select
+                  name: apiServer
+                  id: recaptchaApiServer
+                  key: recaptchaApiServer
+                  label: reCAPTCHA 服务地址
+                  value: "https://www.recaptcha.net"
+                  options:
+                    - label: www.recaptcha.net（中国大陆可直连，推荐）
+                      value: "https://www.recaptcha.net"
+                    - label: www.google.com（Google 官方，中国大陆通常不可达）
+                      value: "https://www.google.com"
+                  validation: required
+                  help: 前台脚本与后端校验共用该地址。面向境内读者请保持默认；如站点与访客均可访问 Google，可切换为官方域名。
+                - $formkit: text
+                  name: siteKey
+                  id: recaptchaSiteKey
+                  key: recaptchaSiteKey
+                  label: reCAPTCHA Site Key
+                  validation: required
+                  help: Google reCAPTCHA 管理后台注册站点后获得的站点密钥，会下发到前台。
+                - $formkit: password
+                  name: secretKey
+                  id: recaptchaSecretKey
+                  key: recaptchaSecretKey
+                  label: reCAPTCHA Secret Key
+                  validation: required
+                  help: 仅后端用于调用 Google siteverify，不会暴露给前台。
+                - $formkit: number
+                  if: "$get(type).value === 'RECAPTCHA' && $get(version).value === 'V3'"
+                  name: scoreThreshold
+                  id: recaptchaScoreThreshold
+                  key: recaptchaScoreThreshold
+                  label: v3 分数阈值
+                  min: 0
+                  max: 1
+                  step: 0.1
+                  value: 0.5
+                  validation: required
+                  help: 分数低于该值视为验证失败。建议从 0.5 开始，按误拦情况微调。
+                - $formkit: text
+                  if: "$get(type).value === 'RECAPTCHA' && $get(version).value === 'V3'"
+                  name: action
+                  id: recaptchaAction
+                  key: recaptchaAction
+                  label: v3 Action
+                  value: "comment"
+                  help: 前端 execute 与后端校验共用的动作标识，用于防止 token 跨场景复用。
     - group: upload
       label: 图片上传
       formSchema:

@@ -15,7 +15,7 @@ UI 部分基于 Svelte Web Component 构建，由插件自动注入到 Halo 主�
 - 头像降级：支持默认头像池和按身份生成的本地图案。
 - IP 属地：支持在评论与回复上显示发表时的 IP 属地（如「广东」「日本」），默认优先使用内置 ip2region 离线库，未命中时再查询 HTTPS 接口，可自定义接口地址、缓存时长与接口超时，前台不会暴露完整 IP。
 - 图片上传：支持 Halo 附件库和 ImgBB，可分别配置登录用户与未登录用户的上传方式、大小限制和安全拦截。
-- 验证码：支持图片验证码、GeeTest、ALTCHA 和 Cap，统一在提交评论时弹出验证。
+- 验证码：支持图片验证码、GeeTest、ALTCHA、Cap、Cloudflare Turnstile 和 Google reCAPTCHA（v2 复选框 / v3 评分），统一在提交评论时弹出验证。reCAPTCHA 默认使用中国大陆可直连的 `www.recaptcha.net`，也可切换回 `www.google.com`。
 - 安全管理：支持 IP、邮箱、用户名、关键词、域名、UA 的黑名单/灰名单规则，支持精确、包含和正则匹配。
 - AI 能力：支持 AI 写作助手、@AI 自动回复、AI 自动回复候选审核、AI 恶意评论识别和拦截通知。
 - 后台管理：提供按邮箱、IP、评论者、内容和来源组合查询，以及评论表情、举报记录、AI 回复管理、AI 拦截记录、黑灰名单、徽章设置等控制台菜单。
@@ -29,11 +29,17 @@ UI 部分基于 Svelte Web Component 构建，由插件自动注入到 Halo 主�
 - IP 属地：评论 IP 属地的显示开关、属地接口 URL 模板（默认 HTTPS + 中文）、缓存时长、接口超时与优先使用内置离线库的开关。
 - 表情与 Lottie：表情选择器支持分页，可配置每页显示数量，并可设置 Lottie 播放和媒体尺寸限制。
 - 图片上传：支持 Halo 附件库和 ImgBB，可分别设置登录用户与未登录用户的上传方式、大小限制和上传限流。
-- 验证码：支持字母数字、算术验证码、GeeTest、ALTCHA 和 Cap，统一在提交评论时弹出验证。
+- 验证码：支持字母数字、算术验证码、GeeTest、ALTCHA、Cap、Cloudflare Turnstile 和 Google reCAPTCHA（v2 复选框 / v3 评分），统一在提交评论时弹出验证。Turnstile 与 reCAPTCHA 仅需填写站点密钥（会下发前台）和服务端密钥（不会外泄）；reCAPTCHA v3 还需设置分数阈值与 action，并可切换服务地址（默认 `https://www.recaptcha.net`）。
 - 表情回应：支持文章、评论、回复的表情回应，并可分别配置 emoji 或图片回应项。
 - 举报设置：支持评论和回复举报，可设置达到举报阈值后自动进入待审核。
 - AI 助手：工具栏提供「@助手」入口（开启 @ 自动回复后显示），以及标签式 AI 评论面板，可生成草稿、润色、扩展、提问和整理回复；生成结果由评论者确认后填入。支持 AI 自动回复管理、AI 提示词配置和 AI 恶意评论识别。
 - 徽章设置：支持首评徽章、管理员徽章、自定义徽章规则和用户徽章展示。
+
+### 验证码服务准备
+
+- Cloudflare Turnstile：在 Cloudflare 控制台进入 Turnstile，添加站点并复制 Site Key 与 Secret Key。站点域名需与博客访问域名一致。
+- Google reCAPTCHA：在 [reCAPTCHA 管理后台](https://www.google.com/recaptcha/admin) 注册站点，按需选择 v2 复选框或 v3 评分，复制站点密钥与密钥。v3 还需设置分数阈值（默认 0.5，低于阈值视为失败）和 action（默认 `comment`）。
+- reCAPTCHA 服务地址：默认 `https://www.recaptcha.net`，这是 Google 官方提供的备用域名，接口路径与 `www.google.com` 完全一致，中国大陆可直连；如站点与访客均可访问 Google，可在设置中切换为 `https://www.google.com`。若站点设置了 CSP，需要把所选域名加入 `script-src`、`connect-src` 与 `frame-src`。
 
 徽章图标在选择后保存为 SVG 内容，前台使用内嵌图片显示，保留图标原有颜色；单色图标跟随徽章颜色。默认图标已随插件打包。旧版自定义规则若仍保存 `图标集:图标名`，在后台编辑并保存一次即可转为内嵌内容；更新前的旧规则继续兼容外链加载。首评和管理员设置中的旧图标需重新选择后保存。手动配置的外部图片地址仍需要访问对应图片服务。
 
@@ -332,6 +338,7 @@ Halo 插件的详细开发文档可查阅 [插件开发](https://docs.halo.run/c
 - 当前推荐接入方式是 Halo 插件 + 主题 `<halo:comment />` 标签，不再在 README 中提供独立 npm 组件接入说明。
 - AI 写作、@AI 自动回复、AI 自动回复和 AI 拦截都需要先在 AI Foundation 中配置可用语言模型。
 - 匿名上传、匿名 AI 和匿名举报会带来资源消耗风险，建议配合验证码、限流和审核策略开启。
+- Cloudflare Turnstile 与 Google reCAPTCHA 的脚本与校验接口由第三方提供，访客浏览器需能访问 `challenges.cloudflare.com` 或所配置的 reCAPTCHA 服务地址，插件后端也需能访问对应的 siteverify 接口。reCAPTCHA 默认使用 `www.recaptcha.net`（Google 官方备用域名，中国大陆可直连），可在设置中切换为 `www.google.com`；不同地区与运营商的连通性存在差异，上线前建议实测。Turnstile 与 reCAPTCHA 的 token 均为一次性，有效期分别为 300 秒和 120 秒，过期后需重新验证。
 - 置顶评论独立显示在评论列表上方，不占用普通评论的分页名额；「最新」「最热」「最早」列表不会重复显示置顶评论。置顶评论及其回复仍遵循原有的可见性规则。
 - 在评论身份信息和正文中输入 `/` 时，不会触发主题的全局搜索快捷键；编辑器内的 `/` 命令及组件外的主题快捷键仍可正常使用。
 - IP 属地基于 Halo 在评论创建时记录的 `spec.ipAddress` 解析，插件不会把完整 IP 返回给前台。默认优先使用内置 ip2region 离线库（IPv4 + IPv6，Apache-2.0，说明见 `src/main/resources/ip2region/NOTICE.md`），命中时不请求在线接口，也不等待第三方接口超时；境外数据里的国家代码会转成中文（如「美国」）。

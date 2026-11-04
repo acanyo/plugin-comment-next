@@ -48,6 +48,10 @@ public class ConfigEndpoint implements CustomEndpoint {
 
     private static final String CAP = "cap";
 
+    private static final String TURNSTILE = "turnstile";
+
+    private static final String RECAPTCHA = "recaptcha";
+
     private static final String TYPE = "type";
 
     private static final String CAPTCHA_KEY = "captchaKey";
@@ -227,9 +231,9 @@ public class ConfigEndpoint implements CustomEndpoint {
             return;
         }
 
-        captchaNode.remove("turnstile");
         var captchaType = captchaNode.path(TYPE).asText();
-        if (!Set.of("ALPHANUMERIC", "ARITHMETIC", "GEETEST", "ALTCHA", "CAP").contains(captchaType)) {
+        if (!Set.of("ALPHANUMERIC", "ARITHMETIC", "GEETEST", "ALTCHA", "CAP",
+            "TURNSTILE", "RECAPTCHA").contains(captchaType)) {
             captchaNode.put(TYPE, "ALPHANUMERIC");
         }
 
@@ -246,6 +250,16 @@ public class ConfigEndpoint implements CustomEndpoint {
         var capValue = captchaNode.get(CAP);
         if (capValue instanceof ObjectNode capNode) {
             capNode.remove(SECRET_KEY);
+        }
+
+        var turnstileValue = captchaNode.get(TURNSTILE);
+        if (turnstileValue instanceof ObjectNode turnstileNode) {
+            turnstileNode.remove(SECRET_KEY);
+        }
+
+        var recaptchaValue = captchaNode.get(RECAPTCHA);
+        if (recaptchaValue instanceof ObjectNode recaptchaNode) {
+            recaptchaNode.remove(SECRET_KEY);
         }
     }
 

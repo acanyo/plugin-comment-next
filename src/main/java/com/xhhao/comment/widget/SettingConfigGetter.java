@@ -126,6 +126,12 @@ public interface SettingConfigGetter {
         @Getter(onMethod_ = @NonNull)
         private CapCaptchaConfig cap = CapCaptchaConfig.empty();
 
+        @Getter(onMethod_ = @NonNull)
+        private TurnstileCaptchaConfig turnstile = TurnstileCaptchaConfig.empty();
+
+        @Getter(onMethod_ = @NonNull)
+        private RecaptchaCaptchaConfig recaptcha = RecaptchaCaptchaConfig.empty();
+
         public CaptchaConfig setType(CaptchaType type) {
             this.type = (type == null ? CaptchaType.ALPHANUMERIC : type);
             return this;
@@ -143,6 +149,16 @@ public interface SettingConfigGetter {
 
         public CaptchaConfig setCap(CapCaptchaConfig cap) {
             this.cap = cap == null ? CapCaptchaConfig.empty() : cap;
+            return this;
+        }
+
+        public CaptchaConfig setTurnstile(TurnstileCaptchaConfig turnstile) {
+            this.turnstile = turnstile == null ? TurnstileCaptchaConfig.empty() : turnstile;
+            return this;
+        }
+
+        public CaptchaConfig setRecaptcha(RecaptchaCaptchaConfig recaptcha) {
+            this.recaptcha = recaptcha == null ? RecaptchaCaptchaConfig.empty() : recaptcha;
             return this;
         }
 
@@ -191,6 +207,53 @@ public interface SettingConfigGetter {
 
         public static CapCaptchaConfig empty() {
             return new CapCaptchaConfig();
+        }
+    }
+
+    @Data
+    class TurnstileCaptchaConfig {
+        private String siteKey;
+        private String secretKey;
+
+        public static TurnstileCaptchaConfig empty() {
+            return new TurnstileCaptchaConfig();
+        }
+    }
+
+    @Data
+    class RecaptchaCaptchaConfig {
+        public static final String VERSION_V2 = "V2";
+        public static final String VERSION_V3 = "V3";
+        public static final double DEFAULT_SCORE_THRESHOLD = 0.5;
+        public static final String DEFAULT_ACTION = "comment";
+        /**
+         * Google's official alternative domain for reCAPTCHA. It serves the
+         * same endpoints as www.google.com and is reachable from mainland China.
+         */
+        public static final String DEFAULT_API_SERVER = "https://www.recaptcha.net";
+
+        private String siteKey;
+        private String secretKey;
+        private String version = VERSION_V2;
+        private double scoreThreshold = DEFAULT_SCORE_THRESHOLD;
+        private String action = DEFAULT_ACTION;
+        private String apiServer = DEFAULT_API_SERVER;
+
+        /**
+         * reCAPTCHA v3 returns a risk score instead of a binary result, so the
+         * verifier needs to know which contract to apply.
+         */
+        public boolean usesV3() {
+            return VERSION_V3.equalsIgnoreCase(version == null ? "" : version.trim());
+        }
+
+        public static RecaptchaCaptchaConfig empty() {
+            var config = new RecaptchaCaptchaConfig();
+            config.setVersion(VERSION_V2);
+            config.setScoreThreshold(DEFAULT_SCORE_THRESHOLD);
+            config.setAction(DEFAULT_ACTION);
+            config.setApiServer(DEFAULT_API_SERVER);
+            return config;
         }
     }
 

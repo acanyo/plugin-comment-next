@@ -71,7 +71,7 @@ public class CaptchaManagerImpl implements CaptchaManager {
                 var captcha = switch (captchaConfig.getType()) {
                     case ALPHANUMERIC -> CaptchaGenerator.generateSimpleCaptcha(captchaConfig.getCaptchaLength());
                     case ARITHMETIC -> CaptchaGenerator.generateMathCaptcha(captchaConfig.getArithmeticRange());
-                    case GEETEST, ALTCHA, CAP ->
+                    case GEETEST, ALTCHA, CAP, TURNSTILE, RECAPTCHA ->
                         throw new IllegalStateException("External captcha type does not generate local image");
                 };
                 var imageBase64 = encodeBufferedImageToDataUri(captcha.image());
