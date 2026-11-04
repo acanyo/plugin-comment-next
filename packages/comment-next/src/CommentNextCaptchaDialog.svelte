@@ -101,11 +101,16 @@ const {
   onClose?: () => void;
 } = $props();
 
-const geeTestElement = $state<HTMLDivElement | undefined>();
-const altchaElement = $state<AltchaWidgetElement | undefined>();
-const capElement = $state<CapWidgetElement | undefined>();
-const turnstileElement = $state<HTMLDivElement | undefined>();
-const recaptchaElement = $state<HTMLDivElement | undefined>();
+// biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
+let geeTestElement = $state<HTMLDivElement | undefined>();
+// biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
+let altchaElement = $state<AltchaWidgetElement | undefined>();
+// biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
+let capElement = $state<CapWidgetElement | undefined>();
+// biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
+let turnstileElement = $state<HTMLDivElement | undefined>();
+// biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
+let recaptchaElement = $state<HTMLDivElement | undefined>();
 let providerLoading = $state(false);
 let providerReady = $state(false);
 let providerError = $state('');
