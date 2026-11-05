@@ -34,6 +34,13 @@ class ConfigEndpointTest {
                  "apiKey":"private-value","provider":"legacy"}
                 """,
             "qqProfile", "{\"apiUrlTemplate\":\"private-value\"}",
+            "security", """
+                {"captcha":{"anonymousCommentCaptcha":true,"type":"RECAPTCHA",
+                 "turnstile":{"siteKey":"ts-site-key","secretKey":"ts-secret"},
+                 "recaptcha":{"siteKey":"rc-site-key","secretKey":"rc-secret",
+                   "version":"V3","scoreThreshold":0.6,"action":"comment",
+                   "apiServer":"https://www.google.com"}}}
+                """,
             "ai", "{\"assistant\":{\"assistantUserName\":\"bot\"}}"
         ));
         var assistant = new User();
@@ -66,6 +73,14 @@ class ConfigEndpointTest {
             .jsonPath("$.avatar.apiKey").doesNotExist()
             .jsonPath("$.avatar.provider").doesNotExist()
             .jsonPath("$.qqProfile").doesNotExist()
+            .jsonPath("$.security.captcha.type").isEqualTo("RECAPTCHA")
+            .jsonPath("$.security.captcha.turnstile.siteKey").isEqualTo("ts-site-key")
+            .jsonPath("$.security.captcha.turnstile.secretKey").doesNotExist()
+            .jsonPath("$.security.captcha.recaptcha.siteKey").isEqualTo("rc-site-key")
+            .jsonPath("$.security.captcha.recaptcha.secretKey").doesNotExist()
+            .jsonPath("$.security.captcha.recaptcha.version").isEqualTo("V3")
+            .jsonPath("$.security.captcha.recaptcha.action").isEqualTo("comment")
+            .jsonPath("$.security.captcha.recaptcha.apiServer").isEqualTo("https://www.google.com")
             .jsonPath("$.ai.assistantDisplayName").isEqualTo("拾光 bot")
             .jsonPath("$.ai.assistantMentionName").isEqualTo("@拾光 bot")
             .jsonPath("$.ai.assistantAvatar").isEqualTo("/upload/bot.png");

@@ -5,7 +5,9 @@ public enum CaptchaType {
     ARITHMETIC,
     GEETEST,
     ALTCHA,
-    CAP;
+    CAP,
+    TURNSTILE,
+    RECAPTCHA;
 
     public boolean isLocalImage() {
         return this == ALPHANUMERIC || this == ARITHMETIC;

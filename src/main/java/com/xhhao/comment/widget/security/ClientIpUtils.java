@@ -3,6 +3,7 @@ package com.xhhao.comment.widget.security;
 import lombok.experimental.UtilityClass;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.server.ServerRequest;
+import org.springframework.web.server.ServerWebExchange;
 
 @UtilityClass
 public class ClientIpUtils {
@@ -25,16 +26,21 @@ public class ClientIpUtils {
     };
 
     public static String getClientIp(ServerRequest request) {
+        return getClientIp(request.exchange());
+    }
+
+    public static String getClientIp(ServerWebExchange exchange) {
         for (String header : IP_HEADER_NAMES) {
-            var ipList = request.headers().firstHeader(header);
+            var ipList = exchange.getRequest().getHeaders().getFirst(header);
             var ip = firstValidIp(ipList);
             if (StringUtils.hasText(ip)) {
                 return ip;
             }
         }
 
-        var remoteAddress = request.exchange().getRequest().getRemoteAddress();
-        if (remoteAddress == null || remoteAddress.isUnresolved()) {
+        var remoteAddress = exchange.getRequest().getRemoteAddress();
+        if (remoteAddress == null || remoteAddress.isUnresolved()
+            || remoteAddress.getAddress() == null) {
             return UNKNOWN;
         }
 

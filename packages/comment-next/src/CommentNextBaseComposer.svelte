@@ -528,7 +528,7 @@ async function submitComposer({
   } catch (error) {
     if (error instanceof CommentNextCommentError) {
       if (error.captchaRequired) {
-        const message = getCommentSubmitErrorMessage(error);
+        const message = resolveCaptchaSubmitMessage(error);
         captchaCode = '';
         captchaImage = error.captchaImage ?? '';
         captchaRefreshKey += error.captchaImage ? 0 : 1;
@@ -612,6 +612,16 @@ function handleCaptchaVerified(value: string) {
     allowCaptchaDialog: false,
     captchaCodeOverride: token,
   });
+}
+
+function resolveCaptchaSubmitMessage(error: CommentNextCommentError): string {
+  if (
+    !isLocalImageCaptcha(captchaType) &&
+    error.type?.includes('captcha-invalid')
+  ) {
+    return '验证未通过，请重新完成安全验证。';
+  }
+  return getCommentSubmitErrorMessage(error);
 }
 
 function showSubmitMessage(

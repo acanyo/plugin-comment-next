@@ -12,7 +12,11 @@ export type CommentNextCaptchaType =
   | 'ARITHMETIC'
   | 'GEETEST'
   | 'ALTCHA'
-  | 'CAP';
+  | 'CAP'
+  | 'TURNSTILE'
+  | 'RECAPTCHA';
+
+export type CommentNextRecaptchaVersion = 'V2' | 'V3';
 
 export interface CommentNextGeeTestCaptchaConfig {
   captchaId?: string;
@@ -29,12 +33,32 @@ export interface CommentNextCapCaptchaConfig {
   apiEndpoint?: string;
 }
 
+export interface CommentNextTurnstileCaptchaConfig {
+  siteKey?: string;
+}
+
+export interface CommentNextRecaptchaCaptchaConfig {
+  siteKey?: string;
+  version?: CommentNextRecaptchaVersion;
+  scoreThreshold?: number;
+  action?: string;
+  apiServer?: string;
+}
+
+/**
+ * Google's official alternative domain for reCAPTCHA. It exposes the same
+ * endpoints as www.google.com and is reachable from mainland China.
+ */
+export const RECAPTCHA_DEFAULT_API_SERVER = 'https://www.recaptcha.net';
+
 export interface CommentNextCaptchaConfig {
   anonymousCommentCaptcha?: boolean;
   type?: CommentNextCaptchaType;
   geeTest?: CommentNextGeeTestCaptchaConfig;
   altcha?: CommentNextAltchaCaptchaConfig;
   cap?: CommentNextCapCaptchaConfig;
+  turnstile?: CommentNextTurnstileCaptchaConfig;
+  recaptcha?: CommentNextRecaptchaCaptchaConfig;
 }
 
 const CAPTCHA_ENDPOINT =
@@ -83,6 +107,41 @@ export async function fetchCaptchaImage(baseUrl = ''): Promise<string> {
 
 export function getAltchaChallengeUrl(baseUrl = ''): string {
   return resolveApiUrl(baseUrl, ALTCHA_CHALLENGE_ENDPOINT);
+}
+
+/**
+ * Resolves the configured reCAPTCHA service origin. Both official domains and
+ * self-hosted proxies are accepted; anything unparsable falls back to the
+ * default so the widget never silently points at a broken host.
+ */
+export function resolveRecaptchaApiServer(apiServer?: string): string {
+  const value = apiServer?.trim();
+  if (!value) {
+    return RECAPTCHA_DEFAULT_API_SERVER;
+  }
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return RECAPTCHA_DEFAULT_API_SERVER;
+    }
+    if (!url.hostname) {
+      return RECAPTCHA_DEFAULT_API_SERVER;
+    }
+    return url.origin;
+  } catch {
+    return RECAPTCHA_DEFAULT_API_SERVER;
+  }
+}
+
+export function getRecaptchaScriptUrl(
+  apiServer?: string,
+  language = 'zh-CN'
+): string {
+  const base = resolveRecaptchaApiServer(apiServer);
+  return `${base}/recaptcha/api.js?render=explicit&hl=${encodeURIComponent(
+    language
+  )}`;
 }
 
 export function resolveApiUrl(baseUrl: string, endpoint: string): string {
