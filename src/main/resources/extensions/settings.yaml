@@ -190,6 +190,43 @@ spec:
           key: ipLocationOfflineFallback
           value: true
           help: 插件内置 ip2region 离线库（IPv4 + IPv6），优先在本地解析中文属地，命中时不请求在线接口。未命中时再使用上方配置的接口；关闭此项后仅使用在线接口。
+    - group: emailRestriction
+      label: 评论邮箱
+      formSchema:
+        - $formkit: switch
+          label: 启用匿名评论邮箱限制
+          name: enabled
+          id: emailRestrictionEnabled
+          key: emailRestrictionEnabled
+          value: true
+          help: 在主评论和回复提交前校验邮箱，命中后直接拒绝，不创建评论。仅限制匿名填写的邮箱，已登录用户使用真实账号身份，不受此处限制。
+        - $formkit: switch
+          if: "$get(emailRestrictionEnabled).value === true"
+          label: 拦截示例邮箱
+          name: blockExampleEmails
+          value: true
+          help: 拦截 example.com、example.net、example.org、localhost 及 .example、.test、.invalid 域名和子域名下的邮箱。其他常见占位地址可在下方按完整邮箱添加；不会按数字长度或常见前缀屏蔽正常 QQ 等邮箱。
+        - $formkit: switch
+          if: "$get(emailRestrictionEnabled).value === true"
+          label: 保护管理员邮箱
+          name: protectAdminEmails
+          value: true
+          help: 自动禁止匿名评论使用系统超级管理员及“徽章设置 → 额外管理员用户”的当前邮箱；管理员本人登录后可正常评论。其他需要保护的邮箱可在下方手动添加。
+        - $formkit: array
+          if: "$get(emailRestrictionEnabled).value === true"
+          label: 禁止匿名评论的邮箱
+          name: blockedEmails
+          value: []
+          addLabel: 添加禁止邮箱
+          help: 按完整邮箱精确匹配，忽略大小写及首尾空白。可添加本站经常出现的假邮箱或其他需保护的邮箱；保存后对后续主评论与回复生效，不处理历史评论。名单只在服务端使用，不向访客公开。
+          itemLabels:
+            - type: text
+              label: $value.email
+          children:
+            - $formkit: email
+              label: 邮箱
+              name: email
+              validation: required|email
     - group: security
       label: 安全设置
       formSchema:

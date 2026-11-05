@@ -374,6 +374,16 @@ export function focus() {
   editorRef?.focus();
 }
 
+export function isBusy(): boolean {
+  return (
+    isSubmitting ||
+    loading ||
+    imageUploading ||
+    captchaDialogOpen ||
+    externalCaptchaStarting
+  );
+}
+
 export function reset() {
   editorRef?.reset();
   editorHtml = '';
@@ -476,6 +486,9 @@ async function submitComposer({
   const formData = new FormData(form);
   const quote = snippetQuote;
   const anchor = snippetAnchor;
+  // Preparing images may be asynchronous. Keep the original submission target.
+  const submit = onSubmit;
+  const submittedEventName = createdEventName;
 
   try {
     localSubmitting = true;
@@ -505,7 +518,7 @@ async function submitComposer({
           },
     };
 
-    const result = await onSubmit(payload);
+    const result = await submit(payload);
 
     storeAnonymousAccount();
     editorRef?.reset();
@@ -520,8 +533,8 @@ async function submitComposer({
     captchaRefreshKey += 1;
     showSubmitMessage(resolveSubmitSuccessMessage(result), 'success');
 
-    if (createdEventName) {
-      window.dispatchEvent(new CustomEvent(createdEventName));
+    if (submittedEventName) {
+      window.dispatchEvent(new CustomEvent(submittedEventName));
     }
 
     onCreated(result);
@@ -1180,7 +1193,7 @@ function resolveMentionName(
             回复评论
           {/if}
         </span>
-        <button type="button" class="comment-next-reply-composer-cancel" onclick={onCancel}>
+        <button type="button" class="comment-next-reply-composer-cancel" disabled={isSubmitting} onclick={onCancel}>
           取消
         </button>
       </div>

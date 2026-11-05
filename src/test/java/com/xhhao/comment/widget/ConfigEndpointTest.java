@@ -41,7 +41,8 @@ class ConfigEndpointTest {
                    "version":"V3","scoreThreshold":0.6,"action":"comment",
                    "apiServer":"https://www.google.com"}}}
                 """,
-            "ai", "{\"assistant\":{\"assistantUserName\":\"bot\"}}"
+            "ai", "{\"assistant\":{\"assistantUserName\":\"bot\"}}",
+            "emailRestriction", "{\"enabled\":true,\"blockedEmails\":[{\"email\":\"private-admin@example.com\"}]}"
         ));
         var assistant = new User();
         var metadata = new Metadata();
@@ -81,6 +82,7 @@ class ConfigEndpointTest {
             .jsonPath("$.security.captcha.recaptcha.version").isEqualTo("V3")
             .jsonPath("$.security.captcha.recaptcha.action").isEqualTo("comment")
             .jsonPath("$.security.captcha.recaptcha.apiServer").isEqualTo("https://www.google.com")
+            .jsonPath("$.emailRestriction").doesNotExist()
             .jsonPath("$.ai.assistantDisplayName").isEqualTo("拾光 bot")
             .jsonPath("$.ai.assistantMentionName").isEqualTo("@拾光 bot")
             .jsonPath("$.ai.assistantAvatar").isEqualTo("/upload/bot.png");

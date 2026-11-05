@@ -10,6 +10,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.xhhao.comment.utils.JsonUtils;
 import com.xhhao.comment.widget.comment.CommentNextCounterService;
 import com.xhhao.comment.widget.SettingConfigGetter;
 import com.xhhao.comment.widget.badge.CommentNextBadgeIdentity;
@@ -33,6 +34,9 @@ import run.halo.app.extension.ReactiveExtensionClient;
 
 class CommentNextCommentRankingServiceTest {
 
+    private static final String READER_EMAIL_HASH =
+        "d108b279434fe1d54ac0f1da633564604b26c2e0e221d108b0fbadb87aba02c0";
+
     private final SettingConfigGetter settings = mock(SettingConfigGetter.class);
 
     @org.junit.jupiter.api.BeforeEach
@@ -47,7 +51,7 @@ class CommentNextCommentRankingServiceTest {
             .thenReturn(Flux.empty());
         when(client.listAll(eq(Comment.class), any(ListOptions.class), any(Sort.class)))
             .thenReturn(Flux.just(
-                comment("public-1", "Reader@Example.com", true, false),
+                comment("public-1", " Reader@Example.com ", true, false),
                 comment("public-2", "reader@example.com", true, false),
                 comment("unapproved", "reader@example.com", false, false),
                 comment("hidden-parent", "other@example.com", true, true)
@@ -56,6 +60,7 @@ class CommentNextCommentRankingServiceTest {
             .thenReturn(Flux.just(
                 reply("reply-1", "public-1", "READER@example.com", true, false),
                 reply("reply-hidden", "hidden-parent", "other@example.com", true, false),
+                reply("hidden-reply", "public-1", "reader@example.com", true, true),
                 reply("reply-pending", "public-1", "reader@example.com", false, false)
             ));
 
@@ -65,11 +70,140 @@ class CommentNextCommentRankingServiceTest {
         assertThat(result.items()).hasSize(1);
         assertThat(result.items().getFirst().displayName()).isEqualTo("读者");
         assertThat(result.items().getFirst().commentCount()).isEqualTo(3);
+        assertThat(result.items().getFirst().repliesCount()).isEqualTo(1);
+        assertThat(result.items().getFirst().emailHash()).isEqualTo(READER_EMAIL_HASH);
+        assertThat(result.items().getFirst().website()).isNull();
         assertThat(result.items().getFirst().avatar()).contains("weavatar.com/avatar/");
         assertThat(result.items().getFirst().latestComment()).isEqualTo("reply-1 content");
         assertThat(result.items().getFirst().latestCommentAt())
             .isEqualTo(Instant.parse("2026-09-13T00:00:00Z"));
         assertThat(result.toString()).doesNotContain("reader@example.com");
+        var json = JsonUtils.createObjectMapper().valueToTree(result);
+        assertThat(json.path("items").get(0).path("emailHash").asText())
+            .isEqualTo(READER_EMAIL_HASH);
+        assertThat(json.toString()).doesNotContain("Reader@Example.com", "READER@example.com",
+            "reader@example.com", "memberEmail", "identity");
+    }
+
+    @Test
+    void usesWebsiteFromLatestPublicActivityWithoutFallingBackToOlderWebsites() {
+        var client = rankingClient();
+        var comment = comment("public", "reader@example.com", true, false);
+        comment.getSpec().getOwner().setAnnotations(Map.of(Comment.CommentOwner.WEBSITE_ANNO,
+            "https://older.example.com"));
+        var reply = reply("public-reply", "public", " READER@example.com ", true, false);
+        reply.getSpec().getOwner().setAnnotations(Map.of(Comment.CommentOwner.WEBSITE_ANNO,
+            " https://reader.example.com "));
+        var hidden = reply("hidden", "public", "reader@example.com", true, true);
+        hidden.getSpec().setCreationTime(Instant.parse("2026-09-14T00:00:00Z"));
+        hidden.getSpec().getOwner().setAnnotations(Map.of(Comment.CommentOwner.WEBSITE_ANNO,
+            "https://private.example.com"));
+        var pending = comment("pending", "reader@example.com", false, false);
+        pending.getSpec().setCreationTime(Instant.parse("2026-09-15T00:00:00Z"));
+        pending.getSpec().getOwner().setAnnotations(Map.of(Comment.CommentOwner.WEBSITE_ANNO,
+            "https://pending.example.com"));
+        when(client.listAll(eq(User.class), any(ListOptions.class), any(Sort.class)))
+            .thenReturn(Flux.empty());
+        when(client.listAll(eq(Comment.class), any(ListOptions.class), any(Sort.class)))
+            .thenReturn(Flux.just(comment, pending));
+        when(client.listAll(eq(Reply.class), any(ListOptions.class), any(Sort.class)))
+            .thenReturn(Flux.just(hidden, reply));
+
+        var result = rankingService(client).list("all", "10").block();
+
+        var item = result.items().getFirst();
+        assertThat(item.website()).isEqualTo("https://reader.example.com");
+        assertThat(item.emailHash()).isEqualTo(READER_EMAIL_HASH);
+        assertThat(item.commentCount()).isEqualTo(2);
+        assertThat(item.repliesCount()).isEqualTo(1);
+        assertThat(result.toString()).doesNotContain("private.example.com", "pending.example.com");
+
+        reply.getSpec().getOwner().setAnnotations(Map.of(Comment.CommentOwner.WEBSITE_ANNO, " "));
+        assertThat(rankingService(client).list("all", "10").block().items().getFirst().website())
+            .isNull();
+    }
+
+    @Test
+    void preservesSeparateMemberAndAnonymousRowsAndSortingByTotalActivity() {
+        var client = rankingClient();
+        var member = new User();
+        member.setMetadata(metadata("member"));
+        member.getSpec().setDisplayName("A member");
+        member.getSpec().setEmail(" Reader@Example.com ");
+        var memberComment = comment("member-comment", "unused@example.com", true, false);
+        memberComment.getSpec().getOwner().setKind(User.KIND);
+        memberComment.getSpec().getOwner().setName("member");
+        memberComment.getSpec().getOwner().setAnnotations(Map.of(Comment.CommentOwner.WEBSITE_ANNO,
+            "https://member.example.com"));
+        var anonymousComment = comment("anonymous-comment", "reader@example.com", true, false);
+        anonymousComment.getSpec().getOwner().setDisplayName("Z anonymous");
+        var anonymousReply = reply("anonymous-reply", "member-comment", "reader@example.com", true, false);
+        anonymousReply.getSpec().getOwner().setDisplayName("Z anonymous");
+        when(client.listAll(eq(User.class), any(ListOptions.class), any(Sort.class)))
+            .thenReturn(Flux.just(member));
+        when(client.listAll(eq(Comment.class), any(ListOptions.class), any(Sort.class)))
+            .thenReturn(Flux.just(memberComment, anonymousComment));
+        when(client.listAll(eq(Reply.class), any(ListOptions.class), any(Sort.class)))
+            .thenReturn(Flux.just(anonymousReply));
+
+        var result = rankingService(client).list("all", "10").block();
+
+        assertThat(result.items()).hasSize(2);
+        var anonymousItem = result.items().getFirst();
+        assertThat(anonymousItem.kind()).isEqualTo(Comment.CommentOwner.KIND_EMAIL);
+        assertThat(anonymousItem.commentCount()).isEqualTo(2);
+        assertThat(anonymousItem.repliesCount()).isEqualTo(1);
+        var memberItem = result.items().get(1);
+        assertThat(memberItem.kind()).isEqualTo(User.KIND);
+        assertThat(memberItem.commentCount()).isEqualTo(1);
+        assertThat(memberItem.repliesCount()).isZero();
+        assertThat(memberItem.website()).isEqualTo("https://member.example.com");
+        assertThat(result.items()).extracting(CommentNextCommentRankingItem::emailHash)
+            .containsExactly(READER_EMAIL_HASH, READER_EMAIL_HASH);
+        assertThat(result.toString()).doesNotContain("Reader@Example.com", "reader@example.com");
+    }
+
+    @Test
+    void missingMemberProfileDoesNotHashTheUsernameAsAnEmail() {
+        var client = rankingClient();
+        var comment = comment("former-member", "unused@example.com", true, false);
+        comment.getSpec().getOwner().setKind(User.KIND);
+        comment.getSpec().getOwner().setName("deleted-user");
+        when(client.listAll(eq(User.class), any(ListOptions.class), any(Sort.class)))
+            .thenReturn(Flux.empty());
+        when(client.listAll(eq(Comment.class), any(ListOptions.class), any(Sort.class)))
+            .thenReturn(Flux.just(comment));
+        when(client.listAll(eq(Reply.class), any(ListOptions.class), any(Sort.class)))
+            .thenReturn(Flux.empty());
+
+        var item = rankingService(client).list("all", "10").block().items().getFirst();
+
+        assertThat(item.emailHash()).isNull();
+        assertThat(item.website()).isNull();
+        assertThat(item.commentCount()).isEqualTo(1);
+        assertThat(item.repliesCount()).isZero();
+    }
+
+    @Test
+    void countsRepliesInThePeriodEvenWhenTheirParentWasPublishedBeforeIt() {
+        var client = rankingClient();
+        var parent = comment("old-parent", "other@example.com", true, false);
+        parent.getSpec().setCreationTime(Instant.EPOCH);
+        var reply = reply("recent-reply", "old-parent", "reader@example.com", true, false);
+        reply.getSpec().setCreationTime(Instant.now());
+        when(client.listAll(eq(User.class), any(ListOptions.class), any(Sort.class)))
+            .thenReturn(Flux.empty());
+        when(client.listAll(eq(Comment.class), any(ListOptions.class), any(Sort.class)))
+            .thenReturn(Flux.just(parent));
+        when(client.listAll(eq(Reply.class), any(ListOptions.class), any(Sort.class)))
+            .thenReturn(Flux.just(reply));
+
+        var result = rankingService(client).list("year", "10").block();
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().getFirst().commentCount()).isEqualTo(1);
+        assertThat(result.items().getFirst().repliesCount()).isEqualTo(1);
+        assertThat(result.items().getFirst().emailHash()).isEqualTo(READER_EMAIL_HASH);
     }
 
     @Test
@@ -119,6 +253,7 @@ class CommentNextCommentRankingServiceTest {
         var service = rankingService(client);
         assertThat(service.list("all", "10").block().items().getFirst().avatar())
             .isEqualTo("https://example.com/portrait.jpg");
+        assertThat(service.list("all", "10").block().items().getFirst().emailHash()).isNull();
 
         member.getSpec().setAvatar("https://example.com/current-avatar.jpg");
         assertThat(rankingService(client).list("all", "10").block()
@@ -189,6 +324,7 @@ class CommentNextCommentRankingServiceTest {
 
         assertThat(result.items()).hasSize(1);
         assertThat(result.items().getFirst().commentCount()).isEqualTo(4);
+        assertThat(result.items().getFirst().repliesCount()).isEqualTo(1);
         assertThat(result.items().getFirst().upvoteCount()).isEqualTo(18);
         verify(client, never()).fetch(Counter.class, "comments.content.halo.run/old");
         verify(client, never()).fetch(Counter.class, "comments.content.halo.run/hidden");
@@ -239,6 +375,7 @@ class CommentNextCommentRankingServiceTest {
         assertThat(result.items()).hasSize(1);
         assertThat(result.items().getFirst().displayName()).isEqualTo("读者 Z");
         assertThat(result.items().getFirst().commentCount()).isEqualTo(2);
+        assertThat(result.items().getFirst().repliesCount()).isEqualTo(1);
         assertThat(result.toString()).doesNotContain("excluded@example.com", "reader@example.com", "host");
     }
 
@@ -275,6 +412,8 @@ class CommentNextCommentRankingServiceTest {
         var client = rankingClient();
         var comment = comment("recent-comment", "Reader@example.com", true, false);
         comment.getSpec().setCreationTime(Instant.now().minusSeconds(60));
+        comment.getSpec().getOwner().setAnnotations(Map.of(Comment.CommentOwner.WEBSITE_ANNO,
+            "https://reader.example.com"));
         when(client.listAll(eq(User.class), any(ListOptions.class), any(Sort.class)))
             .thenReturn(Flux.empty());
         when(client.listAll(eq(Comment.class), any(ListOptions.class), any(Sort.class)))
@@ -295,6 +434,9 @@ class CommentNextCommentRankingServiceTest {
         for (var period : List.of("week", "month", "quarter", "year", "all")) {
             var item = service.list(period, "10").block().items().getFirst();
             assertThat(item.commentCount()).isEqualTo(1);
+            assertThat(item.repliesCount()).isZero();
+            assertThat(item.website()).isEqualTo("https://reader.example.com");
+            assertThat(item.emailHash()).isEqualTo(READER_EMAIL_HASH);
             assertThat(item.levelBadge()).isEqualTo(level);
         }
         profile.getSpec().setBadges(List.of());

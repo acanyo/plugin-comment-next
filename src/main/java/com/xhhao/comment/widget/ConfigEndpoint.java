@@ -7,6 +7,7 @@ import com.xhhao.comment.utils.JsonUtils;
 import com.xhhao.comment.widget.ai.CommentNextAiAssistantProfileResolver;
 import com.xhhao.comment.widget.ai.HaloAiFoundationAvailability;
 import com.xhhao.comment.widget.interactionplus.InteractionPlusAvailability;
+import com.xhhao.comment.widget.security.email.CommentNextEmailRestrictionConfig;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -178,7 +179,8 @@ public class ConfigEndpoint implements CustomEndpoint {
         rootNode.remove(List.of(
             AI_REVIEW_GROUP,
             AI_PROMPTS_GROUP,
-            QQ_PROFILE_GROUP
+            QQ_PROFILE_GROUP,
+            CommentNextEmailRestrictionConfig.GROUP
         ));
 
         var avatarValue = rootNode.get(AVATAR_GROUP);

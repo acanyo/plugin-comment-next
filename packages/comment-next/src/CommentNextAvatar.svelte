@@ -1,4 +1,5 @@
 <script lang="ts">
+import { onDestroy } from 'svelte';
 import { avatarCandidates } from './avatar/fallback';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import type { CommentNextAvatarConfig } from './services/config';
@@ -19,6 +20,11 @@ const {
 
 let failedSources = $state<string[]>([]);
 let previousCandidates = $state('');
+let destroyed = false;
+
+onDestroy(() => {
+  destroyed = true;
+});
 const candidates = $derived(avatarCandidates(src, seed || alt, config));
 const imageSrc = $derived(
   candidates.find((candidate) => !failedSources.includes(candidate))
@@ -63,6 +69,7 @@ function getPlaceholderText(value: string): string {
       loading="lazy"
       decoding="async"
       onerror={() => {
+        if (destroyed) return;
         if (imageSrc) failedSources = [...failedSources, imageSrc];
       }}
     />

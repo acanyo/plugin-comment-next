@@ -21,6 +21,10 @@ import {
   shouldLoadInteractionPlusRuntime,
 } from './services/interaction-plus';
 import type {
+  CommentNextCreatedEventDetail,
+  CommentNextReplyTarget,
+} from './types/composer';
+import type {
   CommentNextEmotePack,
   CommentNextRawEmotePacks,
 } from './types/emote';
@@ -31,7 +35,8 @@ import {
 } from './utils/html';
 import { ensureLottieRuntimeLoaded } from './utils/lottie-content-adapter';
 
-const {
+// biome-ignore lint/style/useConst: Svelte updates replyTarget through bind:replyTarget.
+let {
   baseUrl = '',
   group = '',
   kind = '',
@@ -53,11 +58,13 @@ const {
   showFooter = true,
   showSubmitArea = true,
   showComments = true,
+  replyTarget = $bindable<CommentNextReplyTarget | undefined>(),
   demoData = false,
   pageSize = 20,
   replySize = 10,
   withReplies = true,
   onEditorChange = () => {},
+  onCreated = () => {},
 }: {
   baseUrl?: string;
   group?: string;
@@ -80,11 +87,13 @@ const {
   showFooter?: boolean;
   showSubmitArea?: boolean;
   showComments?: boolean;
+  replyTarget?: CommentNextReplyTarget;
   demoData?: boolean;
   pageSize?: number;
   replySize?: number;
   withReplies?: boolean;
   onEditorChange?: (html: string) => void;
+  onCreated?: (detail: CommentNextCreatedEventDetail) => void;
 } = $props();
 
 type CommentNextComposerRef = {
@@ -103,7 +112,12 @@ let globalInfoLoaded = $state(false);
 let globalInfoFailed = $state(false);
 // biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
 let boxRef = $state<
-  { quoteSnippet: (anchor: CommentNextSnippetAnchor) => boolean } | undefined
+  | (CommentNextComposerRef & {
+      quoteSnippet: (anchor: CommentNextSnippetAnchor) => boolean;
+      replyTo: (target: CommentNextReplyTarget) => boolean;
+      cancelReply: () => boolean;
+    })
+  | undefined
 >();
 
 const pluginConfigReady = $derived(demoData || configLoaded || configFailed);
@@ -334,11 +348,21 @@ function handleEditorChange(html: string) {
 }
 
 export function focus() {
-  editorComposerRef?.focus();
+  if (editorOnly) editorComposerRef?.focus();
+  else boxRef?.focus();
 }
 
 export function reset() {
-  editorComposerRef?.reset();
+  if (editorOnly) editorComposerRef?.reset();
+  else boxRef?.reset();
+}
+
+export function replyTo(target: CommentNextReplyTarget): boolean {
+  return !editorOnly && (boxRef?.replyTo(target) ?? false);
+}
+
+export function cancelReply(): boolean {
+  return !editorOnly && (boxRef?.cancelReply() ?? false);
 }
 </script>
 
@@ -372,7 +396,7 @@ export function reset() {
   />
 {:else}
   <div class="comment-next-root grid w-full gap-4">
-    {#if configReady && reactionConfig?.enabled}
+    {#if showComments && configReady && reactionConfig?.enabled}
       <CommentNextReactionBar
         {baseUrl}
         {group}
@@ -399,6 +423,12 @@ export function reset() {
       enablePrivate={resolvedEnablePrivate}
       loading={loading || !configReady}
       {submitting}
+      {allowImages}
+      {showAccountFields}
+      {showFooter}
+      {showSubmitArea}
+      bind:replyTarget
+      {onCreated}
       {commandMenuOpen}
       {inlineSuggestion}
       {selectionTools}
@@ -410,7 +440,7 @@ export function reset() {
       emotePacks={resolvedEmotePacks}
     />
 
-    {#if configReady && !configFailed && basicConfig?.enableSnippetComment !== false && group === 'content.halo.run' && (kind === 'Post' || kind === 'SinglePage') && name}
+    {#if showComments && configReady && !configFailed && basicConfig?.enableSnippetComment !== false && group === 'content.halo.run' && (kind === 'Post' || kind === 'SinglePage') && name}
       <CommentNextSnippetTrigger subject={{baseUrl,group,kind,name,version}} onQuote={(anchor) => boxRef?.quoteSnippet(anchor) ?? false} />
     {/if}
 

@@ -135,6 +135,28 @@
         </div>
       </details>
 
+      <details class="comment-next-demo-section" open>
+        <summary class="comment-next-demo-section-title">独立评论框</summary>
+        <div class="comment-next-demo-controls">
+          <label class="comment-next-demo-control">
+            <input id="standalone-show-comments" type="checkbox" />
+            附带评论列表
+          </label>
+          <button class="comment-next-demo-control" id="standalone-reply-comment" type="button">回复主评论</button>
+          <button class="comment-next-demo-control" id="standalone-reply-reply" type="button">回复某条回复</button>
+          <button class="comment-next-demo-control" id="standalone-cancel-reply" type="button">取消回复</button>
+        </div>
+        <comment-widget
+          id="standalone-comment-widget"
+          group="content.halo.run"
+          kind="Post"
+          name="demo-standalone"
+          show-comments="false"
+          logged-in
+          demo-data
+        ></comment-widget>
+      </details>
+
       <details class="comment-next-demo-section">
         <summary class="comment-next-demo-section-title">新标签兼容示例</summary>
         <comment-next
@@ -169,6 +191,18 @@
         toggle.addEventListener("change", sync);
         sync();
       }
+
+      const standalone = document.querySelector("#standalone-comment-widget");
+      document.querySelector("#standalone-show-comments").addEventListener("change", (event) => {
+        standalone.showComments = event.target.checked;
+      });
+      document.querySelector("#standalone-reply-comment").addEventListener("click", () => {
+        standalone.replyTo({ commentName: "demo-comment", displayName: "主评论作者" });
+      });
+      document.querySelector("#standalone-reply-reply").addEventListener("click", () => {
+        standalone.replyTo({ commentName: "demo-comment", replyName: "demo-reply", displayName: "回复作者" });
+      });
+      document.querySelector("#standalone-cancel-reply").addEventListener("click", () => standalone.cancelReply());
     </script>
   </body>
 </html>

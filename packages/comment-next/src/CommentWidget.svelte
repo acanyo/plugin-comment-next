@@ -23,7 +23,8 @@
       showAccountFields: { reflect: true, type: "Boolean", attribute: "show-account-fields" },
       showFooter: { reflect: true, type: "Boolean", attribute: "show-footer" },
       showSubmitArea: { reflect: true, type: "Boolean", attribute: "show-submit-area" },
-      showComments: { reflect: true, type: "Boolean", attribute: "show-comments" },
+      showComments: { reflect: true, type: "String", attribute: "show-comments" },
+      replyTarget: { reflect: true, type: "Object", attribute: "reply-target" },
       demoData: { reflect: true, type: "Boolean", attribute: "demo-data" },
       pageSize: { reflect: true, type: "Number", attribute: "page-size" },
       replySize: { reflect: true, type: "Number", attribute: "reply-size" },
@@ -35,9 +36,17 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import CommentNextRoot from './CommentNextRoot.svelte';
-import { sanitizeCommentSubmitHtml, sanitizeConsoleCommentHtml } from './utils/html';
+import type {
+  CommentNextCreatedEventDetail,
+  CommentNextReplyTarget,
+} from './types/composer';
+import {
+  sanitizeCommentSubmitHtml,
+  sanitizeConsoleCommentHtml,
+} from './utils/html';
 
-const {
+// biome-ignore lint/style/useConst: Svelte updates replyTarget through bind:replyTarget.
+let {
   baseUrl = '',
   group = '',
   kind = '',
@@ -60,6 +69,7 @@ const {
   showFooter = true,
   showSubmitArea = true,
   showComments = true,
+  replyTarget = $bindable<CommentNextReplyTarget | undefined>(),
   demoData = false,
   pageSize = 20,
   replySize = 10,
@@ -86,7 +96,8 @@ const {
   showAccountFields?: boolean;
   showFooter?: boolean;
   showSubmitArea?: boolean;
-  showComments?: boolean;
+  showComments?: boolean | string | null;
+  replyTarget?: CommentNextReplyTarget;
   demoData?: boolean;
   pageSize?: number;
   replySize?: number;
@@ -96,6 +107,8 @@ const {
 type CommentNextRootRef = {
   focus: () => void;
   reset: () => void;
+  replyTo: (target: CommentNextReplyTarget) => boolean;
+  cancelReply: () => boolean;
 };
 
 let rootRef: CommentNextRootRef | undefined;
@@ -113,6 +126,20 @@ export function setFocus() {
 export function reset() {
   rootRef?.reset();
   emitUpdate('');
+}
+
+export function replyTo(target: CommentNextReplyTarget): boolean {
+  return rootRef?.replyTo(target) ?? false;
+}
+
+export function cancelReply(): boolean {
+  return rootRef?.cancelReply() ?? false;
+}
+
+function handleCreated(detail: CommentNextCreatedEventDetail) {
+  $host().dispatchEvent(
+    new CustomEvent('created', { detail, bubbles: true, composed: true })
+  );
 }
 
 function handleEditorChange(html: string) {
@@ -179,12 +206,14 @@ function getContentLength(html: string): number {
   {showAccountFields}
   {showFooter}
   {showSubmitArea}
-  {showComments}
+  showComments={showComments !== false && (typeof showComments !== 'string' || showComments.trim().toLowerCase() !== 'false')}
+  bind:replyTarget
   {demoData}
   {pageSize}
   {replySize}
   {withReplies}
   onEditorChange={handleEditorChange}
+  onCreated={handleCreated}
 />
 
 <style>

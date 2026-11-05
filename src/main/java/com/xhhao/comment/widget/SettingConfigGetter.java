@@ -3,6 +3,7 @@ package com.xhhao.comment.widget;
 import com.xhhao.comment.widget.captcha.CaptchaType;
 import com.xhhao.comment.widget.ranking.CommentNextRankingConfig;
 import com.xhhao.comment.widget.security.CommentNextSecurityReviewAction;
+import com.xhhao.comment.widget.security.email.CommentNextEmailRestrictionConfig;
 import com.xhhao.comment.widget.upload.ImageUploadProviderType;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +35,9 @@ public interface SettingConfigGetter {
      * Never {@link Mono#empty()}.
      */
     Mono<SecurityConfig> getSecurityConfig();
+
+    /** Private, submission-time email restrictions. Never {@link Mono#empty()}. */
+    Mono<CommentNextEmailRestrictionConfig> getEmailRestrictionConfig();
 
     /**
      * Never {@link Mono#empty()}.

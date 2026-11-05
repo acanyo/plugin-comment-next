@@ -2,6 +2,7 @@ package com.xhhao.comment.widget;
 
 import com.xhhao.comment.widget.ranking.CommentNextRankingConfig;
 import com.xhhao.comment.widget.security.CommentNextSecurityReviewAction;
+import com.xhhao.comment.widget.security.email.CommentNextEmailRestrictionConfig;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +41,12 @@ public class SettingConfigGetterImpl implements SettingConfigGetter {
         return settingFetcher.fetch(SecurityConfig.GROUP, SecurityConfig.class)
             .defaultIfEmpty(SecurityConfig.empty())
             .onErrorReturn(SecurityConfig.empty());
+    }
+
+    @Override
+    public Mono<CommentNextEmailRestrictionConfig> getEmailRestrictionConfig() {
+        return settingFetcher.fetch(CommentNextEmailRestrictionConfig.GROUP, CommentNextEmailRestrictionConfig.class)
+            .defaultIfEmpty(new CommentNextEmailRestrictionConfig());
     }
 
     @Override

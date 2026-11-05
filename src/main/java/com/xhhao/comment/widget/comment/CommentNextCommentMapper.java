@@ -4,9 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xhhao.comment.utils.JsonUtils;
+import com.xhhao.comment.widget.identity.CommentNextEmailHash;
 import com.xhhao.comment.widget.iplocation.CommentNextIpLocationService;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -153,8 +152,11 @@ class CommentNextCommentMapper {
         if (StringUtils.hasText(website)) {
             annotations.put(Comment.CommentOwner.WEBSITE_ANNO, website);
         }
-        if (Comment.CommentOwner.KIND_EMAIL.equals(owner.getKind()) && StringUtils.hasText(owner.getName())) {
-            annotations.put(Comment.CommentOwner.EMAIL_HASH_ANNO, sha256(owner.getName().toLowerCase()));
+        if (Comment.CommentOwner.KIND_EMAIL.equals(owner.getKind())) {
+            var emailHash = CommentNextEmailHash.fromEmail(owner.getName());
+            if (emailHash != null) {
+                annotations.put(Comment.CommentOwner.EMAIL_HASH_ANNO, emailHash);
+            }
         }
         ownerNode.set("annotations", annotations);
         return ownerNode;
@@ -191,19 +193,4 @@ class CommentNextCommentMapper {
         return annotations != null
             && Boolean.parseBoolean(annotations.get(CommentNextCommentAnnotations.FEATURED));
     }
-
-    private String sha256(String value) {
-        try {
-            var digest = MessageDigest.getInstance("SHA-256");
-            var bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
-            var result = new StringBuilder(bytes.length * 2);
-            for (byte item : bytes) {
-                result.append(String.format("%02x", item));
-            }
-            return result.toString();
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
 }

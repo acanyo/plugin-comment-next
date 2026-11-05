@@ -17,6 +17,7 @@ UI 部分基于 Svelte Web Component 构建，由插件自动注入到 Halo 主�
 - 图片上传：支持 Halo 附件库和 ImgBB，可分别配置登录用户与未登录用户的上传方式、大小限制和安全拦截。
 - 验证码：支持图片验证码、GeeTest、ALTCHA、Cap、Cloudflare Turnstile 和 Google reCAPTCHA（v2 复选框 / v3 评分），统一在提交评论时弹出验证。reCAPTCHA 默认使用中国大陆可直连的 `www.recaptcha.net`，也可切换回 `www.google.com`。
 - 安全管理：支持 IP、邮箱、用户名、关键词、域名、UA 的黑名单/灰名单规则，支持精确、包含和正则匹配。
+- 评论邮箱：支持提交前拒绝指定匿名邮箱、拦截示例邮箱，自动防止匿名评论冒用管理员邮箱；同时覆盖主评论与回复。
 - AI 能力：支持 AI 写作助手、@AI 自动回复、AI 自动回复候选审核、AI 恶意评论识别和拦截通知。
 - 后台管理：提供按邮箱、IP、评论者、内容和来源组合查询，以及评论表情、举报记录、AI 回复管理、AI 拦截记录、黑灰名单、徽章设置等控制台菜单。
 
@@ -30,6 +31,7 @@ UI 部分基于 Svelte Web Component 构建，由插件自动注入到 Halo 主�
 - 表情与 Lottie：表情选择器支持分页，可配置每页显示数量，并可设置 Lottie 播放和媒体尺寸限制。
 - 图片上传：支持 Halo 附件库和 ImgBB，可分别设置登录用户与未登录用户的上传方式、大小限制和上传限流。
 - 验证码：支持字母数字、算术验证码、GeeTest、ALTCHA、Cap、Cloudflare Turnstile 和 Google reCAPTCHA（v2 复选框 / v3 评分），统一在提交评论时弹出验证。Turnstile 与 reCAPTCHA 仅需填写站点密钥（会下发前台）和服务端密钥（不会外泄）；reCAPTCHA v3 还需设置分数阈值与 action，并可切换服务地址（默认 `https://www.recaptcha.net`）。
+- 评论邮箱：默认启用匿名邮箱限制，可拦截示例域名、保护管理员邮箱，并维护禁止使用的完整邮箱名单；规则只在服务端使用。
 - 表情回应：支持文章、评论、回复的表情回应，并可分别配置 emoji 或图片回应项。
 - 举报设置：支持评论和回复举报，可设置达到举报阈值后自动进入待审核。
 - AI 助手：工具栏提供「@助手」入口（开启 @ 自动回复后显示），以及标签式 AI 评论面板，可生成草稿、润色、扩展、提问和整理回复；生成结果由评论者确认后填入。支持 AI 自动回复管理、AI 提示词配置和 AI 恶意评论识别。
@@ -42,6 +44,18 @@ UI 部分基于 Svelte Web Component 构建，由插件自动注入到 Halo 主�
 - reCAPTCHA 服务地址：默认 `https://www.recaptcha.net`，这是 Google 官方提供的备用域名，接口路径与 `www.google.com` 完全一致，中国大陆可直连；如站点与访客均可访问 Google，可在设置中切换为 `https://www.google.com`。若站点设置了 CSP，需要把所选域名加入 `script-src`、`connect-src` 与 `frame-src`。
 
 徽章图标在选择后保存为 SVG 内容，前台使用内嵌图片显示，保留图标原有颜色；单色图标跟随徽章颜色。默认图标已随插件打包。旧版自定义规则若仍保存 `图标集:图标名`，在后台编辑并保存一次即可转为内嵌内容；更新前的旧规则继续兼容外链加载。首评和管理员设置中的旧图标需重新选择后保存。手动配置的外部图片地址仍需要访问对应图片服务。
+
+### 匿名评论邮箱限制
+
+在“插件设置 → 评论邮箱”配置提交前限制，主评论和回复均生效：
+
+- **拦截示例邮箱**：默认拒绝 `example.com`、`example.net`、`example.org`、`localhost` 及 `.example`、`.test`、`.invalid` 域名和子域名下的地址。不会因为前缀是 `admin`、`test` 或 QQ 邮箱是纯数字就直接屏蔽。
+- **保护管理员邮箱**：默认禁止匿名填写系统超级管理员，以及“徽章设置 → 额外管理员用户”的当前邮箱。管理员本人登录后使用账号身份，可正常评论；更换管理员邮箱后下次校验使用新地址。
+- **禁止匿名评论的邮箱**：按完整地址添加本站经常出现的假邮箱、占位邮箱或其他需要保护的地址。忽略大小写和首尾空白，保存后对后续提交生效。
+
+命中任一限制时，服务端返回 `400` 和统一提示“该邮箱不能用于匿名评论，请更换邮箱或登录后重试。”，不会创建评论或回复，评论框保留草稿。名单与管理员邮箱不通过公开配置接口返回，提示也不区分命中原因。
+
+此功能只校验匿名填写的邮箱，不追溯处理历史内容，也不验证任意邮箱是否真实存在或属于填写者。需要限制已登录账号、关键词或其他行为时，继续使用现有黑灰名单和评论审核功能。
 
 ## 可选依赖
 
@@ -96,6 +110,79 @@ UI 部分基于 Svelte Web Component 构建，由插件自动注入到 Halo 主�
 ```
 
 两种组件均支持 `accent-color="#31536f"`、`surface-color="#ffffff"`、`text-color="#172033"`。不显示标题可设置 `show-header="false"`；页面组件可设置 `subtitle`，侧栏组件可设置 `link-text`。颜色也可由主题 CSS 变量 `--comment-ranking-accent-color`、`--comment-ranking-surface-color` 和 `--comment-ranking-text-color` 统一覆盖。深色外观跟随主题的 `.color-scheme-dark`、`.dark` 或 `[data-color-scheme="dark"]` 容器，也可直接指定背景和文字色。
+
+#### 读者榜公开 API
+
+主题或其他插件可以直接使用此公开接口，自行渲染读者墙，无需插入上述组件。同站页面无需登录即可请求：
+
+```http
+GET /apis/api.commentnext.xhhao.com/v1alpha1/comments/ranking?period=month&limit=10
+```
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `period` | `all` | 支持 `week`、`month`、`quarter`、`year`、`all`，分别表示本周、本月、本季、本年、全部；忽略大小写和首尾空白，其他值按 `all` 处理 |
+| `limit` | `10` | 返回人数，整数限制在 1–50；超出范围取边界值，无法解析为整数时使用默认值 |
+
+周期采用 Halo 服务端时区的自然周期：周一零点为本周起点，季度从 1、4、7、10 月的第一天开始。响应中的 `period` 和 `limit` 是规范化后的实际参数；`items` 可能少于 `limit`，没有符合条件的读者时为 `[]`。
+
+响应示例：
+
+```json
+{
+  "period": "month",
+  "limit": 10,
+  "items": [
+    {
+      "displayName": "读者",
+      "avatar": "https://example.com/avatar.webp",
+      "kind": "Email",
+      "commentCount": 5,
+      "upvoteCount": 8,
+      "latestComment": "感谢分享！",
+      "latestCommentAt": "2026-11-05T02:00:00Z",
+      "levelBadge": null,
+      "website": "https://reader.example.com",
+      "emailHash": "d108b279434fe1d54ac0f1da633564604b26c2e0e221d108b0fbadb87aba02c0",
+      "repliesCount": 3
+    }
+  ]
+}
+```
+
+| `items` 字段 | 含义 |
+| --- | --- |
+| `displayName` | 公开昵称，登录用户优先使用当前用户资料 |
+| `avatar` | 头像地址，主题可自行提供缺省头像 |
+| `kind` | `Email` 为匿名评论者，`User` 为 Halo 登录用户 |
+| `commentCount` | 所选周期内，该读者发表的公开主评论与回复总数 |
+| `repliesCount` | 上述总数中，该读者发表的回复数；不是其评论收到的回复数。主评论数可用 `commentCount - repliesCount` 计算 |
+| `upvoteCount` | 所选周期内发表的公开主评论及回复的当前获赞总数，不是该周期内新增的点赞数 |
+| `latestComment` | 所选周期内最近一条公开主评论或回复的纯文本摘要，超长时截断并追加省略号 |
+| `latestCommentAt` | 上述内容的发表时间，ISO 8601 格式 |
+| `levelBadge` | 与评论区相同的累计等级徽章，没有时为 `null`；对象包含 `id`、`label`、`tone`、`icon`、`color`、`title` |
+| `website` | 该读者在所选周期内最近一条公开主评论或回复携带的 `owner.annotations.website`；首尾空白会移除，没有时为 `null`，不会回退到更早的网址 |
+| `emailHash` | 邮箱去除首尾空白、转为小写后，以 UTF-8 计算 SHA-256 得到的小写十六进制字符串；匿名评论者使用评论邮箱，登录用户使用当前用户邮箱，邮箱不可用时为 `null` |
+
+统计与关联规则：
+
+- 全站聚合已审核、非隐藏、未删除的主评论和回复；回复所属的主评论也必须公开且未删除。回复按自己的发表时间计入周期，即使其主评论发表于更早的周期。
+- 按 `commentCount` 降序排列，同数时按昵称不区分大小写升序排列。`commentCount` 保留“主评论＋回复”的含义，新增 `repliesCount` 不改变现有排序。
+- 匿名评论者按规范化邮箱归并，登录用户按用户名归并；两类身份不会自动合并，即使邮箱相同也可能分别占据两行。
+- `emailHash` 可与 Halo `commentFinder` 返回的 `spec.owner.annotations['email-hash']` 关联，匿名评论也与本插件评论接口使用相同的哈希规则。它是邮箱关联键，不是榜单行的唯一 ID，也不是不可反推的匿名凭证；邮箱变更后哈希会变化。主题按邮箱关联时应兼容多个榜单行和缺失值，不应仅凭相同昵称归并读者。
+- 不返回原始邮箱或内部身份字段。聚合结果按周期缓存一分钟；排除用户/邮箱设置在每次请求时、截取人数前生效，等级徽章独立读取。
+
+前端请求示例：
+
+```js
+const response = await fetch(
+  '/apis/api.commentnext.xhhao.com/v1alpha1/comments/ranking?period=month&limit=10'
+);
+if (!response.ok) throw new Error(`读者榜加载失败：${response.status}`);
+const { items } = await response.json();
+```
+
+此路径作为公开接口供主题和插件使用。后续兼容扩展采用新增字段的方式；删除现有字段或改变既有字段语义时使用新的 API 版本。调用方应忽略未知字段，并兼容可空字段；将 `website` 渲染为链接时应限制为 HTTP/HTTPS，正文和昵称按文本渲染。
 
 ## 后台菜单
 
@@ -166,6 +253,80 @@ Halo 插件的详细开发文档可查阅 [插件开发](https://docs.halo.run/c
 ```
 
 如果主题没有渲染 `<halo:comment />`，评论组件不会出现在内容页。更多标签说明可参考 Halo 官方文档：[自定义标签](https://docs.halo.run/developer-guide/theme/template-tag#halocomment)。
+
+### 独立使用评论框
+
+主题或其他插件需要自行实现评论列表时，可以直接渲染 `<comment-widget>`，设置 `show-comments="false"`，只使用本插件的评论框。登录状态、匿名信息、编辑器、图片上传、验证码、AI 助手和提交处理继续复用现有功能。该模式不会渲染或请求内置评论列表，也不启用文章互动条和片段评论入口。
+
+```html
+<comment-widget
+  id="custom-comment-composer"
+  group="content.halo.run"
+  kind="Post"
+  version="v1alpha1"
+  name="文章的 metadata.name"
+  show-comments="false"
+></comment-widget>
+```
+
+独立页面使用 `kind="SinglePage"`；其他内容类型传入其真实的 `group`、`kind`、`name` 和 `version`，该内容类型需支持 Halo 评论。两个标签 `<comment-widget>` 和 `<comment-next>` 支持相同的参数与方法，插件在主题中加载所需脚本和样式；其他前端可引入 `@xhhao/comment-next` 和 `@xhhao/comment-next/comment-next.css`。
+
+| 参数 / 属性 | 默认值 | 说明 |
+| --- | --- | --- |
+| `show-comments` / `showComments` | `true` | 是否附带内置评论列表。HTML 使用 `show-comments="false"` 关闭；JS 也可设置 `element.showComments = false`。省略或移除此属性恢复显示 |
+| `reply-target` / `replyTarget` | 无 | 设置回复目标，未设置时发表主评论。推荐通过 JS 赋值对象，也支持 HTML 中的 JSON 对象 |
+| `base-url` / `baseUrl` | 当前站点 | API 所在站点；跨域接入需自行配置站点的凭证与跨域访问策略 |
+
+`replyTarget` 的字段为：
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `commentName` | 是 | 所属主评论的 `metadata.name`；回复主评论或回复另一条回复时都需要 |
+| `replyName` | 否 | 被回复的那条回复的 `metadata.name`，提交时作为 `quoteReply`；回复主评论时省略 |
+| `displayName` | 否 | 评论框中“回复 @昵称”的展示文案，不作为身份依据 |
+
+自定义列表的回复按钮可以更新 `replyTarget`，或在组件就绪后调用 `replyTo()`；切换、取消回复会保留当前草稿与匿名信息，成功提交后清空内容并恢复发表主评论，失败时保留草稿与回复目标。
+
+```js
+await customElements.whenDefined('comment-widget');
+const composer = document.querySelector('#custom-comment-composer');
+
+// 自定义列表点击“回复主评论”时设置：
+composer.replyTarget = {
+  commentName: 'comment-xxx',
+  displayName: '主评论作者'
+};
+
+// 自定义列表点击“回复某条回复”时调用：
+composer.replyTo({
+  commentName: 'comment-xxx',
+  replyName: 'reply-yyy',
+  displayName: '被回复者'
+});
+
+// 取消回复、聚焦、清空编辑内容：
+composer.cancelReply();
+composer.setFocus();
+composer.reset();
+```
+
+`replyTo()` 和 `cancelReply()` 返回是否成功操作；组件未就绪、正在提交、上传或验证码校验时返回 `false`。通过属性指定初始目标时可在组件初始化前赋值；交互期间优先使用上述方法。`reset()` 清空编辑内容，`cancelReply()` 清除回复目标，两者独立。
+
+独立评论框成功提交后，在当前元素上派发可冒泡的 `created` 事件，自定义列表可据此重新加载数据：
+
+```js
+composer.addEventListener('created', (event) => {
+  const { type, subject, commentName, replyTarget, result } = event.detail;
+  // type: 'comment' 或 'reply'
+  // subject: { group, kind, name, version }
+  // commentName: 新主评论的 ID，或回复所属的主评论 ID
+  // replyTarget: 本次回复目标；发表主评论时为空
+  // result: 已创建的评论或回复，包含 id、content、approved、author 等
+  // approved === false 表示已提交且等待审核，列表应按自身可见性规则刷新。
+});
+```
+
+这里的 `show-comments="false"` 保留前台提交能力。后台 Vue 使用的 `editorOnly` 是由调用方处理提交的纯编辑模式，继续沿用原有行为。直接使用上述标签时，调用方负责遵守内容是否允许评论的状态；使用默认完整评论区仍推荐 `<halo:comment />`。
 
 ### 自定义样式
 

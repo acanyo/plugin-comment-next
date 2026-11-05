@@ -11,11 +11,16 @@ export interface CommentRankingItem {
   displayName?: string;
   avatar?: string;
   kind?: string;
+  /** Total authored comments and replies in the selected period. */
   commentCount?: number;
   upvoteCount?: number;
   latestComment?: string;
   latestCommentAt?: string;
   levelBadge?: CommentNextBadge | null;
+  website?: string | null;
+  emailHash?: string | null;
+  /** Authored replies included in commentCount. */
+  repliesCount?: number;
 }
 
 export interface CommentRankingResponse {

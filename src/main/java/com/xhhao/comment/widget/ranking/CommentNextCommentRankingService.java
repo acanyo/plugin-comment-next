@@ -5,6 +5,7 @@ import com.xhhao.comment.widget.avatar.CommentNextWeAvatarUrl;
 import com.xhhao.comment.widget.badge.CommentNextBadgeIdentity;
 import com.xhhao.comment.widget.badge.CommentNextBadgeProfileService;
 import com.xhhao.comment.widget.comment.CommentNextCounterService;
+import com.xhhao.comment.widget.identity.CommentNextEmailHash;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -267,6 +268,7 @@ public class CommentNextCommentRankingService {
         private Comment.CommentOwner owner;
         private final User user;
         private long count;
+        private long repliesCount;
         private long upvoteCount;
         private String latestComment = "";
         private Instant latestCommentAt = Instant.EPOCH;
@@ -278,6 +280,9 @@ public class CommentNextCommentRankingService {
 
         private void accept(RankingOwner entry, int upvotes) {
             count++;
+            if (CommentNextCounterService.REPLIES_PLURAL.equals(entry.plural())) {
+                repliesCount++;
+            }
             upvoteCount += Math.max(0, upvotes);
             if (!entry.createdAt().isBefore(latestCommentAt)) {
                 owner = entry.owner();
@@ -295,6 +300,13 @@ public class CommentNextCommentRankingService {
         }
 
         private CommentNextCommentRankingItem toItem() {
+            var websiteValue = owner.getAnnotation(Comment.CommentOwner.WEBSITE_ANNO);
+            var website = StringUtils.hasText(websiteValue) ? websiteValue.strip() : null;
+            var email = owner.getName();
+            if (User.KIND.equals(owner.getKind())) {
+                email = user != null && user.getSpec() != null ? user.getSpec().getEmail() : null;
+            }
+            var emailHash = CommentNextEmailHash.fromEmail(email);
             if (user != null && user.getSpec() != null) {
                 var displayName = firstText(
                     user.getSpec().getDisplayName(),
@@ -313,7 +325,10 @@ public class CommentNextCommentRankingService {
                     upvoteCount,
                     latestComment,
                     latestCommentAt,
-                    null
+                    null,
+                    website,
+                    emailHash,
+                    repliesCount
                 );
             }
 
@@ -327,11 +342,13 @@ public class CommentNextCommentRankingService {
                     upvoteCount,
                     latestComment,
                     latestCommentAt,
-                    null
+                    null,
+                    website,
+                    emailHash,
+                    repliesCount
                 );
             }
 
-            var email = owner.getName() == null ? "" : owner.getName().trim();
             var avatar = firstText(
                 owner.getAnnotation(Comment.CommentOwner.AVATAR_ANNO),
                 CommentNextWeAvatarUrl.forEmail(email)
@@ -344,7 +361,10 @@ public class CommentNextCommentRankingService {
                 upvoteCount,
                 latestComment,
                 latestCommentAt,
-                null
+                null,
+                website,
+                emailHash,
+                repliesCount
             );
         }
 
