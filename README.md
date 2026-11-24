@@ -13,7 +13,7 @@ UI 部分基于 Svelte Web Component 构建，由插件自动注入到 Halo 主�
 - 富文本评论框：支持图片上传、表情包分页、每页数量配置、私密评论、移动端适配和主题 CSS 变量定制。
 - 评论互动增强：支持文章表情回应、评论/回复表情回应、评论精选、评论置顶、用户徽章和评论举报。
 - 头像降级：支持默认头像池和按身份生成的本地图案。
-- IP 属地：支持在评论与回复上显示发表时的 IP 属地（如「广东」「日本」），默认优先使用内置 ip2region 离线库，未命中时再查询 HTTPS 接口，可自定义接口地址、缓存时长与接口超时，前台不会暴露完整 IP。
+- 站长可开启在线 IP 属地查询。评论与回复保存后由服务端异步查询，保存供前台展示的省份或国家（如「广东」「日本」）。
 - 图片上传：支持 Halo 附件库和 ImgBB，可分别配置登录用户与未登录用户的上传方式、大小限制和安全拦截。
 - 验证码：支持图片验证码、GeeTest、ALTCHA、Cap、Cloudflare Turnstile 和 Google reCAPTCHA（v2 复选框 / v3 评分），统一在提交评论时弹出验证。reCAPTCHA 默认使用中国大陆可直连的 `www.recaptcha.net`，也可切换回 `www.google.com`。
 - 安全管理：支持 IP、邮箱、用户名、关键词、域名、UA 的黑名单/灰名单规则，支持精确、包含和正则匹配。
@@ -27,7 +27,7 @@ UI 部分基于 Svelte Web Component 构建，由插件自动注入到 Halo 主�
 
 - 基本设置：评论分页、回复分页、回复预加载、评论者设备信息、私密评论。
 - 头像设置：可配置默认头像池，未设置头像、WeAvatar 无匹配头像或加载失败时按身份固定分配；头像池留空或图片失效时使用本地生成的图案，无需额外头像服务。
-- IP 属地：评论 IP 属地的显示开关、属地接口 URL 模板（默认 HTTPS + 中文）、缓存时长、接口超时与优先使用内置离线库的开关。
+- IP 属地设置包括显示开关、默认关闭的在线查询开关、公网 HTTPS 接口地址、缓存时长与接口超时。
 - 表情与 Lottie：表情选择器支持分页，可配置每页显示数量，并可设置 Lottie 播放和媒体尺寸限制。
 - 图片上传：支持 Halo 附件库和 ImgBB，可分别设置登录用户与未登录用户的上传方式、大小限制和上传限流。
 - 验证码：支持字母数字、算术验证码、GeeTest、ALTCHA、Cap、Cloudflare Turnstile 和 Google reCAPTCHA（v2 复选框 / v3 评分），统一在提交评论时弹出验证。Turnstile 与 reCAPTCHA 仅需填写站点密钥（会下发前台）和服务端密钥（不会外泄）；reCAPTCHA v3 还需设置分数阈值与 action，并可切换服务地址（默认 `https://www.recaptcha.net`）。
@@ -80,6 +80,14 @@ UI 部分基于 Svelte Web Component 构建，由插件自动注入到 Halo 主�
 刷新后插件通过原文与前后文重新定位。文章改动后，仍能唯一匹配的片段会继续关联；片段被删除或出现无法区分的重复文字时，不强行关联原文，已保存的评论和引用仍保留。计数按片段的主评论统计，不包含回复数，且不受页面普通评论分页影响。
 
 无需新增主题模板标签。插件自动识别现有的文章正文容器或 `article` / `main` 区域，排除导航、侧栏、输入框和评论内容；多个评论组件无法确定归属时不显示入口。可在“基本设置 → 启用文章片段评论”中关闭。
+
+### 本地草稿
+
+评论框按站点、当前账号、文章和回复目标保存草稿。刷新页面或重新打开对应的回复框后，会恢复正文、片段引用和私密选项。切换回复目标时可以返回各自的草稿，提交成功后清除该目标的草稿。未登录的读者点头像或发布按钮可以选择账号登录或游客评论。通过评论框登录后，当前目标没有账号草稿时会恢复登录前写下的内容。重新打开页面后，待上传的本地图片需要重新选择。
+
+### 评论和回复直达
+
+打开评论或回复旁的「链接」可直达对应条目。插件会按当前的排序和分页找到目标，加载所属评论和需要展开的回复，并短暂高亮目标。目标已删除或你没有权限查看时，页面会提示无法定位，并继续显示可见评论。
 
 ### 评论读者榜
 
@@ -197,6 +205,8 @@ const { items } = await response.json();
 - AI 回复管理
 - 黑灰名单
 
+「评论查询」中的「待我回复」按发表时间从早到晚列出公开主评论。当前账号直接公开回复后，该评论会移出列表。可按文章筛选，并在列表打开回复编辑器。标记「无需回复」只影响当前账号，可在「无需回复」标签页取消标记。
+
 ## 开发环境
 
 ```bash
@@ -224,7 +234,7 @@ Halo 插件的详细开发文档可查阅 [插件开发](https://docs.halo.run/c
 
 ### 接入
 
-评论组件 Next 实现的是 Halo 的 `comment-widget` 扩展点。启用插件后，插件会自动向主题页面注入 `comment-next.css` 和 `comment-next.iife.js`，主题只需要在文章页、独立页面的评论位置渲染 Halo 评论标签。
+评论组件 Next 实现的是 Halo 的 `comment-widget` 扩展点。插件会向主题页面注入轻量加载器，检测到评论组件、评论排行或需要转换的 Lottie 表情时才加载对应的脚本和样式。评论列表与文章互动在靠近视口时加载，通过评论或回复链接访问时立即定位。主题只需要在文章页、独立页面的评论位置渲染 Halo 评论标签。
 
 插件自己的前台标签是 `<comment-widget>`，但它由 Halo 的 `<halo:comment />` 扩展点自动渲染出来。常规主题适配时推荐写 `<halo:comment />`，这样可以继续遵循 Halo 的评论启用状态、内容类型和插件扩展点机制。
 
@@ -285,7 +295,7 @@ Halo 插件的详细开发文档可查阅 [插件开发](https://docs.halo.run/c
 | `replyName` | 否 | 被回复的那条回复的 `metadata.name`，提交时作为 `quoteReply`；回复主评论时省略 |
 | `displayName` | 否 | 评论框中“回复 @昵称”的展示文案，不作为身份依据 |
 
-自定义列表的回复按钮可以更新 `replyTarget`，或在组件就绪后调用 `replyTo()`；切换、取消回复会保留当前草稿与匿名信息，成功提交后清空内容并恢复发表主评论，失败时保留草稿与回复目标。
+自定义列表的回复按钮可以更新 `replyTarget`，也可以在组件就绪后调用 `replyTo()`。切换或取消回复会保存原目标的草稿，并载入新目标的草稿。提交成功后清除该目标的草稿并回到主评论框，失败时保留草稿与回复目标。
 
 ```js
 await customElements.whenDefined('comment-widget');
@@ -330,7 +340,26 @@ composer.addEventListener('created', (event) => {
 
 ### 自定义样式
 
+站长可以在 Halo 后台「评论 → 样式工作台」调整评论区的深浅主色、圆角、评论间距和列表样式。工作台使用真实评论组件和示例数据预览，支持桌面、手机及深浅模式。AI 助手支持在输入框下方选择 AI Foundation 的语言模型，清空选择后优先使用评论插件配置的模型，再使用 AI Foundation 的默认模型。生成的样式先进入草稿，发布后应用到前台评论区，页面顶部可以恢复上一个发布版本。
+
+#### 通过 MCP 编辑样式
+
+启用 [Halo MCP Server](https://www.halo.run/store/apps/app-ybv96zol) 1.3.0 或更新的 1.x 版本后，在「工具 → MCP 服务」的访问密钥中勾选「评论样式设计」下的工具，再复制页面生成的客户端配置。MCP Server 是可选依赖，外部客户端使用自己的模型。
+
+| 工具 | 作用 |
+| --- | --- |
+| `PluginCommentNext__get_comment_style` | 读取草稿、已发布样式、上一版与当前 `revision`，并返回样式工作台地址。 |
+| `PluginCommentNext__save_comment_style_draft` | 提交 `revision` 和 `changes` 更新草稿。只填写需改动的字段，传 `null` 可恢复对应的主题默认值。 |
+
+收到版本冲突时，先重新读取最新草稿。保存成功后，在「评论 → 样式工作台」打开返回的预览地址并发布。
+
+可用的 `changes` 字段有 `lightAccent` 和 `darkAccent`（六位 HEX 色值）、`radius`（0 到 24 像素整数）、`density`（`compact` 或 `spacious`）、`listStyle`（`flat` 或 `cards`）。
+
+#### 主题变量
+
 评论组件 Next 会优先读取 `--halo-cw-*` 变量，这套变量和 Halo 评论组件常用主题变量保持一致。主题如果已经定义了这些变量，评论组件会自动继承；如果需要进一步定制，也可以在主题 CSS 中覆盖这些变量。
+
+评论框按照实际容器宽度布局，桌面侧栏、双栏正文和手机页面都可以使用同一套组件。工具栏会在空间不足时换行，特别窄的容器会收起评论框的头像。没有指定评论字体时会继承主题字体。
 
 建议优先使用以下稳定变量：
 
@@ -396,62 +425,39 @@ composer.addEventListener('created', (event) => {
 </details>
 
 <details>
-<summary>旧变量迁移</summary>
+<summary>旧主题变量</summary>
 
-评论组件 Next 不建议继续使用 `--halo-comment-widget-*` 这类旧变量。主题侧如果仍然保留旧变量，建议迁移到 `--halo-cw-*`。
+已有主题可以继续使用旧版的 `--halo-comment-widget-*` 变量来设置正文色、字体、字号、圆角、头像尺寸和圆角，以及输入框背景、边框、焦点色和发布按钮配色。新旧变量同时存在时，`--halo-cw-*` 优先。
 
-| 变量名                                                                  | 描述                     | 备注                                               |
-| ----------------------------------------------------------------------- | ------------------------ | -------------------------------------------------- |
-| `--halo-comment-widget-base-color`                                      | 基础文字颜色             | 已废弃，后续使用 `--halo-cw-text-1-color` 代替     |
-| `--halo-comment-widget-base-info-color`                                 | 非重要突出文字           | 已废弃，后续使用 `--halo-cw-muted-*-color` 代替    |
-| `--halo-comment-widget-base-border-radius`                              | 基础元素的圆角           | 已废弃，后续使用 `--halo-cw-base-rounded` 代替     |
-| `--halo-comment-widget-base-font-size`                                  | 基础字体大小             | 已废弃，后续使用 `--halo-cw-base-font-size` 代替   |
-| `--halo-comment-widget-base-line-height`                                | 基础行高                 | 已废弃                                             |
-| `--halo-comment-widget-base-font-family`                                | 基础字体族               | 已废弃，后续使用 `--halo-cw-base-font-family` 代替 |
-| `--halo-comment-widget-component-avatar-rounded`                        | 头像的圆角大小           | 已废弃，后续使用 `--halo-cw-avatar-rounded` 代替   |
-| `--halo-comment-widget-component-avatar-size`                           | 头像大小                 | 已废弃，后续使用 `--halo-cw-avatar-size` 代替      |
-| `--halo-comment-widget-component-form-input-bg-color`                   | 表单输入背景颜色         | 已废弃                                             |
-| `--halo-comment-widget-component-form-input-color`                      | 表单输入文字颜色         | 已废弃                                             |
-| `--halo-comment-widget-component-form-input-border-color`               | 表单输入边框颜色         | 已废弃                                             |
-| `--halo-comment-widget-component-form-input-border-color-focus`         | 表单输入焦点时边框颜色   | 已废弃，后续使用 `--halo-cw-primary-1-color` 代替  |
-| `--halo-comment-widget-component-form-input-box-shadow-focus`           | 表单输入焦点时的阴影     | 已废弃，后续使用 `--halo-cw-primary-2-color` 代替  |
-| `--halo-comment-widget-component-form-button-login-bg-color`            | 登录按钮背景颜色         | 已废弃                                             |
-| `--halo-comment-widget-component-form-button-login-bg-color-hover`      | 登录按钮悬停背景颜色     | 已废弃                                             |
-| `--halo-comment-widget-component-form-button-login-border-color`        | 登录按钮边框颜色         | 已废弃                                             |
-| `--halo-comment-widget-component-form-button-submit-bg-color`           | 提交按钮背景颜色         | 已废弃，后续使用 `--halo-cw-primary-1-color` 代替  |
-| `--halo-comment-widget-component-form-button-submit-color`              | 提交按钮文字颜色         | 已废弃                                             |
-| `--halo-comment-widget-component-form-button-submit-border-color`       | 提交按钮边框颜色         | 已废弃                                             |
-| `--halo-comment-widget-component-form-button-submit-border-color-hover` | 提交按钮悬停边框颜色     | 已废弃，后续使用 `--halo-cw-primary-3-color` 代替  |
-| `--halo-comment-widget-component-form-button-emoji-color`               | 表情按钮颜色             | 已废弃                                             |
-| `--halo-comment-widget-component-comment-item-action-bg-color-hover`    | 评论项操作悬停背景颜色   | 已废弃                                             |
-| `--halo-comment-widget-component-comment-item-action-color-hover`       | 评论项操作悬停颜色       | 已废弃                                             |
-| `--halo-comment-widget-component-pagination-button-bg-color-hover`      | 分页按钮悬停背景颜色     | 已废弃                                             |
-| `--halo-comment-widget-component-pagination-button-bg-color-active`     | 分页按钮活动状态背景颜色 | 已废弃                                             |
-| `--halo-comment-widget-component-pagination-button-border-color-active` | 分页按钮活动状态边框颜色 | 已废弃                                             |
-| `--halo-comment-widget-component-emoji-picker-rgb-color`                | 表情选择器颜色           | 已废弃                                             |
-| `--halo-comment-widget-component-emoji-picker-rgb-accent`               | 表情选择器强调颜色       | 已废弃                                             |
-| `--halo-comment-widget-component-emoji-picker-rgb-background`           | 表情选择器背景颜色       | 已废弃                                             |
-| `--halo-comment-widget-component-emoji-picker-rgb-input`                | 表情选择器输入颜色       | 已废弃                                             |
-| `--halo-comment-widget-component-emoji-picker-color-border`             | 表情选择器边框颜色       | 已废弃                                             |
-| `--halo-comment-widget-component-emoji-picker-color-border-over`        | 表情选择器悬停边框颜色   | 已废弃                                             |
+| 旧变量 | 对应设置 |
+| --- | --- |
+| `--halo-comment-widget-base-color` | 正文色 |
+| `--halo-comment-widget-base-font-family` / `--halo-comment-widget-base-font-size` | 字体和基础字号 |
+| `--halo-comment-widget-base-border-radius` | 评论框及弹层圆角 |
+| `--halo-comment-widget-component-avatar-size` / `--halo-comment-widget-component-avatar-rounded` | 头像尺寸和圆角 |
+| `--halo-comment-widget-component-form-input-bg-color` | 评论框和访客资料字段的背景 |
+| `--halo-comment-widget-component-form-input-border-color` / `--halo-comment-widget-component-form-input-border-color-focus` | 访客字段边框和焦点色 |
+| `--halo-comment-widget-component-form-button-submit-bg-color` / `--halo-comment-widget-component-form-button-submit-color` | 发布按钮的主题色和按下时的文字色 |
 
 </details>
 
 ### 配色切换方案
 
-评论组件 Next 内置了明亮、深色和跟随系统三种模式。主题只需要在 `html` 或 `body` 上添加 class 或 `data-color-scheme`，组件会自动切换对应配色。
+评论组件 Next 支持明亮、深色和跟随系统。主题可以在 `html`、`body` 或包裹评论区的容器上设置配色。组件取最近一层的配色标记，无标记时继承主题的 CSS `color-scheme`。
 
 可用 class：
 
 - `color-scheme-auto`：跟随系统。
-- `color-scheme-dark` / `dark`：强制深色。
-- `color-scheme-light` / `light`：强制明亮。
+- `color-scheme-dark` / `dark` / `dark-mode`：强制深色。
+- `color-scheme-light` / `light` / `light-mode`：强制明亮。
 
 可用 `data-color-scheme`：
 
 - `data-color-scheme="auto"`：跟随系统。
 - `data-color-scheme="dark"`：强制深色。
 - `data-color-scheme="light"`：强制明亮。
+
+`data-theme` 和 `data-color-mode` 同样支持 `light`、`dark`、`auto` 和 `system`。也识别 Bootstrap 的 `data-bs-theme="light"` 和 `data-bs-theme="dark"`。同一个元素上的 `data-color-scheme` 优先。
 
 示例：
 
@@ -500,11 +506,10 @@ composer.addEventListener('created', (event) => {
 - AI 写作、@AI 自动回复、AI 自动回复和 AI 拦截都需要先在 AI Foundation 中配置可用语言模型。
 - 匿名上传、匿名 AI 和匿名举报会带来资源消耗风险，建议配合验证码、限流和审核策略开启。
 - Cloudflare Turnstile 与 Google reCAPTCHA 的脚本与校验接口由第三方提供，访客浏览器需能访问 `challenges.cloudflare.com` 或所配置的 reCAPTCHA 服务地址，插件后端也需能访问对应的 siteverify 接口。reCAPTCHA 默认使用 `www.recaptcha.net`（Google 官方备用域名，中国大陆可直连），可在设置中切换为 `www.google.com`；不同地区与运营商的连通性存在差异，上线前建议实测。Turnstile 与 reCAPTCHA 的 token 均为一次性，有效期分别为 300 秒和 120 秒，过期后需重新验证。
-- 置顶评论独立显示在评论列表上方，不占用普通评论的分页名额；「最新」「最热」「最早」列表不会重复显示置顶评论。置顶评论及其回复仍遵循原有的可见性规则。
+- 标记为置顶的主评论和其余评论一起参与「最新」「最热」「最早」排序及分页，条目上显示「置顶」标记。
 - 在评论身份信息和正文中输入 `/` 时，不会触发主题的全局搜索快捷键；编辑器内的 `/` 命令及组件外的主题快捷键仍可正常使用。
-- IP 属地基于 Halo 在评论创建时记录的 `spec.ipAddress` 解析，插件不会把完整 IP 返回给前台。默认优先使用内置 ip2region 离线库（IPv4 + IPv6，Apache-2.0，说明见 `src/main/resources/ip2region/NOTICE.md`），命中时不请求在线接口，也不等待第三方接口超时；境外数据里的国家代码会转成中文（如「美国」）。
-- 离线库未命中或关闭离线解析时，使用配置的在线接口，默认是太平洋电脑网接口（`https://whois.pconline.com.cn/ipJson.jsp?ip={ip}&json=true`），兼容其 GBK 编码。此时访客 IP 会由插件后端发送给该服务，评论响应需等待接口返回或达到配置的超时；失败后不展示属地。可替换为自建接口，或关闭整个属地功能以完全禁止属地查询的外部请求。
-- 离线数据按 SHA-256 摘要提取到临时目录，不同版本使用不同文件名，旧的非空文件不会覆盖新版内置数据；已提取文件校验失败时会重新提取。插件停用时会关闭查询池及数据文件句柄。
+- 启用在线查询后，插件会在新评论或回复保存后，将 Halo 记录的公网 IP 发送给站长配置的属地服务。默认的太平洋电脑网接口用于查询 IPv4。需要查询 IPv6 时，可配置支持 IPv6 的公网 HTTPS 接口。评论可先发布，查询失败时属地留空。
+- 列表读取已保存的属地。历史评论可由站长在「插件设置 → IP 属地」保存并启用查询后，一键补查。任务使用评论与回复已记录的公网 IP，跳过已有属地的记录，关闭设置页后也会继续运行。重启后可再次点击，补查仍缺少属地的记录。
 - 如果评论组件没有显示，优先检查主题是否渲染了 `<halo:comment />`，以及当前内容是否允许评论。
 
 ## 开源协议

@@ -1,14 +1,17 @@
 <script lang="ts">
-import { onDestroy, onMount } from 'svelte';
+import { onDestroy, onMount, tick, untrack } from 'svelte';
 import {
   getAnonymousAvatarUrl,
   getDefaultAnonymousAvatarUrl,
 } from './avatar/weavatar';
 import CommentNextAccountFields from './CommentNextAccountFields.svelte';
+import CommentNextAvatar from './CommentNextAvatar.svelte';
 import CommentNextCaptchaDialog from './CommentNextCaptchaDialog.svelte';
+import CommentNextComposerHeader from './CommentNextComposerHeader.svelte';
 import CommentNextEditor from './CommentNextEditor.svelte';
 import CommentNextFooter from './CommentNextFooter.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
+import CommentNextIdentityDialog from './CommentNextIdentityDialog.svelte';
 import CommentNextNotice from './CommentNextNotice.svelte';
 import CommentNextSkeleton from './CommentNextSkeleton.svelte';
 import {
@@ -24,6 +27,16 @@ import {
   type CommentNextCaptchaConfig,
   isLocalImageCaptcha,
 } from './services/captcha';
+import {
+  type CommentDraft,
+  cleanDraftHtml,
+  clearCommentDraft,
+  commentDraftKey,
+  readCommentDraft,
+  rememberCommentDraftForLogin,
+  saveCommentDraft,
+  takeCommentDraftAfterLogin,
+} from './services/comment-drafts';
 import {
   CommentNextCommentError,
   getCommentSubmitErrorMessage,
@@ -57,6 +70,7 @@ import {
 } from './utils/overlays';
 
 type CommentNextComposerVariant = 'comment' | 'reply';
+type IdentityIntent = 'profile' | 'submit';
 
 type CommentNextLimitedMedia = {
   type: 'emote' | 'lottie';
@@ -71,7 +85,7 @@ const MAX_EMOTE_MEDIA_LIMIT = 4096;
 type CommentNextEditorRef = {
   getHtml: () => string;
   getText: () => string;
-  reset: () => void;
+  setHtml: (html: string) => void;
   focus: () => void;
   insertText: (value: string) => void;
   mentionAssistant: () => void;
@@ -92,6 +106,19 @@ type PendingImageUpload = {
   file: File;
 };
 
+type DraftSlot = {
+  target: string;
+  key?: string;
+  saved?: string;
+  synchronized?: boolean;
+};
+
+type SuspendedDraft = {
+  draft: CommentDraft;
+  uploads: Map<string, PendingImageUpload>;
+  saved?: string;
+};
+
 const {
   baseUrl = '',
   loggedIn = false,
@@ -107,6 +134,7 @@ const {
   selectionTools = false,
   placeholder = '写下你的评论...',
   subject = '',
+  draftTarget,
   targetReady = true,
   targetMissingMessage = '评论目标缺失，无法提交。',
   successMessage = '评论提交成功。',
@@ -117,7 +145,7 @@ const {
   compact = false,
   showHeader = false,
   replyToName = '',
-  submitLabel = '提交',
+  submitLabel = '发布评论',
   loginLabel = '登录后评论',
   aiLabel = 'AI 评论',
   aiAssistantName = '评论助手',
@@ -152,6 +180,7 @@ const {
   selectionTools?: boolean;
   placeholder?: string;
   subject?: string;
+  draftTarget?: string;
   targetReady?: boolean;
   targetMissingMessage?: string;
   successMessage?: string;
@@ -204,7 +233,7 @@ let captchaRefreshKey = $state(0);
 let captchaDialogOpen = $state(false);
 let captchaDialogError = $state('');
 let externalCaptchaStarting = $state(false);
-let currentUser = $state<CurrentUser | undefined>();
+let userLookup = $state<{ baseUrl: string; user?: CurrentUser }>();
 let anonymousAvatarUrl = $state(getDefaultAnonymousAvatarUrl());
 let qqProfileLookupRequestId = 0;
 // biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
@@ -216,19 +245,60 @@ let localSubmitting = $state(false);
 let imageUploading = $state(false);
 let submitMessage = $state('');
 let submitMessageType = $state<'error' | 'success'>('error');
-let snippetQuote = $state('');
 let snippetAnchor = $state<CommentNextSnippetAnchor | undefined>();
-const pendingImageUploads = new Map<string, PendingImageUpload>();
+let privateComment = $state(false);
+let restoredDraft = $state(false);
+let identityPrompt = $state<{
+  intent: IdentityIntent;
+  draftTarget?: string;
+  trigger?: HTMLElement;
+}>();
+const componentId = $props.id();
+const identityDialogId = `${componentId}-identity`;
+let pendingImageUploads = new Map<string, PendingImageUpload>();
+const suspendedDrafts = new Map<string, SuspendedDraft>();
+let draftSlot: DraftSlot | undefined;
+let draftEditor: CommentNextEditorRef | undefined;
 
+const currentUser = $derived(
+  userLookup?.baseUrl === baseUrl ? userLookup?.user : undefined
+);
 const isLoggedIn = $derived(Boolean(currentUser) || loggedIn);
 const isSubmitting = $derived(submitting || localSubmitting);
-const showAccountBar = $derived(
-  showAccountFields && (isLoggedIn || allowAnonymous)
+const canSubmitPrivate = $derived(
+  enablePrivate && isLoggedIn && showFooter && showSubmitArea
+);
+const snippetQuote = $derived(normalizeSnippetText(snippetAnchor?.exact ?? ''));
+const draftKey = $derived(
+  draftTarget && userLookup?.baseUrl === baseUrl && (currentUser || !loggedIn)
+    ? commentDraftKey(draftTarget, currentUser?.name)
+    : undefined
+);
+const isReply = $derived(variant === 'reply');
+const showAnonymousFields = $derived(
+  showAccountFields && !isLoggedIn && allowAnonymous
+);
+const useIdentityDialog = $derived(
+  showAccountFields && showFooter && showSubmitArea
+);
+const showInlineAccountFields = $derived(
+  showAnonymousFields && !useIdentityDialog
 );
 const currentUserDisplayName = $derived(
-  currentUser?.displayName || (loggedIn ? '已登录用户' : '')
+  currentUser?.displayName ||
+    currentUser?.name ||
+    (loggedIn ? '已登录用户' : '')
 );
-const currentUserAvatar = $derived(currentUser?.avatar || '');
+const composerIdentity = $derived(
+  isLoggedIn ? currentUserDisplayName : anonymousDisplayName.trim() || '访客'
+);
+const composerAvatarUrl = $derived(
+  showAccountFields && isLoggedIn
+    ? currentUser?.avatar
+    : showAnonymousFields && anonymousEmail.trim()
+      ? anonymousAvatarUrl
+      : undefined
+);
 const anonymousMissingRequired = $derived(
   !isLoggedIn &&
     allowAnonymous &&
@@ -247,7 +317,9 @@ const resolvedSubmitLabel = $derived(
     ? '验证中'
     : imageUploading
       ? '上传图片中'
-      : submitLabel
+      : isSubmitting
+        ? '发布中'
+        : submitLabel
 );
 const imageUploadEnabled = $derived(resolveImageUploadEnabled());
 const imageAccept = 'image/*';
@@ -270,8 +342,6 @@ const resolvedAiAssistantName = $derived(
 const resolvedAiAssistantMentionName = $derived(
   resolveMentionName(aiConfig?.assistantMentionName, resolvedAiAssistantName)
 );
-const editorTopRounded = $derived(!showHeader && !showAccountBar);
-
 onMount(() => {
   const handleModalOpen = () => {
     closeFloatingPanels();
@@ -312,6 +382,17 @@ $effect(() => {
 });
 
 $effect(() => {
+  if (
+    identityPrompt &&
+    (loading ||
+      !useIdentityDialog ||
+      identityPrompt.draftTarget !== draftTarget)
+  ) {
+    identityPrompt = undefined;
+  }
+});
+
+$effect(() => {
   const email = anonymousEmail;
   let cancelled = false;
 
@@ -333,8 +414,6 @@ $effect(() => {
 });
 
 onMount(() => {
-  let cancelled = false;
-
   restoreAnonymousAccount();
 
   if (variant === 'reply') {
@@ -347,27 +426,40 @@ onMount(() => {
       });
     }, 0);
   }
+});
 
-  fetchCurrentUser(baseUrl)
-    .then((user) => {
-      if (!cancelled) {
-        currentUser = user;
-      }
-    })
-    .catch(() => {
-      if (!cancelled) {
-        currentUser = undefined;
-      }
-    });
+$effect(() => {
+  const lookupBaseUrl = baseUrl;
+  let cancelled = false;
+  fetchCurrentUser(lookupBaseUrl).then(
+    (user) => {
+      if (!cancelled) userLookup = { baseUrl: lookupBaseUrl, user };
+    },
+    () => {
+      if (!cancelled) userLookup = { baseUrl: lookupBaseUrl };
+    }
+  );
 
   return () => {
     cancelled = true;
   };
 });
 
+$effect(() => {
+  const editor = editorRef;
+  const target = draftTarget;
+  const key = draftKey;
+  const allowPrivate = canSubmitPrivate;
+  if (editor && !isSubmitting) {
+    untrack(() => syncDraft(editor, target, key, allowPrivate));
+  }
+});
+
 onDestroy(() => {
   qqProfileLookupRequestId += 1;
   clearPendingImageUploads();
+  for (const draft of suspendedDrafts.values())
+    clearPendingImageUploads(draft.uploads);
 });
 
 export function focus() {
@@ -379,34 +471,205 @@ export function isBusy(): boolean {
     isSubmitting ||
     loading ||
     imageUploading ||
+    Boolean(identityPrompt) ||
     captchaDialogOpen ||
     externalCaptchaStarting
   );
 }
 
 export function reset() {
-  editorRef?.reset();
-  editorHtml = '';
-  snippetQuote = '';
   snippetAnchor = undefined;
+  privateComment = false;
+  restoredDraft = false;
   clearPendingImageUploads();
-  onChange('');
+  editorRef?.setHtml('');
+  handleEditorChange('');
 }
 
 export function quoteSnippet(anchor: CommentNextSnippetAnchor): boolean {
-  if (isSubmitting || loading || variant !== 'comment') return false;
-  snippetQuote = normalizeSnippetText(anchor.exact);
+  if (
+    isSubmitting ||
+    loading ||
+    variant !== 'comment' ||
+    !normalizeSnippetText(anchor.exact)
+  ) {
+    return false;
+  }
   snippetAnchor = anchor;
-  if (!snippetQuote) return false;
+  persistDraft();
   composerElement?.scrollIntoView({ block: 'center', behavior: 'instant' });
   editorRef?.focus();
   return true;
 }
 
+function syncDraft(
+  editor: CommentNextEditorRef,
+  target: string | undefined,
+  key: string | undefined,
+  allowPrivate: boolean
+) {
+  if (
+    draftSlot?.target !== target ||
+    (draftSlot?.key && draftSlot.key !== key)
+  ) {
+    suspendDraft();
+    draftSlot = target ? { target, key } : undefined;
+    restoreDraft(editor, allowPrivate);
+  } else if (draftSlot && key && !draftSlot.key) {
+    draftSlot.key = key;
+    // Input entered while the current-user lookup was running takes precedence.
+    if (hasContent(editorHtml) || snippetAnchor) {
+      if (draftEditor !== editor) editor.setHtml(editorHtml);
+      persistDraft();
+    } else {
+      restoreDraft(editor, allowPrivate);
+    }
+  } else if (draftSlot && draftEditor !== editor) {
+    editor.setHtml(editorHtml);
+  }
+  draftEditor = editor;
+}
+
+function suspendDraft() {
+  if (
+    draftSlot &&
+    (pendingImageUploads.size || !draftSlot.synchronized) &&
+    (hasContent(editorHtml) || snippetAnchor)
+  ) {
+    suspendedDrafts.set(draftSlot.key ?? draftSlot.target, {
+      draft: { html: editorHtml, snippet: snippetAnchor, privateComment },
+      uploads: pendingImageUploads,
+      saved: draftSlot.saved,
+    });
+  } else {
+    clearPendingImageUploads();
+  }
+  pendingImageUploads = new Map();
+}
+
+function restoreDraft(editor: CommentNextEditorRef, allowPrivate: boolean) {
+  const slot = draftSlot;
+  const memoryKey = slot?.key ?? slot?.target;
+  const cached = memoryKey ? suspendedDrafts.get(memoryKey) : undefined;
+  const pending =
+    !cached && slot?.key ? suspendedDrafts.get(slot.target) : undefined;
+  const suspended = cached ?? pending;
+  const stored =
+    !suspended && slot?.key ? readCommentDraft(slot.key) : undefined;
+  const afterLogin =
+    slot?.key && currentUser
+      ? takeCommentDraftAfterLogin(slot.target)
+      : undefined;
+  const draft = suspended?.draft ?? stored?.draft ?? afterLogin;
+  const usable =
+    draft && (!draft.privateComment || allowPrivate) ? draft : undefined;
+  if (suspended && usable && slot) {
+    suspendedDrafts.delete(pending ? slot.target : (slot.key ?? slot.target));
+    pendingImageUploads = suspended.uploads;
+  }
+  if (slot) {
+    slot.saved = usable ? (suspended?.saved ?? stored?.serialized) : undefined;
+    slot.synchronized = Boolean(usable && stored);
+  }
+  editorHtml = usable
+    ? suspended
+      ? usable.html
+      : cleanDraftHtml(usable.html, allowImages, emoteConfig?.allowedHosts)
+    : '';
+  snippetAnchor = usable?.snippet;
+  privateComment = usable?.privateComment ?? false;
+  restoredDraft = hasContent(editorHtml) || Boolean(snippetAnchor);
+  editor.setHtml(editorHtml);
+  if (usable && (pending || usable === afterLogin)) persistDraft();
+  if (afterLogin && usable === afterLogin && slot?.synchronized) {
+    clearCommentDraft(commentDraftKey(slot.target), JSON.stringify(afterLogin));
+  }
+  onChange(editorHtml);
+}
+
+function snapshotDraft(): CommentDraft | undefined {
+  const html = cleanDraftHtml(
+    editorHtml,
+    allowImages,
+    emoteConfig?.allowedHosts
+  );
+  return hasContent(html) || snippetQuote
+    ? { html, snippet: snippetAnchor, privateComment }
+    : undefined;
+}
+
+function persistDraft() {
+  const slot = draftSlot;
+  if (!slot?.key) return;
+  const draft = snapshotDraft();
+  if (!draft) {
+    if (slot.saved) clearCommentDraft(slot.key, slot.saved);
+    slot.saved = undefined;
+    slot.synchronized = !hasContent(editorHtml);
+    if (!hasContent(editorHtml)) restoredDraft = false;
+    return;
+  }
+  const serialized = JSON.stringify(draft);
+  if (serialized === slot.saved) return;
+  slot.synchronized = saveCommentDraft(slot.key, serialized);
+  if (slot.synchronized) slot.saved = serialized;
+}
+
+function handleEditorChange(html: string) {
+  editorHtml = html;
+  pruneUnusedPendingImages(html);
+  persistDraft();
+  onChange(html);
+}
+
+function openIdentityDialog(intent: IdentityIntent, trigger?: HTMLElement) {
+  if (isBusy()) return;
+  const root = composerElement?.getRootNode();
+  const active =
+    root instanceof ShadowRoot ? root.activeElement : document.activeElement;
+  const focusedControl =
+    active instanceof HTMLElement && composerElement?.contains(active)
+      ? active
+      : undefined;
+  notifyCommentNextModalOpen('identity');
+  identityPrompt = {
+    intent,
+    draftTarget,
+    trigger:
+      trigger ??
+      focusedControl ??
+      composerElement?.querySelector<HTMLElement>(
+        '.comment-next-submit-button'
+      ) ??
+      undefined,
+  };
+}
+
+async function closeIdentityDialog() {
+  const trigger = identityPrompt?.trigger;
+  identityPrompt = undefined;
+  await tick();
+  if (!identityPrompt) trigger?.focus({ preventScroll: true });
+}
+
+async function confirmGuestIdentity() {
+  const prompt = identityPrompt;
+  if (!prompt) return;
+  await closeIdentityDialog();
+  if (prompt.draftTarget !== draftTarget || isLoggedIn || !allowAnonymous)
+    return;
+  if (prompt.intent === 'profile') {
+    storeAnonymousAccount();
+    return;
+  }
+  await submitComposer({ allowCaptchaDialog: true });
+}
+
 function handleLogin() {
+  if (!isLoggedIn) rememberCommentDraftForLogin(draftTarget, snapshotDraft());
   const redirectHash = loginRedirectHash || window.location.hash;
   window.location.href = `/login?redirect_uri=${encodeURIComponent(
-    window.location.pathname + redirectHash
+    window.location.pathname + window.location.search + redirectHash
   )}`;
 }
 
@@ -417,15 +680,22 @@ function closeFloatingPanels() {
 
 async function handleSubmit(event: SubmitEvent) {
   event.preventDefault();
-  await submitComposer({ allowCaptchaDialog: true });
+  if (isBusy()) return;
+  if (showInlineAccountFields && !composerElement?.reportValidity()) return;
+  await submitComposer({
+    allowCaptchaDialog: true,
+    promptForIdentity: useIdentityDialog,
+  });
 }
 
 async function submitComposer({
   allowCaptchaDialog,
   captchaCodeOverride,
+  promptForIdentity = false,
 }: {
   allowCaptchaDialog: boolean;
   captchaCodeOverride?: string;
+  promptForIdentity?: boolean;
 }) {
   if (isSubmitting) {
     return;
@@ -439,12 +709,13 @@ async function submitComposer({
   }
 
   if (!isLoggedIn && !allowAnonymous) {
-    handleLogin();
+    if (promptForIdentity) openIdentityDialog('submit');
+    else handleLogin();
     return;
   }
 
-  if (anonymousMissingRequired) {
-    showSubmitMessage('请先填写昵称和邮箱。');
+  if (privateComment && !canSubmitPrivate) {
+    showSubmitMessage('当前无法提交私密评论。');
     return;
   }
 
@@ -465,6 +736,16 @@ async function submitComposer({
     return;
   }
 
+  if (!isLoggedIn && promptForIdentity) {
+    openIdentityDialog('submit');
+    return;
+  }
+
+  if (anonymousMissingRequired) {
+    showSubmitMessage('请先填写昵称和邮箱。');
+    return;
+  }
+
   const resolvedCaptchaCode = captchaCodeOverride ?? captchaCode;
   const captchaMissing = captchaRequired && !resolvedCaptchaCode.trim();
 
@@ -478,14 +759,9 @@ async function submitComposer({
     return;
   }
 
-  const form = composerElement;
-  if (!form) {
-    showSubmitMessage(genericErrorMessage);
-    return;
-  }
-  const formData = new FormData(form);
   const quote = snippetQuote;
   const anchor = snippetAnchor;
+  const hidden = privateComment;
   // Preparing images may be asynchronous. Keep the original submission target.
   const submit = onSubmit;
   const submittedEventName = createdEventName;
@@ -507,7 +783,7 @@ async function submitComposer({
       content: quote
         ? `${createSnippetQuoteHtml(quote)}${editorContent}`
         : editorContent,
-      hidden: enablePrivate && isLoggedIn && formData.get('hidden') === 'on',
+      hidden,
       captchaCode: resolvedCaptchaCode,
       owner: isLoggedIn
         ? undefined
@@ -521,10 +797,7 @@ async function submitComposer({
     const result = await submit(payload);
 
     storeAnonymousAccount();
-    editorRef?.reset();
-    snippetQuote = '';
-    snippetAnchor = undefined;
-    clearPendingImageUploads();
+    reset();
     captchaCode = '';
     captchaImage = '';
     captchaDialogError = '';
@@ -842,11 +1115,12 @@ async function uploadPendingImagesForSubmit(rawContent: string): Promise<void> {
   }
 
   imageUploading = true;
+  const uploadBaseUrl = baseUrl;
 
   try {
     for (const pendingUpload of referencedUploads) {
       const result = await uploadCommentImage({
-        baseUrl,
+        baseUrl: uploadBaseUrl,
         file: pendingUpload.file,
       });
       const uploadedUrl = result.url;
@@ -922,12 +1196,12 @@ function revokePendingImageUpload(src: string) {
   pendingImageUploads.delete(src);
 }
 
-function clearPendingImageUploads() {
-  for (const pendingUpload of Array.from(pendingImageUploads.values())) {
+function clearPendingImageUploads(uploads = pendingImageUploads) {
+  for (const pendingUpload of uploads.values()) {
     URL.revokeObjectURL(pendingUpload.src);
   }
 
-  pendingImageUploads.clear();
+  uploads.clear();
 }
 
 async function handleAiModeSelect(
@@ -1167,299 +1441,508 @@ function resolveMentionName(
 }
 </script>
 
-<form
-  bind:this={composerElement}
-  use:isolateTypingShortcuts
-  class:comment-next-box={variant === "comment"}
-  class:comment-next-reply-composer={variant === "reply"}
-  class:comment-next-composer-loading={loading}
-  class:comment-next-composer-ai-active={isAiPanelOpen || showInlineSuggestion || showSelectionTools}
-  class:comment-next-composer-compact={compact}
-  class="comment-next-composer"
-  data-base-url={baseUrl}
-  data-subject={subject}
-  onsubmit={handleSubmit}
->
-  {#if loading}
-    <CommentNextSkeleton showAccountFields={showAccountBar} loggedIn={isLoggedIn} {enablePrivate} />
-  {:else}
-    {#if showHeader}
-      <div class="comment-next-reply-composer-head">
-        <span class="comment-next-reply-composer-target">
-          <CommentNextIcon name="reply" size={14} />
-          {#if replyToName}
-            回复 <strong>@{replyToName}</strong>
-          {:else}
-            回复评论
+{#snippet identityAvatar()}
+  <span class="comment-next-composer-avatar" aria-hidden="true">
+    {#if composerAvatarUrl || (isLoggedIn && currentUser?.name)}
+      <CommentNextAvatar
+        src={composerAvatarUrl}
+        seed={isLoggedIn ? currentUser?.name : undefined}
+        config={avatarConfig}
+        alt={composerIdentity}
+        size={24}
+      />
+    {:else}
+      <span class="comment-next-composer-avatar-placeholder">
+        <CommentNextIcon name="user" size={14} />
+      </span>
+    {/if}
+  </span>
+{/snippet}
+
+{#snippet identityAction()}
+  <button
+    class="comment-next-composer-identity"
+    type="button"
+    aria-label={isLoggedIn ? '查看评论身份' : '选择评论身份'}
+    aria-haspopup="dialog"
+    aria-controls={identityPrompt ? identityDialogId : undefined}
+    title={isLoggedIn ? composerIdentity : '选择评论身份'}
+    disabled={isSubmitting || captchaDialogOpen || externalCaptchaStarting}
+    onclick={(event) => openIdentityDialog('profile', event.currentTarget)}
+  >
+    {@render identityAvatar()}
+  </button>
+{/snippet}
+
+{#snippet guestFields()}
+  <CommentNextAccountFields
+    displayName={anonymousDisplayName}
+    email={anonymousEmail}
+    website={anonymousWebsite}
+    disabled={isSubmitting}
+    onChange={(values) => {
+      anonymousDisplayName = values.displayName;
+      anonymousEmail = values.email;
+      anonymousWebsite = values.website;
+    }}
+    onEmailBlur={handleAnonymousEmailBlur}
+  />
+{/snippet}
+
+<div class="comment-next-composer-frame">
+  <form
+    bind:this={composerElement}
+    use:isolateTypingShortcuts
+    class:comment-next-box={variant === "comment"}
+    class:comment-next-reply-composer={variant === "reply"}
+    class:comment-next-composer-compact={compact}
+    class:comment-next-composer-embedded={!showSubmitArea}
+    class="comment-next-composer"
+    data-base-url={baseUrl}
+    data-subject={subject}
+    aria-label={showAccountFields || showHeader ? (isReply ? '回复评论' : '写评论') : undefined}
+    novalidate
+    onsubmit={handleSubmit}
+  >
+    <div class="comment-next-composer-surface">
+      {#if loading}
+        <CommentNextSkeleton {showFooter} {showSubmitArea} showIdentity={useIdentityDialog} />
+      {:else}
+        {#if showHeader}
+          <CommentNextComposerHeader {replyToName} busy={isSubmitting} {onCancel} />
+        {/if}
+
+        <div class="comment-next-composer-writing">
+          {#if snippetQuote}
+            <div class="comment-next-snippet-quote" role="note" aria-label="引用的文章片段">
+              <CommentNextIcon name="quote" size={15} />
+              <blockquote>{snippetQuote}</blockquote>
+              <button
+                type="button"
+                aria-label="移除文章片段引用"
+                disabled={isSubmitting}
+                onclick={() => {
+                  snippetAnchor = undefined;
+                  persistDraft();
+                }}
+              ><CommentNextIcon name="x" size={15} /></button>
+            </div>
           {/if}
-        </span>
-        <button type="button" class="comment-next-reply-composer-cancel" disabled={isSubmitting} onclick={onCancel}>
-          取消
-        </button>
-      </div>
-    {/if}
+          <CommentNextEditor
+            bind:this={editorRef}
+            {placeholder}
+            label={isReply && showHeader ? '回复内容' : '评论内容'}
+            aiOpen={isAiPanelOpen}
+            inlineSuggestion={showInlineSuggestion}
+            selectionTools={showSelectionTools}
+            {aiMode}
+            suggestionText={aiSuggestionText}
+            suggestionLoading={aiGenerating}
+            aiAssistantName={resolvedAiAssistantName}
+            aiAssistantMentionName={resolvedAiAssistantMentionName}
+            aiAssistantAvatar={aiConfig?.assistantAvatar}
+            aiMentionEnabled={aiMentionEnabled && !aiGenerating}
+            {allowImages}
+            readOnly={isSubmitting}
+            onChange={handleEditorChange}
+            onImagePaste={handleImagePaste}
+            onCommandMenuRequest={() => {
+              if (!aiWritingEnabled || aiGenerating) {
+                return;
+              }
 
-    <CommentNextAccountFields
-      visible={showAccountBar}
-      loggedIn={isLoggedIn}
-      avatarUrl={isLoggedIn ? currentUserAvatar : anonymousAvatarUrl}
-      avatarSeed={isLoggedIn ? currentUser?.name : undefined}
-      {avatarConfig}
-      avatarAlt={isLoggedIn ? currentUserDisplayName : anonymousDisplayName}
-      userDisplayName={currentUserDisplayName}
-      displayName={anonymousDisplayName}
-      email={anonymousEmail}
-      website={anonymousWebsite}
-      onChange={(values) => {
-        anonymousDisplayName = values.displayName;
-        anonymousEmail = values.email;
-        anonymousWebsite = values.website;
-      }}
-      onEmailBlur={handleAnonymousEmailBlur}
-    />
-
-    {#if snippetQuote}
-      <div class="comment-next-snippet-quote" role="note" aria-label="引用的文章片段">
-        <div>
-          <span>引用文章片段</span>
-          <blockquote>{snippetQuote}</blockquote>
+              isAiPanelOpen = true;
+              showInlineSuggestion = false;
+              showSelectionTools = false;
+            }}
+            onCloseAiPanel={() => (isAiPanelOpen = false)}
+            onAcceptSuggestion={handleAcceptAiSuggestion}
+            onInsertSuggestion={handleInsertAiSuggestion}
+            onRewriteSuggestion={handleRewriteAiSuggestion}
+            onRejectSuggestion={closeAiSuggestion}
+          />
         </div>
-        <button
-          type="button"
-          aria-label="移除文章片段引用"
-          disabled={isSubmitting}
-          onclick={() => (snippetQuote = '')}
-        >×</button>
-      </div>
-    {/if}
 
-    <CommentNextEditor
-      bind:this={editorRef}
-      {placeholder}
-      aiOpen={isAiPanelOpen}
-      inlineSuggestion={showInlineSuggestion}
-      selectionTools={showSelectionTools}
-      {aiMode}
-      suggestionText={aiSuggestionText}
-      suggestionLoading={aiGenerating}
-      aiAssistantName={resolvedAiAssistantName}
-      aiAssistantMentionName={resolvedAiAssistantMentionName}
-      aiAssistantAvatar={aiConfig?.assistantAvatar}
-      aiMentionEnabled={aiMentionEnabled && !aiGenerating}
-      {allowImages}
-      topRounded={editorTopRounded}
-      onChange={(html) => {
-        editorHtml = html;
-        pruneUnusedPendingImages(html);
-        onChange(html);
-      }}
-      onImagePaste={handleImagePaste}
-      onCommandMenuRequest={() => {
-        if (!aiWritingEnabled || aiGenerating) {
-          return;
-        }
+        {#if showInlineAccountFields}
+          <div class="comment-next-guest-details">
+            {@render guestFields()}
+          </div>
+        {/if}
+        {#if externalCaptchaStarting || submitMessage || restoredDraft}
+          <CommentNextNotice
+            quiet={restoredDraft && !externalCaptchaStarting && !submitMessage}
+            message={externalCaptchaStarting ? '正在启动安全验证…' : submitMessage || '已恢复本地草稿'}
+            variant={externalCaptchaStarting ? 'info' : submitMessage ? submitMessageType : 'success'}
+          />
+        {/if}
+        {#if showFooter}
+          <CommentNextFooter
+            {compact}
+            identity={useIdentityDialog ? identityAction : undefined}
+            commandMenuOpen={isAiPanelOpen}
+            loggedIn={isLoggedIn}
+            {allowAnonymous}
+            {enablePrivate}
+            {privateComment}
+            onPrivateChange={(checked) => {
+              privateComment = checked;
+              persistDraft();
+            }}
+            submitting={isSubmitting}
+            submitDisabled={externalCaptchaStarting}
+            submitLabel={resolvedSubmitLabel}
+            {loginLabel}
+            aiLabel={resolvedAiLabel}
+            aiAssistantName={resolvedAiAssistantName}
+            aiAssistantMentionName={resolvedAiAssistantMentionName}
+            aiAssistantAvatar={aiConfig?.assistantAvatar}
+            {aiMode}
+            aiLoading={aiGenerating}
+            {variant}
+            showAi={aiWritingEnabled}
+            showMention={aiMentionEnabled}
+            aiHasContent={Boolean(textFromHtml(editorHtml).trim())}
+            aiHasSubject={Boolean(subject.trim())}
+            aiHasReplyTarget={Boolean(replyToName.trim())}
+            onMentionAssistant={() => editorRef?.mentionAssistant()}
+            {showInsertTools}
+            {showSubmitArea}
+            {imageUploadEnabled}
+            {imageUploading}
+            {imageAccept}
+            {emotePacks}
+            emotePageSize={emoteConfig?.pageSize}
+            onEmoteSelect={handleEmoteSelect}
+            onImageUpload={handleImageUpload}
+            onLogin={useIdentityDialog ? () => openIdentityDialog('submit') : handleLogin}
+            onCloseCommandMenu={() => {
+              isAiPanelOpen = false;
+            }}
+            onCommandModeSelect={handleAiModeSelect}
+            onToggleCommandMenu={() => {
+              if (!aiWritingEnabled || aiGenerating) {
+                return;
+              }
+              isAiPanelOpen = !isAiPanelOpen;
+              showInlineSuggestion = false;
+              showSelectionTools = false;
+            }}
+          />
+        {/if}
+      {/if}
+    </div>
 
-        isAiPanelOpen = true;
-        showInlineSuggestion = false;
-        showSelectionTools = false;
-      }}
-      onCloseAiPanel={() => (isAiPanelOpen = false)}
-      onAcceptSuggestion={handleAcceptAiSuggestion}
-      onInsertSuggestion={handleInsertAiSuggestion}
-      onRewriteSuggestion={handleRewriteAiSuggestion}
-      onRejectSuggestion={closeAiSuggestion}
-    />
-
-    {#if externalCaptchaStarting || submitMessage}
-      <CommentNextNotice
-        compact={variant === "reply"}
-        message={externalCaptchaStarting ? "正在启动安全验证..." : submitMessage}
-        variant={externalCaptchaStarting ? "info" : submitMessageType}
-      />
-    {/if}
-
-    {#if showFooter}
-      <CommentNextFooter
-        {compact}
-        commandMenuOpen={isAiPanelOpen}
-        loggedIn={isLoggedIn}
-        {allowAnonymous}
-        {enablePrivate}
+    {#if !loading}
+      <CommentNextCaptchaDialog
+        open={captchaDialogOpen}
+        {baseUrl}
+        type={captchaType}
+        {captchaConfig}
+        image={captchaImage}
+        value={captchaCode}
+        refreshKey={captchaRefreshKey}
+        error={captchaDialogError}
         submitting={isSubmitting}
-        submitDisabled={anonymousMissingRequired || externalCaptchaStarting}
-        submitLabel={resolvedSubmitLabel}
-        {loginLabel}
-        aiLabel={resolvedAiLabel}
-        aiAssistantName={resolvedAiAssistantName}
-        aiAssistantMentionName={resolvedAiAssistantMentionName}
-        aiAssistantAvatar={aiConfig?.assistantAvatar}
-        {aiMode}
-        aiLoading={aiGenerating}
-        {variant}
-        showAi={aiWritingEnabled}
-        showMention={aiMentionEnabled}
-        aiHasContent={Boolean(textFromHtml(editorHtml).trim())}
-        aiHasSubject={Boolean(subject.trim())}
-        aiHasReplyTarget={Boolean(replyToName.trim())}
-        onMentionAssistant={() => editorRef?.mentionAssistant()}
-        {showInsertTools}
-        {showSubmitArea}
-        {imageUploadEnabled}
-        {imageUploading}
-        {imageAccept}
-        {emotePacks}
-        emotePageSize={emoteConfig?.pageSize}
-        onEmoteSelect={handleEmoteSelect}
-        onImageUpload={handleImageUpload}
-        onLogin={handleLogin}
-        onCloseCommandMenu={() => {
-          isAiPanelOpen = false;
-        }}
-        onCommandModeSelect={handleAiModeSelect}
-        onToggleCommandMenu={() => {
-          if (!aiWritingEnabled || aiGenerating) {
-            return;
+        onChange={(value) => {
+          captchaCode = value;
+          if (value.trim()) {
+            captchaDialogError = '';
           }
-          isAiPanelOpen = !isAiPanelOpen;
-          showInlineSuggestion = false;
-          showSelectionTools = false;
+        }}
+        onConfirm={handleCaptchaConfirm}
+        onVerified={handleCaptchaVerified}
+        onError={(message) => {
+          externalCaptchaStarting = false;
+          showSubmitMessage(message);
+        }}
+        onClose={() => {
+          if (!isSubmitting) {
+            captchaDialogError = '';
+            externalCaptchaStarting = false;
+            captchaDialogOpen = false;
+          }
         }}
       />
     {/if}
+  </form>
 
-    <CommentNextCaptchaDialog
-      open={captchaDialogOpen}
-      {baseUrl}
-      type={captchaType}
-      {captchaConfig}
-      image={captchaImage}
-      value={captchaCode}
-      refreshKey={captchaRefreshKey}
-      error={captchaDialogError}
-      submitting={isSubmitting}
-      onChange={(value) => {
-        captchaCode = value;
-        if (value.trim()) {
-          captchaDialogError = '';
-        }
-      }}
-      onConfirm={handleCaptchaConfirm}
-      onVerified={handleCaptchaVerified}
-      onError={(message) => {
-        externalCaptchaStarting = false;
-        showSubmitMessage(message);
-      }}
-      onClose={() => {
-        if (!isSubmitting) {
-          captchaDialogError = '';
-          externalCaptchaStarting = false;
-          captchaDialogOpen = false;
-        }
-      }}
+  {#if identityPrompt}
+    <CommentNextIdentityDialog
+      id={identityDialogId}
+      loggedIn={isLoggedIn}
+      {allowAnonymous}
+      displayName={composerIdentity}
+      avatar={identityAvatar}
+      {guestFields}
+      guestSubmitLabel={identityPrompt.intent === 'submit' ? submitLabel : '保存资料'}
+      {loginLabel}
+      onLogin={handleLogin}
+      onGuestConfirm={confirmGuestIdentity}
+      onClose={closeIdentityDialog}
     />
   {/if}
-</form>
+</div>
 
 <style>
-  .comment-next-snippet-quote {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    margin: 12px 16px 0;
-    padding: 10px 12px;
-    border-left: 3px solid var(--comment-next-primary-color, #3b82f6);
-    border-radius: 0 8px 8px 0;
-    background: var(--comment-next-pill-bg-color, #f3f5f8);
-    color: var(--comment-next-muted-color, #6b7687);
-  }
-  .comment-next-snippet-quote > div { flex: 1; min-width: 0; }
-  .comment-next-snippet-quote span { font-size: 11px; }
-  .comment-next-snippet-quote blockquote {
-    margin: 4px 0 0;
-    max-height: 7em;
-    overflow-y: auto;
-    overflow-wrap: anywhere;
-    font-size: 13px;
-    line-height: 1.6;
+  .comment-next-composer-frame {
+    --comment-next-composer-theme-accent: var(--halo-cw-primary-1-color, var(--halo-comment-widget-component-form-button-submit-bg-color, var(--comment-next-text-color, #202a39)));
+    --comment-next-composer-accent: var(--comment-next-composer-theme-accent);
+    --comment-next-composer-submit-bg: var(--comment-next-composer-accent);
+    --comment-next-composer-tint: var(--comment-next-pill-bg-color, #eef2f6);
+    --comment-next-composer-action-ink: var(--comment-next-text-color, #172033);
+    --comment-next-composer-action-hover: var(--comment-next-control-hover-bg-color, #eef2f4);
+    --comment-next-composer-background: var(
+      --comment-next-box-bg,
+      var(--halo-cw-muted-3-color, var(--halo-comment-widget-component-form-input-bg-color, var(--comment-next-bg-color, Canvas)))
+    );
+    --comment-next-composer-rail-bg: var(--comment-next-composer-background);
+    --comment-next-composer-rule: var(--comment-next-border-subtle-color, #e7ecf2);
+    --comment-next-composer-radius: var(--comment-next-style-radius, var(--halo-cw-base-rounded, var(--halo-comment-widget-base-border-radius, 0.875rem)));
+    --comment-next-composer-control-radius: min(0.5625rem, var(--comment-next-composer-radius));
+    --comment-next-composer-avatar-size: clamp(1.125rem, var(--comment-next-theme-avatar-size, 1.5rem), 1.625rem);
+    min-width: 0;
     color: var(--comment-next-text-color, #172033);
+    font-family: inherit;
   }
-  .comment-next-snippet-quote button {
-    flex: none;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: inherit;
-    font-size: 20px;
-    cursor: pointer;
+
+  @supports (color: color-mix(in srgb, white, black)) {
+    .comment-next-composer-frame {
+      --comment-next-composer-rail-bg: color-mix(
+        in srgb,
+        var(--comment-next-composer-background) 96%,
+        var(--comment-next-text-color, #172033)
+      );
+      --comment-next-composer-tint: color-mix(
+        in srgb,
+        var(--comment-next-composer-background) 88%,
+        var(--comment-next-composer-accent)
+      );
+      --comment-next-composer-action-ink: color-mix(
+        in srgb,
+        var(--comment-next-text-color, #172033) 74%,
+        var(--comment-next-composer-accent)
+      );
+      --comment-next-composer-action-hover: color-mix(
+        in srgb,
+        var(--comment-next-composer-background) 80%,
+        var(--comment-next-composer-accent)
+      );
+      --comment-next-composer-submit-bg: color-mix(
+        in srgb,
+        var(--comment-next-composer-accent) 36%,
+        var(--comment-next-text-color, #172033)
+      );
+    }
   }
-  .comment-next-snippet-quote button:hover { background: var(--comment-next-control-hover-bg-color, #eef2f4); }
-  .comment-next-snippet-quote button:focus-visible { outline: 2px solid var(--comment-next-primary-color, #3b82f6); }
+
+  @supports (color: contrast-color(white)) {
+    .comment-next-composer-frame {
+      --comment-next-composer-submit-bg: var(--comment-next-composer-accent);
+      --comment-next-composer-submit-text: var(
+        --halo-comment-widget-component-form-button-submit-color,
+        contrast-color(var(--comment-next-composer-submit-bg))
+      );
+    }
+  }
+
+  @supports (color: light-dark(white, black)) {
+    .comment-next-composer-frame {
+      --comment-next-composer-accent: light-dark(
+        var(--comment-next-style-light-accent, var(--comment-next-composer-theme-accent)),
+        var(--comment-next-style-dark-accent, var(--comment-next-composer-theme-accent))
+      );
+    }
+  }
 
   .comment-next-composer {
-    --at-apply: relative box-border w-full overflow-visible border border-solid [border-color:var(--comment-next-border-color,#d5dde7)] rounded-[var(--comment-next-radius-lg,0.875rem)] [background:var(--comment-next-box-bg,transparent,var(--comment-next-bg-color,#ffffff))] text-[var(--comment-next-text-color,#172033)] shadow-[0_12px_30px_rgb(15_23_42_/_0.04),0_1px_0_rgb(255_255_255_/_0.48)_inset] transition-[border-color,box-shadow,transform] duration-140 ease-in-out;
+    --comment-next-composer-gutter: 1.125rem;
+    --comment-next-composer-writing-inset: var(--comment-next-composer-gutter);
+    --comment-next-composer-default-height: 9.25rem;
+    --comment-next-composer-default-mobile-height: 8rem;
+    --comment-next-composer-control-height: 2.125rem;
+    --comment-next-composer-action-padding: 0.375rem;
+    --comment-next-composer-action-inset: 0.75rem;
+    container: comment-next-composer / inline-size;
+    box-sizing: border-box;
+    width: 100%;
     max-width: 100%;
     min-width: 0;
-    font-family: var(
-      --comment-next-font-family,
-      ui-sans-serif,
-      system-ui,
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
-      sans-serif
-    );
+    margin: 0;
   }
 
   .comment-next-reply-composer {
-    --comment-next-editor-min-height: 7.5rem;
-    --comment-next-editor-mobile-min-height: 6rem;
-    --comment-next-editor-padding: 0.875rem 1rem 1rem;
-    --comment-next-editor-mobile-padding: 0.875rem 1rem 1rem;
-    --at-apply: [border-color:var(--comment-next-border-subtle-color,#e7ecf2)] shadow-none;
+    --comment-next-composer-default-height: 6rem;
+    --comment-next-composer-default-mobile-height: 5.5rem;
   }
 
-  .comment-next-reply-composer:focus-within {
-    --at-apply: [border-color:var(--comment-next-focus-border-color,#aeb9c6)] shadow-[0_0_0_2px_var(--comment-next-focus-shadow-color,rgb(59_130_246_/_0.14))];
+  .comment-next-composer-embedded {
+    --comment-next-composer-default-height: 4.25rem;
+    --comment-next-composer-default-mobile-height: 4.125rem;
   }
 
-  .comment-next-composer:focus-within {
-    --at-apply: [border-color:var(--comment-next-focus-border-color,#aeb9c6)] shadow-[0_14px_34px_rgb(15_23_42_/_0.05),0_0_0_3px_var(--comment-next-focus-shadow-color,rgb(59_130_246_/_0.14))];
+  .comment-next-composer-compact {
+    --comment-next-composer-gutter: 0.8125rem;
+    --comment-next-composer-action-padding: 0.3125rem;
+    --comment-next-composer-action-inset: 0.5rem;
   }
 
-  .comment-next-composer-ai-active {
-    --at-apply: [border-color:var(--comment-next-ai-border-color,rgb(191_219_254))];
+  .comment-next-composer-avatar {
+    --comment-next-avatar-layout-size: var(--comment-next-composer-avatar-size);
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    line-height: 0;
   }
 
-  .comment-next-composer-loading {
-    --at-apply: pointer-events-none overflow-hidden;
+  .comment-next-composer-avatar-placeholder {
+    display: grid;
+    place-items: center;
+    width: var(--comment-next-composer-avatar-size);
+    height: var(--comment-next-composer-avatar-size);
+    border-radius: var(--comment-next-avatar-rounded, 50%);
+    background: var(--comment-next-composer-tint);
+    color: var(--comment-next-muted-color, #667085);
   }
 
-  .comment-next-reply-composer-head {
-    --at-apply: flex min-h-10 items-center justify-between gap-3 border-b [border-bottom-style:var(--comment-next-divider-style,dashed)] [border-bottom-color:var(--comment-next-divider-color,#d4dde8)] px-3 py-1.5 text-[0.8125rem] text-[var(--comment-next-muted-color,#6b7687)] font-[650];
+  .comment-next-composer-surface {
+    display: flow-root;
+    position: relative;
+    min-width: 0;
+    border: 1px solid var(--comment-next-field-border-color, var(--comment-next-border-color, #d5dde7));
+    border-radius: var(--comment-next-composer-radius);
+    background: var(--comment-next-composer-background);
+    transition: border-color 150ms ease, box-shadow 150ms ease;
   }
 
-  .comment-next-reply-composer-target {
-    --at-apply: inline-flex min-w-0 items-center gap-[0.35rem];
+  .comment-next-composer-surface:focus-within {
+    border-color: var(--comment-next-focus-border-color, var(--comment-next-composer-accent));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--comment-next-composer-accent) 8%, transparent);
   }
 
-  .comment-next-reply-composer-target strong {
-    --at-apply: text-[var(--comment-next-primary-color,rgb(59,130,246))] font-[760];
+  .comment-next-composer-writing {
+    display: flow-root;
+    min-width: 0;
+    border-radius: inherit;
   }
 
-  .comment-next-reply-composer-cancel {
-    --at-apply: cursor-pointer border-0 bg-transparent text-[0.8125rem] text-[var(--comment-next-muted-color,#6b7687)] font-[650] font-inherit;
+  .comment-next-composer-surface :global(.comment-next-composer-action-row) {
+    padding: var(--comment-next-composer-action-padding) var(--comment-next-composer-action-inset);
+    background: linear-gradient(var(--comment-next-composer-rule), var(--comment-next-composer-rule))
+      center top / calc(100% - 2 * var(--comment-next-composer-action-inset)) 1px no-repeat;
   }
 
-  .comment-next-reply-composer-cancel:hover {
-    --at-apply: text-[var(--comment-next-text-color,#172033)];
+  .comment-next-guest-details {
+    padding: 0.75rem var(--comment-next-composer-gutter) 0.5rem;
+    border-block-start: 1px solid var(--comment-next-composer-rule);
+  }
+
+  .comment-next-composer-identity {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    box-sizing: border-box;
+    width: var(--comment-next-composer-tool-width, var(--comment-next-composer-control-height));
+    height: var(--comment-next-composer-control-height);
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--comment-next-composer-control-radius);
+    background: transparent;
+    color: var(--comment-next-text-color, #172033);
+    cursor: pointer;
+  }
+
+  .comment-next-composer-identity:hover:not(:disabled) {
+    background: var(--comment-next-control-hover-bg-color, #eef2f4);
+  }
+
+  .comment-next-composer-identity:focus-visible {
+    outline: 2px solid var(--comment-next-focus-border-color, var(--comment-next-composer-accent));
+    outline-offset: 1px;
+  }
+
+  .comment-next-composer-identity:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .comment-next-snippet-quote {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    min-width: 0;
+    margin: 0.625rem var(--comment-next-composer-gutter) 0 var(--comment-next-composer-writing-inset);
+    padding: 0.625rem 0.5rem 0.625rem 0.75rem;
+    border: 1px solid var(--comment-next-border-subtle-color, #e7ecf2);
+    border-radius: 0.5rem;
+    background: var(--comment-next-composer-tint);
+    color: var(--comment-next-composer-accent);
+  }
+
+  .comment-next-snippet-quote > :global(.comment-next-icon) {
+    margin-top: 0.25rem;
+  }
+
+  .comment-next-snippet-quote blockquote {
+    flex: 1;
+    min-width: 0;
+    max-height: 6em;
+    margin: 0;
+    overflow: auto;
+    overflow-wrap: anywhere;
+    color: var(--comment-next-text-color, #172033);
+    font-size: 0.8125rem;
+    line-height: 1.65;
+  }
+
+  .comment-next-snippet-quote button {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 2rem;
+    height: 2rem;
+    margin: -0.25rem 0 -0.25rem auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0.375rem;
+    background: transparent;
+    color: var(--comment-next-muted-color, #667085);
+    cursor: pointer;
+  }
+
+  .comment-next-snippet-quote button:hover:not(:disabled) {
+    background: var(--comment-next-control-hover-bg-color, #eef2f4);
+    color: var(--comment-next-text-color, #172033);
+  }
+
+  .comment-next-snippet-quote button:focus-visible {
+    outline: 2px solid var(--comment-next-composer-accent);
+    outline-offset: 2px;
+  }
+
+  .comment-next-snippet-quote button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  @container comment-next-composer (max-width: 36rem) {
+    .comment-next-composer-surface {
+      --comment-next-composer-control-height: 2.5rem;
+      --comment-next-composer-action-inset: 0.625rem;
+      --comment-next-composer-gutter: 0.75rem;
+      --comment-next-composer-writing-inset: var(--comment-next-composer-gutter);
+    }
+  }
+
+  @container comment-next-composer (max-width: 24rem) {
+    .comment-next-composer-surface {
+      --comment-next-composer-action-inset: 0.5rem;
+      --comment-next-composer-tool-width: 2.25rem;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .comment-next-composer {
-      --at-apply: transition-none;
+    .comment-next-composer-surface {
+      transition: none;
     }
   }
 </style>

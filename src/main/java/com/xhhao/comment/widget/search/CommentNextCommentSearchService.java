@@ -23,19 +23,18 @@ class CommentNextCommentSearchService {
 
     private final CommentNextCommentSearchItemMapper mapper;
 
+    private final CommentNextReplyQueueService replyQueueService;
+
     Mono<CommentNextCommentSearchPage> search(CommentNextCommentSearchQuery query) {
         var criteria = query.criteria();
-        return listUserEmails()
-            .flatMap(userEmails -> searchItems(criteria, userEmails)
-                .filter(criteria::matches)
-                .sort(itemComparator())
-                .collectList()
-                .map(items -> CommentNextCommentSearchPage.from(
-                    items,
-                    query.page(),
-                    query.size()
-                ))
-            );
+        var queue = query.replyQueue();
+        return listUserEmails().flatMapMany(userEmails -> queue == CommentNextCommentSearchQuery.ReplyQueue.ALL
+                ? searchItems(criteria, userEmails)
+                : mapComments(replyQueueService.listComments(queue, query.postName()), userEmails))
+            .filter(criteria::matches)
+            .sort(itemComparator(queue == CommentNextCommentSearchQuery.ReplyQueue.WAITING))
+            .collectList()
+            .map(items -> CommentNextCommentSearchPage.from(items, query.page(), query.size()));
     }
 
     private Mono<Map<String, Comment>> listComments() {
@@ -67,19 +66,21 @@ class CommentNextCommentSearchService {
                 if (criteria.target() == CommentNextCommentSearchCriteria.Target.REPLY) {
                     return replies;
                 }
-                var comments = Flux.fromIterable(commentMap.values())
-                    .map(comment -> mapper.fromComment(
-                        comment,
-                        registeredEmail(comment.getSpec(), userEmails)
-                    ));
+                var comments = mapComments(Flux.fromIterable(commentMap.values()), userEmails);
                 return Flux.concat(comments, replies);
             });
     }
 
     private Flux<CommentNextCommentSearchItem> searchComments(Map<String, String> userEmails) {
-        return client.listAll(Comment.class, notDeletingOptions(), Sort.by("metadata.name"))
-            .filter(comment -> comment.getSpec() != null)
-            .map(comment -> mapper.fromComment(
+        var comments = client.listAll(Comment.class, notDeletingOptions(), Sort.by("metadata.name"))
+            .filter(comment -> comment.getSpec() != null);
+        return mapComments(comments, userEmails);
+    }
+
+    private Flux<CommentNextCommentSearchItem> mapComments(
+        Flux<Comment> comments, Map<String, String> userEmails
+    ) {
+        return comments.map(comment -> mapper.fromComment(
                 comment,
                 registeredEmail(comment.getSpec(), userEmails)
             ));
@@ -98,11 +99,11 @@ class CommentNextCommentSearchService {
             ));
     }
 
-    private Comparator<CommentNextCommentSearchItem> itemComparator() {
+    private Comparator<CommentNextCommentSearchItem> itemComparator(boolean oldestFirst) {
         return Comparator
             .comparing(
                 (CommentNextCommentSearchItem item) -> safeInstant(item.creationTime()),
-                Comparator.reverseOrder()
+                oldestFirst ? Comparator.naturalOrder() : Comparator.reverseOrder()
             )
             .thenComparing(CommentNextCommentSearchItem::targetType)
             .thenComparing(CommentNextCommentSearchItem::name);

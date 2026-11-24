@@ -14,9 +14,10 @@ import { sanitizeCommentSubmitHtml } from '../utils/html';
 import type { CommentNextCaptchaType } from './captcha';
 import { getCaptchaCodeHeader, isCaptchaRequired } from './captcha';
 
-const COMMENTS_ENDPOINT = '/apis/api.commentnext.xhhao.com/v1alpha1/comments';
+export const COMMENTS_ENDPOINT =
+  '/apis/api.commentnext.xhhao.com/v1alpha1/comments';
 
-interface FetchCommentsOptions {
+export interface FetchCommentsOptions {
   baseUrl?: string;
   group: string;
   kind: string;
@@ -27,6 +28,8 @@ interface FetchCommentsOptions {
   withReplies?: boolean;
   replySize?: number;
   sort?: CommentNextCommentSort;
+  separatePinned?: boolean;
+  signal?: AbortSignal;
 }
 
 interface FetchRepliesOptions {
@@ -34,6 +37,7 @@ interface FetchRepliesOptions {
   commentName: string;
   page?: number;
   size?: number;
+  signal?: AbortSignal;
 }
 
 interface CreateCommentOptions {
@@ -298,9 +302,13 @@ export async function fetchCommentPage(
   url.searchParams.set('withReplies', String(options.withReplies ?? true));
   url.searchParams.set('replySize', String(options.replySize ?? 10));
   url.searchParams.set('sort', options.sort ?? 'latest');
+  if (options.separatePinned === false) {
+    url.searchParams.set('separatePinned', 'false');
+  }
 
   const response = await fetch(url, {
     credentials: 'include',
+    signal: options.signal,
     headers: {
       Accept: 'application/json',
     },
@@ -335,6 +343,7 @@ export async function fetchReplyPage(
 
   const response = await fetch(url, {
     credentials: 'include',
+    signal: options.signal,
     headers: {
       Accept: 'application/json',
     },

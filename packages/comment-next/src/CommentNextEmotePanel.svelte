@@ -22,6 +22,8 @@ type CommentNextEmotePanelTab = {
   count: number;
 };
 
+import { openTopLayer } from './utils/top-layer';
+
 const RECENT_PACK_ID = 'comment-next-recent-emotes';
 const RECENT_STORAGE_KEY = 'comment-next:recent-emotes';
 const MAX_RECENT_COUNT = 24;
@@ -31,7 +33,6 @@ const MAX_EMOTE_PAGE_SIZE = 100;
 
 const {
   packs = [],
-  fixed = false,
   panelStyle = '',
   pageSize = DEFAULT_EMOTE_PAGE_SIZE,
   selectedItemId = '',
@@ -39,7 +40,6 @@ const {
   onPreviewChange = () => {},
 }: {
   packs?: CommentNextEmotePack[];
-  fixed?: boolean;
   panelStyle?: string;
   pageSize?: number;
   selectedItemId?: string;
@@ -327,7 +327,7 @@ function saveRecentItemIds(ids: string[]) {
 {#if activePack}
   <div
     bind:this={panelElement}
-    class:comment-next-emote-panel-fixed={fixed}
+    use:openTopLayer
     class="comment-next-emote-panel"
     style={panelStyle}
     role="dialog"
@@ -449,20 +449,16 @@ function saveRecentItemIds(ids: string[]) {
 
 <style>
   .comment-next-emote-panel {
-    --at-apply: absolute bottom-[calc(100%+0.5rem)] left-0 z-40 box-border w-[min(30rem,calc(100vw-2rem))] overflow-hidden rounded-[var(--comment-next-radius-lg,0.875rem)] border border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-emote-panel-bg-color,rgb(255_255_255_/_0.98))] text-[var(--comment-next-text-color,#172033)] shadow-[0_20px_48px_rgb(15_23_42_/_0.16),0_1px_0_rgb(255_255_255_/_0.82)_inset] backdrop-blur-md;
+    --at-apply: box-border overflow-hidden rounded-[var(--comment-next-radius-lg,0.875rem)] border border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-emote-panel-bg-color,rgb(255_255_255_/_0.98))] text-[var(--comment-next-text-color,#172033)] shadow-[0_20px_48px_rgb(15_23_42_/_0.16),0_1px_0_rgb(255_255_255_/_0.82)_inset] backdrop-blur-md;
     animation: comment-next-emote-panel-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-
-  .comment-next-emote-panel-fixed {
-    position: fixed !important;
-    top: var(--comment-next-emote-fixed-top, 1rem) !important;
-    right: auto !important;
-    bottom: auto !important;
-    left: var(--comment-next-emote-fixed-left, 1rem) !important;
-    z-index: var(--comment-next-emote-fixed-z-index, 9999) !important;
-    width: var(--comment-next-emote-fixed-width, min(30rem, calc(100vw - 2rem))) !important;
+    position: fixed;
+    inset: var(--comment-next-emote-fixed-top, 1rem) auto auto var(--comment-next-emote-fixed-left, 1rem);
+    z-index: var(--comment-next-emote-fixed-z-index, 9999);
+    width: var(--comment-next-emote-fixed-width, min(30rem, calc(100vw - 2rem)));
     height: var(--comment-next-emote-fixed-height, auto);
     max-height: var(--comment-next-emote-fixed-max-height, 22.5rem);
+    margin: 0;
+    padding: 0;
     display: flex;
     flex-direction: column;
   }
@@ -496,7 +492,8 @@ function saveRecentItemIds(ids: string[]) {
   }
 
   .comment-next-emote-body {
-    --at-apply: grid min-h-56 grid-cols-[7.5rem_minmax(0,1fr)];
+    --at-apply: grid min-h-0 grid-cols-[7.5rem_minmax(0,1fr)];
+    flex: 1 1 auto;
   }
 
   .comment-next-emote-body-searching {
@@ -504,24 +501,12 @@ function saveRecentItemIds(ids: string[]) {
   }
 
   .comment-next-emote-tabs {
-    --at-apply: max-h-70 overflow-y-auto border-r border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-emote-tabs-bg-color,#f6f8fb)] p-1.5;
-  }
-
-  .comment-next-emote-panel-fixed .comment-next-emote-tabs {
+    --at-apply: overflow-y-auto border-r border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-emote-tabs-bg-color,#f6f8fb)] p-1.5;
     max-height: calc(var(--comment-next-emote-fixed-max-height, 22.5rem) - 3.25rem);
   }
 
-  .comment-next-emote-panel-fixed .comment-next-emote-body {
-    flex: 1 1 auto;
-    min-height: 0;
-  }
-
-  .comment-next-emote-panel-fixed .comment-next-emote-content {
-    display: flex;
-    flex-direction: column;
-    align-self: stretch;
-    min-height: 0;
-    overflow: hidden;
+  .comment-next-emote-content {
+    --at-apply: flex min-h-0 min-w-0 flex-col self-stretch overflow-hidden p-2;
   }
 
   .comment-next-emote-tabs button {
@@ -545,18 +530,10 @@ function saveRecentItemIds(ids: string[]) {
     --at-apply: bg-[var(--comment-next-bg-color,#ffffff)] text-[var(--comment-next-primary-color,rgb(59,130,246))] shadow-[0_1px_4px_rgb(15_23_42_/_0.08)];
   }
 
-  .comment-next-emote-content {
-    --at-apply: flex min-h-0 min-w-0 flex-col p-2;
-  }
-
   .comment-next-emote-grid {
-    --at-apply: grid max-h-64 grid-cols-[repeat(auto-fill,minmax(3.25rem,1fr))] gap-1.5 overflow-y-auto pr-1;
-  }
-
-  .comment-next-emote-panel-fixed .comment-next-emote-grid {
+    --at-apply: grid grid-cols-[repeat(auto-fill,minmax(3.25rem,1fr))] gap-1.5 overflow-y-auto pr-1;
     flex: 1 1 auto;
     min-height: 0;
-    max-height: none;
     align-content: start;
   }
 
@@ -672,37 +649,23 @@ function saveRecentItemIds(ids: string[]) {
   }
 
   @media (max-width: 780px) {
-    .comment-next-emote-panel {
-      --at-apply: right-0 left-0 w-full;
-    }
-
     .comment-next-emote-body {
-      --at-apply: block min-h-0;
-    }
-
-    .comment-next-emote-panel-fixed .comment-next-emote-body {
       display: flex;
       flex-direction: column;
     }
 
     .comment-next-emote-tabs {
-      --at-apply: flex max-h-none gap-1 overflow-x-auto border-r-0 border-b p-1.5;
+      --at-apply: flex gap-1 overflow-x-auto border-r-0 border-b p-1.5;
+      flex: 0 0 auto;
+      max-height: none;
     }
 
     .comment-next-emote-tabs button {
       --at-apply: h-8 w-auto shrink-0;
     }
 
-    .comment-next-emote-panel-fixed .comment-next-emote-tabs {
-      flex: 0 0 auto;
-    }
-
-    .comment-next-emote-panel-fixed .comment-next-emote-content {
-      flex: 1 1 auto;
-    }
-
     .comment-next-emote-content {
-      --at-apply: p-2;
+      flex: 1 1 auto;
     }
 
     .comment-next-emote-pagination button span {

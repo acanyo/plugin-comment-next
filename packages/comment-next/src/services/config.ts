@@ -1,9 +1,11 @@
+import type { CommentNextStyle } from '../theme/comment-style';
 import type { CommentNextBadgeConfig } from '../types/comment';
 import type { CommentNextInteractionPlusConfig } from '../types/interaction-plus';
 import { resolveApiUrl } from './api';
 import type { CommentNextCaptchaConfig } from './captcha';
 
 export interface CommentNextPluginConfig {
+  appearance?: CommentNextStyle;
   basic?: CommentNextBasicConfig;
   avatar?: CommentNextAvatarConfig;
   security?: CommentNextSecurityConfig;

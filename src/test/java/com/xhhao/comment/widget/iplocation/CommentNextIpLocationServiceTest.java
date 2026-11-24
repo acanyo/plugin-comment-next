@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.xhhao.comment.utils.JsonUtils;
 import com.xhhao.comment.widget.SettingConfigGetter;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -24,72 +25,72 @@ class CommentNextIpLocationServiceTest {
 
     private final CommentNextIpLocationClient client = mock(CommentNextIpLocationClient.class);
 
-    private final CommentNextIpRegionDatabase database = mock(CommentNextIpRegionDatabase.class);
-
     private final SettingConfigGetter settings = mock(SettingConfigGetter.class);
 
-    private final SettingConfigGetter.IpLocationConfig config = new SettingConfigGetter.IpLocationConfig();
+    private final SettingConfigGetter.IpLocationConfig config = new SettingConfigGetter.IpLocationConfig()
+        .setOnlineLookupEnabled(true);
 
     private final CommentNextIpLocationService service = new CommentNextIpLocationService(
-        client, new CommentNextIpLocationCache(), database, settings);
+        client, new CommentNextIpLocationCache(), settings);
 
     @BeforeEach
     void setUp() {
         when(settings.getIpLocationConfig()).thenReturn(Mono.just(config));
-        when(database.lookup(anyString())).thenReturn(Mono.empty());
         when(client.fetchLocation(anyString(), anyString(), any())).thenReturn(Mono.empty());
     }
 
     @Test
-    void localCommentAndReplyLookupsDoNotSubscribeToStalledOnlineInterface() {
-        when(database.lookup(anyString())).thenReturn(Mono.just("美国"));
-        when(client.fetchLocation(anyString(), anyString(), any())).thenReturn(Mono.never());
+    void upgradingFromOfflineSettingsKeepsOnlineQueriesOff() throws Exception {
+        var previousSettings = JsonUtils.createObjectMapper().readValue(
+            """
+            {"enabled":true,"offlineFallback":false}
+            """,
+            SettingConfigGetter.IpLocationConfig.class);
+        when(settings.getIpLocationConfig()).thenReturn(Mono.just(previousSettings));
 
-        assertEquals("美国", service.resolve("8.8.8.8")
-            .flatMap(comment -> service.resolve("1.1.1.1"))
-            .block(Duration.ofMillis(500)));
+        assertEquals("", service.resolve("8.8.8.8").block(Duration.ofMillis(500)));
         verifyNoInteractions(client);
     }
 
     @Test
-    void moreThanEightUniqueAddressesCanUseLocalDatabase() {
-        when(database.lookup(anyString())).thenReturn(Mono.just("美国"));
+    void defaultsToNoOnlineQueries() {
+        when(settings.getIpLocationConfig()).thenReturn(Mono.just(new SettingConfigGetter.IpLocationConfig()));
 
-        for (int i = 1; i <= 24; i++) {
-            assertEquals("美国", service.resolve("8.8.8." + i).block(Duration.ofMillis(500)));
-        }
+        assertEquals("", service.resolve("8.8.8.8").block(Duration.ofMillis(500)));
         verifyNoInteractions(client);
     }
 
     @Test
-    void localMissUsesOnlineInterfaceAndCachesResult() {
-        when(client.fetchLocation(anyString(), anyString(), any())).thenReturn(Mono.just("日本"));
-
-        assertEquals("日本", service.resolve("8.8.8.8").block());
-        assertEquals("日本", service.resolve("8.8.8.8").block());
-        verify(client, times(1)).fetchLocation(eq("8.8.8.8"), anyString(), eq(Duration.ofMillis(3000)));
+    void defaultProviderSkipsIpv6Lookups() {
+        assertEquals("", service.resolve("2001:4860::8888").block());
+        verifyNoInteractions(client);
     }
 
     @Test
-    void disablingLocalDatabaseUsesOnlineInterface() {
-        config.setOfflineFallback(false);
+    void cachesTheOnlineResultForEquivalentIpv6Addresses() {
+        config.setApiUrlTemplate("https://dual-stack.example.test/?ip={ip}");
         when(client.fetchLocation(anyString(), anyString(), any())).thenReturn(Mono.just("日本"));
 
-        assertEquals("日本", service.resolve("8.8.8.8").block());
-        verifyNoInteractions(database);
+        assertEquals("日本", service.resolve("2001:4860:0:0:0:0:0:8888").block());
+        assertEquals("日本", service.resolve("2001:4860::8888").block());
+        verify(client).fetchLocation(eq("2001:4860::8888"), anyString(), eq(Duration.ofMillis(3000)));
     }
 
     @Test
-    void changingLookupModeDoesNotReuseCachedResultFromPreviousMode() {
-        when(database.lookup(anyString())).thenReturn(Mono.just("美国"));
-        when(client.fetchLocation(anyString(), anyString(), any())).thenReturn(Mono.just("日本"));
+    void separatesCachedResultsByProviderTemplate() {
+        var firstProvider = "https://first.example.test/?ip={ip}";
+        var secondProvider = "https://second.example.test/?ip={ip}";
+        when(client.fetchLocation(anyString(), eq(firstProvider), any())).thenReturn(Mono.just("美国"));
+        when(client.fetchLocation(anyString(), eq(secondProvider), any())).thenReturn(Mono.just("日本"));
 
+        config.setApiUrlTemplate(firstProvider);
         assertEquals("美国", service.resolve("8.8.8.8").block());
-        config.setOfflineFallback(false);
+        config.setApiUrlTemplate(secondProvider);
         assertEquals("日本", service.resolve("8.8.8.8").block());
-        config.setOfflineFallback(true);
+        config.setApiUrlTemplate(firstProvider);
         assertEquals("美国", service.resolve("8.8.8.8").block());
-        verify(client, times(1)).fetchLocation(anyString(), anyString(), any());
+        verify(client).fetchLocation(anyString(), eq(firstProvider), any());
+        verify(client).fetchLocation(anyString(), eq(secondProvider), any());
     }
 
     @Test
@@ -97,10 +98,10 @@ class CommentNextIpLocationServiceTest {
         config.setEnabled(false);
         assertEquals("", service.resolve("8.8.8.8").block());
         config.setEnabled(true);
-        for (var ip : new String[] {"127.0.0.1", "192.168.1.1", "not-an-ip", ""}) {
+        for (var ip : new String[] {"127.0.0.1", "192.168.1.1", "fd12::1", "not-an-ip", ""}) {
             assertEquals("", service.resolve(ip).block());
         }
-        verifyNoInteractions(client, database);
+        verifyNoInteractions(client);
     }
 
     @Test
@@ -128,7 +129,7 @@ class CommentNextIpLocationServiceTest {
     }
 
     @Test
-    void saturatedOnlineRequestsDoNotBlockLocalLookupsOrCacheSkippedAddresses() {
+    void saturatedOnlineRequestsDoNotCacheSkippedAddresses() {
         var response = Sinks.<String>one();
         when(client.fetchLocation(anyString(), anyString(), any())).thenReturn(response.asMono());
         var pending = new ArrayList<CompletableFuture<String>>();
@@ -137,9 +138,6 @@ class CommentNextIpLocationServiceTest {
         }
         assertEquals("", service.resolve("8.8.8.9").block(Duration.ofMillis(500)));
         verify(client, never()).fetchLocation(eq("8.8.8.9"), anyString(), any());
-
-        when(database.lookup("1.1.1.1")).thenReturn(Mono.just("澳大利亚"));
-        assertEquals("澳大利亚", service.resolve("1.1.1.1").block(Duration.ofMillis(500)));
 
         response.tryEmitValue("美国");
         pending.forEach(future -> assertEquals("美国", future.join()));

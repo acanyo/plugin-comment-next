@@ -1,6 +1,11 @@
-import { flushSync, mount, tick, unmount } from 'svelte';
+import { type ComponentProps, flushSync, mount, tick, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
+import {
+  commentDraftKey,
+  rememberCommentDraftForLogin,
+} from './services/comment-drafts';
+import { fetchCurrentUser } from './services/current-user';
 
 vi.mock('./services/current-user', () => ({
   fetchCurrentUser: vi.fn(async () => undefined),
@@ -74,7 +79,7 @@ describe('AI writing across editor changes', () => {
     await clickButton('接受');
     expect(editor().textContent).toBe('第二次建议');
 
-    await clickButton('提交');
+    await clickButton('发布评论');
     await vi.waitFor(() => expect(editor().textContent).toBe(''));
 
     await generateSuggestion();
@@ -137,6 +142,177 @@ describe('AI writing across editor changes', () => {
     await completeSuggestion('重试后的建议');
   });
 });
+
+describe('commenting identity', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it('opens both options from the avatar and saves guest details without publishing', async () => {
+    const onSubmit = vi.fn();
+    await remount({ onSubmit });
+    expect(document.querySelector('input[name="displayName"]')).toBeNull();
+
+    await clickAvatar();
+    expect(identityDialog()?.textContent).toContain('账号登录');
+    expect(identityDialog()?.textContent).toContain('游客评论');
+    await clickButton('游客评论');
+
+    expect(document.activeElement).toBe(
+      identityDialog()?.querySelector('input[name="displayName"]')
+    );
+    await fillGuestDetails();
+    await clickButton('保存资料');
+    expect(identityDialog()).toBeNull();
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await clickAvatar();
+    await clickButton('游客评论');
+    expect(
+      identityDialog()?.querySelector<HTMLInputElement>(
+        'input[name="displayName"]'
+      )?.value
+    ).toBe('测试读者');
+    identityDialog()?.dispatchEvent(new Event('cancel', { cancelable: true }));
+    await tick();
+    expect(document.activeElement?.getAttribute('aria-label')).toBe(
+      '选择评论身份'
+    );
+  });
+
+  it('validates the comment first, then publishes once after guest confirmation', async () => {
+    const onSubmit = vi.fn(async () => ({ approved: true }));
+    await remount({ onSubmit });
+
+    await clickButton('发布评论');
+    expect(identityDialog()).toBeNull();
+    expect(document.body.textContent).toContain('请先输入评论内容');
+
+    editor().textContent = '先写下的评论';
+    editor().dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await clickButton('发布评论');
+    expect(onSubmit).not.toHaveBeenCalled();
+    await clickButton('游客评论');
+    const guestSubmit = identityDialog()?.querySelector<HTMLButtonElement>(
+      'button[type="submit"]'
+    );
+    expect(guestSubmit?.textContent).toBe('发布评论');
+    guestSubmit?.click();
+    await tick();
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await fillGuestDetails();
+    guestSubmit?.click();
+    await vi.waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: '先写下的评论',
+        owner: {
+          displayName: '测试读者',
+          email: 'reader@halo.run',
+          website: '',
+        },
+      })
+    );
+    expect(identityDialog()).toBeNull();
+  });
+
+  it('offers only account login when the site requires it', async () => {
+    await remount({ allowAnonymous: false });
+    await clickButton('登录后评论');
+
+    expect(identityDialog()?.textContent).toContain('账号登录');
+    expect(identityDialog()?.textContent).not.toContain('游客评论');
+    identityDialog()?.dispatchEvent(new Event('cancel', { cancelable: true }));
+    await tick();
+    expect(identityDialog()).toBeNull();
+  });
+
+  it('continues a confirmed guest comment to the configured CAPTCHA', async () => {
+    const onSubmit = vi.fn();
+    await remount({ onSubmit, showCaptcha: true });
+    editor().textContent = '需要安全验证的评论';
+    editor().dispatchEvent(new InputEvent('input', { bubbles: true }));
+
+    await clickButton('发布评论');
+    await clickButton('游客评论');
+    await fillGuestDetails();
+    identityDialog()
+      ?.querySelector<HTMLButtonElement>('button[type="submit"]')
+      ?.click();
+
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain('安全验证')
+    );
+    expect(identityDialog()).toBeNull();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    'restores the guest draft after login when appropriate (account draft %s)',
+    async (accountHasDraft) => {
+      const target = 'test-draft-login-target';
+      const guestDraft = { html: '登录前写的评论', privateComment: false };
+      const guestKey = commentDraftKey(target);
+      const accountKey = commentDraftKey(target, 'reader');
+      localStorage.setItem(guestKey, JSON.stringify(guestDraft));
+      if (accountHasDraft) {
+        localStorage.setItem(
+          accountKey,
+          JSON.stringify({ html: '账号的旧草稿', privateComment: false })
+        );
+      }
+      rememberCommentDraftForLogin(target, guestDraft);
+      vi.mocked(fetchCurrentUser).mockResolvedValueOnce({
+        name: 'reader',
+        displayName: '读者',
+      });
+      await remount({ draftTarget: target });
+
+      const expectedDraft = accountHasDraft ? '账号的旧草稿' : '登录前写的评论';
+      await vi.waitFor(() => expect(editor().textContent).toBe(expectedDraft));
+      expect(localStorage.getItem(accountKey)).toContain(expectedDraft);
+      expect(localStorage.getItem(guestKey) !== null).toBe(accountHasDraft);
+    }
+  );
+});
+
+function identityDialog() {
+  return document.querySelector<HTMLDialogElement>(
+    'dialog.comment-next-identity-dialog[open]'
+  );
+}
+
+async function remount(props: ComponentProps<typeof CommentNextBaseComposer>) {
+  await unmount(component);
+  component = mount(CommentNextBaseComposer, { target: document.body, props });
+  await tick();
+}
+
+async function clickAvatar() {
+  document
+    .querySelector<HTMLButtonElement>(
+      'button[aria-haspopup="dialog"][aria-label="选择评论身份"]'
+    )
+    ?.click();
+  await tick();
+}
+
+async function fillGuestDetails() {
+  for (const [name, value] of [
+    ['displayName', '测试读者'],
+    ['email', 'reader@halo.run'],
+  ]) {
+    const input = identityDialog()?.querySelector<HTMLInputElement>(
+      `input[name="${name}"]`
+    );
+    if (!input) throw new Error(`Missing guest field ${name}`);
+    input.value = value;
+    input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await tick();
+  }
+}
 
 function editor(): HTMLDivElement {
   const element = document.querySelector<HTMLDivElement>(

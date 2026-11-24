@@ -7,8 +7,10 @@ import com.xhhao.comment.widget.ai.CommentNextAiReplyRecord;
 import com.xhhao.comment.widget.emote.CommentNextEmoteGroup;
 import com.xhhao.comment.widget.interaction.CommentNextReaction;
 import com.xhhao.comment.widget.report.CommentNextReport;
+import com.xhhao.comment.widget.search.CommentNextReplyQueueEntry;
 import com.xhhao.comment.widget.security.CommentNextActionGuard;
 import com.xhhao.comment.widget.security.CommentNextSecurityRule;
+import com.xhhao.comment.widget.style.CommentNextStyleProfile;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 import run.halo.app.extension.Extension;
@@ -47,6 +49,11 @@ public class CommentWidgetPlugin extends BasePlugin {
         registerReaction();
         registerReport();
         registerAiReplyRecord();
+        schemeManager.register(CommentNextStyleProfile.class);
+        schemeManager.register(CommentNextReplyQueueEntry.class, indexSpecs -> indexSpecs.add(
+            IndexSpecs.<CommentNextReplyQueueEntry, String>single("spec.username", String.class)
+                .indexFunc(entry -> Optional.ofNullable(entry.getSpec())
+                    .map(CommentNextReplyQueueEntry.Spec::getUsername).orElse(null))));
     }
 
     private void registerBadgeRule() {
@@ -246,6 +253,8 @@ public class CommentWidgetPlugin extends BasePlugin {
     @Override
     public void stop() {
         actionGuard.dispose();
+        unregister(CommentNextReplyQueueEntry.class);
+        unregister(CommentNextStyleProfile.class);
         unregister(CommentNextAiReplyRecord.class);
         unregister(CommentNextReport.class);
         unregister(CommentNextReaction.class);

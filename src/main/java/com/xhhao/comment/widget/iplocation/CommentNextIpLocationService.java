@@ -14,11 +14,7 @@ import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
 
 /**
- * 把评论 IP 解析为属地文本，例如「广东」「日本」。
- *
- * <p>启用离线解析时优先使用内置的 ip2region 数据，未命中时再查询配置的在线接口；
- * 两边都拿不到结果、或 IP 不是公网地址时返回空字符串，调用方据此决定不展示属地。
- * 同一个 IP 的并发请求会合并，在线请求数量受限；离线查询不占用在线请求名额。
+ * 查询站长配置的属地服务，并复用同一 IP 的查询结果。
  */
 @Slf4j
 @Service
@@ -41,8 +37,6 @@ public class CommentNextIpLocationService {
 
     private final CommentNextIpLocationCache cache;
 
-    private final CommentNextIpRegionDatabase ipRegionDatabase;
-
     private final SettingConfigGetter settingConfigGetter;
 
     private final Map<String, Mono<String>> inFlightRequests = new ConcurrentHashMap<>();
@@ -53,63 +47,53 @@ public class CommentNextIpLocationService {
      * 解析属地，永不返回错误。
      */
     public Mono<String> resolve(String ipAddress) {
-        if (!isPublicIp(ipAddress)) {
+        var address = publicIp(ipAddress);
+        if (address.isEmpty()) {
             return Mono.just("");
         }
 
-        var normalizedIp = ipAddress.strip();
         return settingConfigGetter.getIpLocationConfig()
-            .flatMap(config -> resolve(normalizedIp, config))
+            .filter(config -> config.isEnabled() && config.isOnlineLookupEnabled())
+            .flatMap(config -> resolveOnline(address, config))
+            .defaultIfEmpty("")
             .onErrorResume(error -> {
-                log.debug("Failed to load IP location config.", error);
+                log.debug("Could not load or apply IP location settings: {}",
+                    error.getClass().getSimpleName());
                 return Mono.just("");
             });
     }
 
-    private Mono<String> resolve(String ipAddress, SettingConfigGetter.IpLocationConfig config) {
-        if (config == null || !config.isEnabled()) {
-            return Mono.just("");
-        }
-
+    private Mono<String> resolveOnline(String ipAddress, SettingConfigGetter.IpLocationConfig config) {
         var apiUrlTemplate = resolveApiUrlTemplate(config);
-        var cached = cache.get(apiUrlTemplate, ipAddress, config.isOfflineFallback());
+        if (ipAddress.contains(":")
+            && SettingConfigGetter.IpLocationConfig.DEFAULT_API_URL_TEMPLATE.equals(apiUrlTemplate)) {
+            return Mono.empty();
+        }
+        var key = apiUrlTemplate + '\0' + ipAddress;
+        var cached = cache.get(key);
         if (cached.isPresent()) {
             return Mono.just(cached.get());
         }
-
-        return offlineLocation(ipAddress, config)
-            .map(CommentNextIpLocationText::normalize)
-            .filter(StringUtils::hasText)
-            .doOnNext(location -> cache.put(apiUrlTemplate, ipAddress, config.isOfflineFallback(),
-                location, cacheMinutes(config)))
-            .switchIfEmpty(Mono.defer(() -> resolveOnline(ipAddress, apiUrlTemplate, config)));
-    }
-
-    private Mono<String> resolveOnline(String ipAddress, String apiUrlTemplate,
-        SettingConfigGetter.IpLocationConfig config) {
-        var key = apiUrlTemplate + '\0' + config.isOfflineFallback() + '\0' + ipAddress;
-        var pending = inFlightRequests.get(key);
-        if (pending != null) {
-            return pending;
-        }
         var request = inFlightRequests.computeIfAbsent(key, ignored -> {
-            if (!onlineRequests.tryAcquire()) {
+            if (cache.get(key).isPresent() || !onlineRequests.tryAcquire()) {
                 return null;
             }
             return fetchLocation(key, ipAddress, apiUrlTemplate, config);
         });
-        return request == null ? Mono.just("") : request;
+        return request == null ? Mono.just(cache.get(key).orElse("")) : request;
     }
 
     private Mono<String> fetchLocation(String key, String ipAddress, String apiUrlTemplate,
         SettingConfigGetter.IpLocationConfig config) {
-        return onlineLocation(ipAddress, apiUrlTemplate, config)
-            .map(CommentNextIpLocationText::normalize)
-            .switchIfEmpty(Mono.just(""))
+        return Mono.defer(() -> client.fetchLocation(ipAddress, apiUrlTemplate, timeout(config)))
+            .map(CommentNextIpLocationText::displayLabel)
+            .defaultIfEmpty("")
+            .onErrorResume(error -> {
+                log.debug("IP location provider lookup failed: {}", error.getClass().getSimpleName());
+                return Mono.just("");
+            })
             .doOnNext(location -> cache.put(
-                apiUrlTemplate,
-                ipAddress,
-                config.isOfflineFallback(),
+                key,
                 location,
                 location.isBlank() ? NEGATIVE_CACHE_MINUTES : cacheMinutes(config)
             ))
@@ -118,25 +102,6 @@ public class CommentNextIpLocationService {
                 onlineRequests.release();
             })
             .cache();
-    }
-
-    private Mono<String> onlineLocation(String ipAddress, String apiUrlTemplate,
-        SettingConfigGetter.IpLocationConfig config) {
-        return Mono.defer(() -> client.fetchLocation(ipAddress, apiUrlTemplate, timeout(config)))
-            .filter(StringUtils::hasText)
-            .onErrorResume(error -> {
-                log.debug("Failed to resolve IP location from the configured API. ip={}",
-                    ipAddress, error);
-                return Mono.empty();
-            });
-    }
-
-    private Mono<String> offlineLocation(String ipAddress,
-        SettingConfigGetter.IpLocationConfig config) {
-        if (!config.isOfflineFallback()) {
-            return Mono.empty();
-        }
-        return ipRegionDatabase.lookup(ipAddress).filter(StringUtils::hasText);
     }
 
     private String resolveApiUrlTemplate(SettingConfigGetter.IpLocationConfig config) {
@@ -159,16 +124,19 @@ public class CommentNextIpLocationService {
         return Math.min(Math.max(value, min), max);
     }
 
-    private boolean isPublicIp(String ipAddress) {
+    private String publicIp(String ipAddress) {
         if (!StringUtils.hasText(ipAddress)) {
-            return false;
+            return "";
         }
 
         var candidate = ipAddress.strip();
         if (!InetAddresses.isInetAddress(candidate)) {
-            return false;
+            return "";
         }
 
-        return CommentNextOutboundUriPolicy.isPublicAddress(InetAddresses.forString(candidate));
+        var address = InetAddresses.forString(candidate);
+        return CommentNextOutboundUriPolicy.isPublicAddress(address)
+            ? InetAddresses.toAddrString(address)
+            : "";
     }
 }

@@ -1,11 +1,13 @@
 package com.xhhao.comment.widget.comment;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xhhao.comment.utils.JsonUtils;
+import com.xhhao.comment.widget.SettingConfigGetter;
 import com.xhhao.comment.widget.identity.CommentNextEmailHash;
-import com.xhhao.comment.widget.iplocation.CommentNextIpLocationService;
+import com.xhhao.comment.widget.iplocation.CommentNextIpLocationAnnotation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -21,7 +23,7 @@ class CommentNextCommentMapper {
 
     private final CommentNextAuthorService authorService;
 
-    private final CommentNextIpLocationService ipLocationService;
+    private final SettingConfigGetter settings;
 
     private final ObjectMapper objectMapper = JsonUtils.createObjectMapper();
 
@@ -29,7 +31,7 @@ class CommentNextCommentMapper {
         int upvotes) {
         var spec = comment.getSpec();
         var commentNode = objectMapper.createObjectNode();
-        commentNode.set("metadata", objectMapper.valueToTree(comment.getMetadata()));
+        commentNode.set("metadata", publicMetadata(comment.getMetadata()));
         commentNode.set("spec", sanitizedCommentSpec(spec));
         commentNode.set("status", objectMapper.valueToTree(comment.getStatus()));
         commentNode.set("stats", statsNode(upvotes));
@@ -37,7 +39,7 @@ class CommentNextCommentMapper {
 
         return Mono.zip(
                 authorService.resolve(spec.getOwner(), badgeContext),
-                ipLocationService.resolve(spec.getIpAddress()).defaultIfEmpty("")
+                visibleIpLocation(comment.getMetadata())
             )
             .map(tuple -> {
                 commentNode.set("owner", ownerNode(tuple.getT1()));
@@ -50,7 +52,7 @@ class CommentNextCommentMapper {
         int upvotes) {
         var spec = reply.getSpec();
         var replyNode = objectMapper.createObjectNode();
-        replyNode.set("metadata", objectMapper.valueToTree(reply.getMetadata()));
+        replyNode.set("metadata", publicMetadata(reply.getMetadata()));
         replyNode.set("spec", sanitizedReplySpec(spec));
         replyNode.set("status", objectMapper.valueToTree(reply.getStatus()));
         replyNode.set("stats", statsNode(upvotes));
@@ -58,7 +60,7 @@ class CommentNextCommentMapper {
 
         return Mono.zip(
                 authorService.resolve(reply.getSpec().getOwner(), badgeContext),
-                ipLocationService.resolve(spec.getIpAddress()).defaultIfEmpty("")
+                visibleIpLocation(reply.getMetadata())
             )
             .map(tuple -> {
                 replyNode.set("owner", ownerNode(tuple.getT1()));
@@ -125,6 +127,22 @@ class CommentNextCommentMapper {
         specNode.remove("location");
         specNode.set("owner", sanitizedOwnerRef(spec.getOwner()));
         return specNode;
+    }
+
+    private JsonNode publicMetadata(MetadataOperator metadata) {
+        JsonNode node = objectMapper.valueToTree(metadata);
+        if (node.get("annotations") instanceof ObjectNode annotations) {
+            annotations.remove(CommentNextIpLocationAnnotation.NAME);
+        }
+        return node;
+    }
+
+    private Mono<String> visibleIpLocation(MetadataOperator metadata) {
+        var location = CommentNextIpLocationAnnotation.read(metadata);
+        if (location.isEmpty()) {
+            return Mono.just("");
+        }
+        return settings.getIpLocationConfig().map(config -> config.isEnabled() ? location : "");
     }
 
     private ObjectNode sanitizedReplySpec(Reply.ReplySpec spec) {

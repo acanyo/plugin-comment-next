@@ -11,6 +11,8 @@ class CommentNextIpLocationClientTest {
 
     private static final Charset GBK = Charset.forName("GBK");
 
+    private static final String REQUESTED_IP = "116.22.13.7";
+
     @Test
     void decodesGbkBodyLikePconline() {
         var body = """
@@ -19,7 +21,7 @@ class CommentNextIpLocationClientTest {
 
         assertEquals(
             "广东",
-            CommentNextIpLocationClient.locationFromBody(body, GBK)
+            CommentNextIpLocationClient.locationFromBody(body, GBK, REQUESTED_IP)
         );
     }
 
@@ -29,14 +31,14 @@ class CommentNextIpLocationClientTest {
             {"code":200,"data":{"country":"中国","province":"广东省","city":"广州市"}}
             """.getBytes(StandardCharsets.UTF_8);
 
-        assertEquals("广东", CommentNextIpLocationClient.locationFromBody(body, null));
+        assertEquals("广东", CommentNextIpLocationClient.locationFromBody(body, null, REQUESTED_IP));
     }
 
     @Test
     void skipsBomAndLeadingNewlines() {
         var body = ("\n\n\uFEFF{\"pro\":\"广东省\"}").getBytes(StandardCharsets.UTF_8);
 
-        assertEquals("广东", CommentNextIpLocationClient.locationFromBody(body, null));
+        assertEquals("广东", CommentNextIpLocationClient.locationFromBody(body, null, REQUESTED_IP));
     }
 
     @Test
@@ -45,18 +47,37 @@ class CommentNextIpLocationClientTest {
             "",
             CommentNextIpLocationClient.locationFromBody(
                 "<html>error</html>".getBytes(StandardCharsets.UTF_8),
-                StandardCharsets.UTF_8
+                StandardCharsets.UTF_8, REQUESTED_IP
             )
         );
-        assertEquals("", CommentNextIpLocationClient.locationFromBody(new byte[0], null));
-        assertEquals("", CommentNextIpLocationClient.locationFromBody(null, null));
+        assertEquals("", CommentNextIpLocationClient.locationFromBody(new byte[0], null, REQUESTED_IP));
+        assertEquals("", CommentNextIpLocationClient.locationFromBody(null, null, REQUESTED_IP));
         assertEquals(
             "",
             CommentNextIpLocationClient.locationFromBody(
                 "{ not json }".getBytes(StandardCharsets.UTF_8),
-                StandardCharsets.UTF_8
+                StandardCharsets.UTF_8, REQUESTED_IP
             )
         );
+    }
+
+    @Test
+    void discardsAResultForADifferentAddress() {
+        var body = """
+            {"ip":"192.0.2.1","pro":"北京市"}
+            """.getBytes(GBK);
+
+        assertEquals("", CommentNextIpLocationClient.locationFromBody(body, GBK, "2001:4860::8888"));
+    }
+
+    @Test
+    void acceptsEquivalentIpv6NotationsInWrappedResponses() {
+        var body = """
+            {"code":200,"data":{"ip":"2001:4860:0:0:0:0:0:8888","country":"美国"}}
+            """.getBytes(StandardCharsets.UTF_8);
+
+        assertEquals("美国", CommentNextIpLocationClient.locationFromBody(body, null, "2001:4860::8888"));
+        assertEquals("", CommentNextIpLocationClient.locationFromBody(body, null, "2001:4860::8844"));
     }
 
     @Test
@@ -91,5 +112,11 @@ class CommentNextIpLocationClientTest {
             IllegalArgumentException.class,
             () -> CommentNextIpLocationClient.locationUri("116.22.13.7", null)
         );
+    }
+
+    @Test
+    void requiresHttpsToSendTheCommenterIp() {
+        assertThrows(IllegalArgumentException.class, () -> CommentNextIpLocationClient.locationUri(
+            "192.0.2.1", "http://example.test/?ip={ip}"));
     }
 }

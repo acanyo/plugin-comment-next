@@ -10,6 +10,7 @@ import {
   isLocalImageCaptcha,
   resolveApiUrl,
 } from './services/captcha';
+import { openTopLayer } from './utils/top-layer';
 
 type GeeTestInstance = {
   appendTo: (element: HTMLElement) => void;
@@ -412,7 +413,7 @@ async function renderTurnstile(isCancelled: () => boolean) {
 
     turnstileWidgetId = turnstile.render(turnstileElement, {
       sitekey: siteKey,
-      theme: resolveWidgetTheme(),
+      theme: resolveWidgetTheme(turnstileElement),
       language: 'zh-cn',
       size: 'normal',
       appearance: 'always',
@@ -523,7 +524,7 @@ async function renderRecaptcha(isCancelled: () => boolean) {
 
     recaptchaWidgetId = grecaptcha.render(recaptchaElement, {
       sitekey: siteKey,
-      theme: resolveWidgetTheme(),
+      theme: resolveWidgetTheme(recaptchaElement),
       size: 'normal',
       callback: (token: string) => {
         if (isCancelled()) {
@@ -707,30 +708,10 @@ async function withTimeout<T>(
   }
 }
 
-function resolveWidgetTheme(): 'light' | 'dark' {
-  const nodes = [document.documentElement, document.body].filter(
-    (node): node is HTMLElement => Boolean(node)
-  );
-  const isDark = nodes.some(
-    (node) =>
-      node.classList.contains('dark') ||
-      node.classList.contains('color-scheme-dark') ||
-      node.getAttribute('data-color-scheme') === 'dark'
-  );
-  if (isDark) {
-    return 'dark';
-  }
-
-  const isLight = nodes.some(
-    (node) =>
-      node.classList.contains('light') ||
-      node.classList.contains('color-scheme-light') ||
-      node.getAttribute('data-color-scheme') === 'light'
-  );
-  if (isLight) {
-    return 'light';
-  }
-
+function resolveWidgetTheme(element: HTMLElement): 'light' | 'dark' {
+  const schemes = getComputedStyle(element).colorScheme.split(/\s+/);
+  if (!schemes.includes('dark')) return 'light';
+  if (!schemes.includes('light')) return 'dark';
   return window.matchMedia('(prefers-color-scheme: dark)').matches
     ? 'dark'
     : 'light';
@@ -1074,7 +1055,7 @@ function loadScript(src: string): Promise<void> {
 </script>
 
 {#if open && localImageMode}
-  <div class="comment-next-captcha-dialog-layer" role="presentation" onclick={handleLayerClick}>
+  <div use:openTopLayer class="comment-next-captcha-dialog-layer" role="presentation" onclick={handleLayerClick}>
     <div
       class="comment-next-captcha-dialog"
       role="dialog"
@@ -1360,6 +1341,10 @@ function loadScript(src: string): Promise<void> {
   .comment-next-captcha-dialog-layer {
     --at-apply: fixed inset-0 z-[9999] flex items-center justify-center bg-[rgb(15_23_42_/_0.30)] px-4 py-6;
     backdrop-filter: blur(2px);
+    width: auto;
+    height: auto;
+    margin: 0;
+    border: 0;
   }
 
   .comment-next-captcha-dialog {

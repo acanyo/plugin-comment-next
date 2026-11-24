@@ -1,5 +1,6 @@
 <script lang="ts">
 import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
+import { commentDraftTarget } from './services/comment-drafts';
 import { createReply } from './services/comments';
 import type {
   CommentNextAiConfig,
@@ -11,6 +12,7 @@ import type {
 import type { CommentNextComment } from './types/comment';
 import type { CommentNextComposerSubmitPayload } from './types/composer';
 import type { CommentNextEmotePack } from './types/emote';
+import { getCommentAnchorHref } from './utils/comment-anchor';
 
 const {
   baseUrl = '',
@@ -48,10 +50,22 @@ const {
   onCreated?: (reply: CommentNextComment) => void;
 } = $props();
 
-const placeholder = $derived(
-  replyToName ? `回复 @${replyToName}` : '写下你的回复...'
-);
 const targetReady = $derived(Boolean(commentId));
+const draftTarget = $derived(
+  targetReady
+    ? commentDraftTarget(baseUrl, {
+        commentName: commentId,
+        replyName: quoteReply?.id,
+      })
+    : undefined
+);
+const loginRedirectHash = $derived(
+  quoteReply?.id
+    ? getCommentAnchorHref('reply', quoteReply.id)
+    : commentId
+      ? getCommentAnchorHref('comment', commentId)
+      : ''
+);
 
 async function handleSubmit(payload: CommentNextComposerSubmitPayload) {
   return createReply({
@@ -73,8 +87,10 @@ async function handleSubmit(payload: CommentNextComposerSubmitPayload) {
   {showCaptcha}
   {captchaType}
   {captchaConfig}
-  {placeholder}
+  placeholder="写下你的回复…"
   {targetReady}
+  {draftTarget}
+  {loginRedirectHash}
   {replyToName}
   {aiConfig}
   {uploadConfig}
@@ -90,7 +106,7 @@ async function handleSubmit(payload: CommentNextComposerSubmitPayload) {
   compact
   showHeader
   enablePrivate={false}
-  submitLabel="回复"
+  submitLabel="发布回复"
   loginLabel="登录后回复"
   onSubmit={handleSubmit}
   onCreated={(reply) => onCreated(reply as CommentNextComment)}

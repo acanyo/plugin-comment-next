@@ -2,12 +2,14 @@ import { flushSync, tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import './CommentNext.svelte';
 import './CommentWidget.svelte';
+import { fetchLinkedCommentPage } from './services/comment-location';
 import {
   createComment,
   createReply,
   fetchCommentPage,
 } from './services/comments';
 import { fetchPluginConfig } from './services/config';
+import { fetchCurrentUser } from './services/current-user';
 import type {
   CommentNextCreatedEventDetail,
   CommentNextReplyTarget,
@@ -30,6 +32,10 @@ vi.mock('./services/config', () => ({
 
 vi.mock('./services/emotes', () => ({
   fetchEmotePacks: vi.fn(async () => ({})),
+}));
+
+vi.mock('./services/comment-location', () => ({
+  fetchLinkedCommentPage: vi.fn(async () => undefined),
 }));
 
 vi.mock('./services/comments', async (importOriginal) => ({
@@ -108,7 +114,7 @@ async function widget(
   for (const [name, value] of Object.entries(attributes))
     element.setAttribute(name, value);
   document.body.append(element);
-  await vi.waitFor(() => expect(editor(element)).not.toBeNull());
+  await vi.waitFor(() => expect(editor(element)).toBeTruthy());
   return element;
 }
 
@@ -151,7 +157,7 @@ describe.each(['comment-widget', 'comment-next'])(
       await vi.waitFor(() => expect(fetchCommentPage).toHaveBeenCalledTimes(2));
     });
 
-    it('keeps the draft on reply and cancel, and submits a nested reply with a local event', async () => {
+    it('keeps separate drafts and submits only the selected nested reply', async () => {
       const element = await widget(tag);
       const created = vi.fn();
       element.addEventListener('created', created);
@@ -161,7 +167,8 @@ describe.each(['comment-widget', 'comment-next'])(
       ).toBe(true);
       await tick();
       expect(element.shadowRoot?.textContent).toContain('@主评论者');
-      expect(editor(element)?.textContent).toBe('保留草稿');
+      expect(editor(element)?.textContent).toBe('');
+      await write(element, '主评论的回复草稿');
       expect(element.cancelReply()).toBe(true);
       await tick();
       expect(editor(element)?.textContent).toBe('保留草稿');
@@ -173,6 +180,8 @@ describe.each(['comment-widget', 'comment-next'])(
         displayName: '被回复者',
       };
       await tick();
+      expect(editor(element)?.textContent).toBe('');
+      await write(element, '楼中楼的回复草稿');
       send(element);
       await vi.waitFor(() => expect(created).toHaveBeenCalledOnce());
       expect(createComment).not.toHaveBeenCalled();
@@ -180,7 +189,7 @@ describe.each(['comment-widget', 'comment-next'])(
         expect.objectContaining({
           commentName: 'parent',
           quoteReply: 'quoted-reply',
-          content: '保留草稿',
+          content: '楼中楼的回复草稿',
         })
       );
       const event = created.mock
@@ -201,12 +210,20 @@ describe.each(['comment-widget', 'comment-next'])(
         result: { id: 'new-reply', approved: false },
       });
       await tick();
-      expect(editor(element)?.textContent).toBe('');
+      expect(editor(element)?.textContent).toBe('保留草稿');
       expect(element.replyTarget).toBeUndefined();
       expect(element.shadowRoot?.textContent).toContain(
         '回复提交成功，审核后可见'
       );
       expect(fetchCommentPage).not.toHaveBeenCalled();
+      expect(
+        element.replyTo({ commentName: 'parent', replyName: 'quoted-reply' })
+      ).toBe(true);
+      await tick();
+      expect(editor(element)?.textContent).toBe('');
+      expect(element.replyTo({ commentName: 'parent' })).toBe(true);
+      await tick();
+      expect(editor(element)?.textContent).toBe('主评论的回复草稿');
     });
 
     it('focuses and resets the normal composer, then publishes a main comment', async () => {
@@ -255,6 +272,13 @@ describe.each(['comment-widget', 'comment-next'])(
       expect(editor(element)?.textContent).toBe('待重试回复');
       expect(element.replyTarget?.commentName).toBe('initial-parent');
       expect(element.shadowRoot?.textContent).toContain('@目标读者');
+
+      element.remove();
+      await tick();
+      const reopened = await widget(tag, {
+        'reply-target': JSON.stringify({ commentName: 'initial-parent' }),
+      });
+      expect(editor(reopened)?.textContent).toBe('待重试回复');
     });
 
     it('rejects incomplete reply targets instead of silently creating a main comment', async () => {
@@ -273,6 +297,25 @@ describe.each(['comment-widget', 'comment-next'])(
     });
   }
 );
+
+it('restores drafts only for their article and signed-in account', async () => {
+  const original = await widget();
+  await write(original, '当前用户的文章草稿');
+  original.remove();
+  await tick();
+
+  const otherPost = await widget('comment-widget', { name: 'post-2' });
+  expect(editor(otherPost)?.textContent).toBe('');
+  vi.mocked(fetchCurrentUser).mockResolvedValueOnce({
+    name: 'another-reader',
+    displayName: '其他读者',
+  });
+  const otherReader = await widget();
+  expect(editor(otherReader)?.textContent).toBe('');
+
+  const originalAgain = await widget();
+  expect(editor(originalAgain)?.textContent).toBe('当前用户的文章草稿');
+});
 
 it('does not change targets during submission and does not affect another composer', async () => {
   const first = await widget();
@@ -334,4 +377,59 @@ it('does not render reactions or load snippet comments when the list is hidden',
     element.shadowRoot?.querySelector('.comment-next-reaction-bar')
   ).toBeNull();
   expect(fetchCommentPage).not.toHaveBeenCalled();
+});
+
+describe('on-demand comment lists', () => {
+  let reportVisibility: (
+    entries: Pick<IntersectionObserverEntry, 'isIntersecting'>[]
+  ) => void;
+  const disconnect = vi.fn();
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: typeof reportVisibility) {
+          reportVisibility = callback;
+        }
+
+        observe() {}
+        disconnect = disconnect;
+      }
+    );
+  });
+
+  afterEach(() => {
+    window.history.replaceState(null, '', window.location.pathname);
+  });
+
+  it('renders the editor right away and loads comments once when approaching the viewport', async () => {
+    await widget('comment-widget', { 'show-comments': 'true' });
+    reportVisibility([{ isIntersecting: false }]);
+    expect(fetchCommentPage).not.toHaveBeenCalled();
+
+    reportVisibility([{ isIntersecting: true }]);
+    await vi.waitFor(() => expect(fetchCommentPage).toHaveBeenCalledOnce());
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
+
+  it.each(['first render', 'hash change'])(
+    'loads a linked reply on %s while offscreen',
+    async (when) => {
+      const link = '#comment-next-reply-quoted-reply';
+      if (when === 'first render') window.history.replaceState(null, '', link);
+      await widget('comment-next', { 'show-comments': 'true' });
+      if (when === 'hash change') {
+        expect(fetchCommentPage).not.toHaveBeenCalled();
+        window.history.replaceState(null, '', link);
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      }
+      await vi.waitFor(() =>
+        expect(fetchLinkedCommentPage).toHaveBeenCalledWith(
+          expect.objectContaining({ name: 'post-1' }),
+          { kind: 'reply', id: 'quoted-reply' }
+        )
+      );
+    }
+  );
 });

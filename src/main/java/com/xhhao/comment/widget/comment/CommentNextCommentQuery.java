@@ -34,6 +34,10 @@ class CommentNextCommentQuery {
         return Boolean.parseBoolean(queryParam("withReplies", "true"));
     }
 
+    boolean separatesPinned() {
+        return Boolean.parseBoolean(queryParam("separatePinned", "true"));
+    }
+
     int getReplySize() {
         return intQueryParam("replySize", 10);
     }

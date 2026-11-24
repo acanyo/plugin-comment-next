@@ -3,13 +3,17 @@ import '@xhhao/comment-next';
 import '@xhhao/comment-next/comment-next.css';
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 
-const props = defineProps<{
-  autoFocus?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{ autoFocus?: boolean; allowImages?: boolean }>(),
+  { allowImages: true }
+);
 
 const emit =
   defineEmits<
-    (event: 'update', content: { content: string; characterCount: number }) => void
+    (
+      event: 'update',
+      content: { content: string; characterCount: number }
+    ) => void
   >();
 
 type ConsoleEditorElement = HTMLElement & {
@@ -58,7 +62,7 @@ function applyEditorOptions() {
 
   editorRef.value.autoFocus = Boolean(props.autoFocus);
   editorRef.value.editorOnly = true;
-  editorRef.value.allowImages = true;
+  editorRef.value.allowImages = props.allowImages;
   editorRef.value.showAccountFields = false;
   editorRef.value.showFooter = true;
   editorRef.value.showSubmitArea = false;

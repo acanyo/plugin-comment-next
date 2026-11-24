@@ -26,6 +26,7 @@
       showComments: { reflect: true, type: "String", attribute: "show-comments" },
       replyTarget: { reflect: true, type: "Object", attribute: "reply-target" },
       demoData: { reflect: true, type: "Boolean", attribute: "demo-data" },
+      previewStyle: { type: "Object", attribute: "preview-style" },
       pageSize: { reflect: true, type: "Number", attribute: "page-size" },
       replySize: { reflect: true, type: "Number", attribute: "reply-size" },
       withReplies: { reflect: true, type: "Boolean", attribute: "with-replies" },
@@ -36,6 +37,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import CommentNextRoot from './CommentNextRoot.svelte';
+import type { CommentNextStyle } from './theme/comment-style';
 import type {
   CommentNextCreatedEventDetail,
   CommentNextReplyTarget,
@@ -71,6 +73,7 @@ let {
   showComments = true,
   replyTarget = $bindable<CommentNextReplyTarget | undefined>(),
   demoData = false,
+  previewStyle,
   pageSize = 20,
   replySize = 10,
   withReplies = true,
@@ -99,6 +102,7 @@ let {
   showComments?: boolean | string | null;
   replyTarget?: CommentNextReplyTarget;
   demoData?: boolean;
+  previewStyle?: CommentNextStyle;
   pageSize?: number;
   replySize?: number;
   withReplies?: boolean;
@@ -209,6 +213,7 @@ function getContentLength(html: string): number {
   showComments={showComments !== false && (typeof showComments !== 'string' || showComments.trim().toLowerCase() !== 'false')}
   bind:replyTarget
   {demoData}
+  {previewStyle}
   {pageSize}
   {replySize}
   {withReplies}

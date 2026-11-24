@@ -1,6 +1,7 @@
 <script lang="ts">
 import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
 import { normalizeReplyTarget } from './replies/target';
+import { commentDraftTarget } from './services/comment-drafts';
 import { createComment, createReply } from './services/comments';
 import type {
   CommentNextAiConfig,
@@ -84,6 +85,11 @@ const normalizedReplyTarget = $derived(normalizeReplyTarget(replyTarget));
 const isReply = $derived(replyTarget != null);
 const targetReady = $derived(
   Boolean(group && kind && name) && (!isReply || Boolean(normalizedReplyTarget))
+);
+const draftTarget = $derived(
+  targetReady
+    ? commentDraftTarget(baseUrl, normalizedReplyTarget ?? subject)
+    : undefined
 );
 const loginRedirectHash = $derived(getSubjectDomId());
 let composerRef:
@@ -196,7 +202,7 @@ function getSubjectDomId() {
   {commandMenuOpen}
   {inlineSuggestion}
   {selectionTools}
-  placeholder={isReply ? (normalizedReplyTarget?.displayName ? `回复 @${normalizedReplyTarget.displayName}` : '写下你的回复...') : placeholder}
+  placeholder={isReply ? '写下你的回复…' : placeholder}
   {allowImages}
   {showAccountFields}
   {showFooter}
@@ -207,6 +213,7 @@ function getSubjectDomId() {
   {avatarConfig}
   {emotePacks}
   {subject}
+  {draftTarget}
   {targetReady}
   {loginRedirectHash}
   targetMissingMessage={isReply ? '回复目标缺少主评论标识或内容归属，无法提交。' : '评论目标缺少 group、kind 或 name，无法提交。'}
@@ -216,7 +223,7 @@ function getSubjectDomId() {
   variant={isReply ? 'reply' : 'comment'}
   showHeader={isReply}
   replyToName={normalizedReplyTarget?.displayName ?? ''}
-  submitLabel={isReply ? '回复' : '提交'}
+  submitLabel={isReply ? '发布回复' : '发布评论'}
   loginLabel={isReply ? '登录后回复' : '登录后评论'}
   onCancel={cancelReply}
   onSubmit={handleSubmit}

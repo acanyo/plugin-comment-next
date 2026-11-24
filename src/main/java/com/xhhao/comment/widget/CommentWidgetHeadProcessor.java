@@ -35,8 +35,7 @@ public class CommentWidgetHeadProcessor implements TemplateHeadProcessor {
 
         return PROPERTY_PLACEHOLDER_HELPER.replacePlaceholders("""
             <!-- plugin-comment-next start -->
-            <link rel="stylesheet" href="/plugins/PluginCommentNext/assets/static/comment-next.css?version=${version}" />
-            <script defer src="/plugins/PluginCommentNext/assets/static/comment-next.iife.js?version=${version}"></script>
+            <script defer src="/plugins/PluginCommentNext/assets/static/comment-next-loader.js?version=${version}"></script>
             <!-- plugin-comment-next end -->
             """, properties);
     }

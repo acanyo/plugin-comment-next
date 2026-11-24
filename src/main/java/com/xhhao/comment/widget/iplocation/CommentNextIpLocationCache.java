@@ -19,24 +19,22 @@ class CommentNextIpLocationCache {
         .maximumSize(MAX_ENTRIES)
         .build();
 
-    Optional<String> get(String apiUrlTemplate, String ipAddress, boolean offlineFirst) {
-        var key = key(apiUrlTemplate, ipAddress, offlineFirst);
+    Optional<String> get(String key) {
         var entry = entries.getIfPresent(key);
         if (entry == null) {
             return Optional.empty();
         }
         if (entry.expiresAtMillis() <= System.currentTimeMillis()) {
-            entries.invalidate(key);
+            entries.asMap().remove(key, entry);
             return Optional.empty();
         }
         return Optional.of(entry.location());
     }
 
-    void put(String apiUrlTemplate, String ipAddress, boolean offlineFirst, String location,
-        int ttlMinutes) {
+    void put(String key, String location, int ttlMinutes) {
         var ttlMillis = Math.max(1, ttlMinutes) * MILLIS_PER_MINUTE;
         entries.put(
-            key(apiUrlTemplate, ipAddress, offlineFirst),
+            key,
             new Entry(
                 location == null ? "" : location,
                 System.currentTimeMillis() + ttlMillis
@@ -44,8 +42,8 @@ class CommentNextIpLocationCache {
         );
     }
 
-    private String key(String apiUrlTemplate, String ipAddress, boolean offlineFirst) {
-        return String.valueOf(apiUrlTemplate) + '\0' + offlineFirst + '\0' + ipAddress;
+    void clearMisses() {
+        entries.asMap().entrySet().removeIf(entry -> entry.getValue().location().isBlank());
     }
 
     private record Entry(String location, long expiresAtMillis) {

@@ -1,13 +1,27 @@
 <script lang="ts" setup>
-import { VEntity, VEntityField, VStatusDot } from '@halo-dev/components';
+import {
+  VButton,
+  VDropdownItem,
+  VEntity,
+  VEntityField,
+  VStatusDot,
+} from '@halo-dev/components';
 import { utils } from '@halo-dev/ui-shared';
 import { computed } from 'vue';
-import type { CommentSearchItem } from '../api/comment-search';
+import type {
+  CommentSearchItem,
+  CommentSearchReplyQueue,
+} from '../api/comment-search';
 import ConsoleCommentContent from './ConsoleCommentContent.vue';
 
 const props = defineProps<{
   item: CommentSearchItem;
+  replyQueue: CommentSearchReplyQueue;
+  canReply: boolean;
+  updating: boolean;
 }>();
+
+const emit = defineEmits<{ reply: []; mark: [] }>();
 
 const targetText = computed(() =>
   props.item.targetType === 'reply' ? '回复' : '评论'
@@ -38,6 +52,9 @@ const statusState = computed(() => {
 });
 const creationTimeText = computed(() =>
   props.item.creationTime ? utils.date.format(props.item.creationTime) : '--'
+);
+const waitingTimeText = computed(
+  () => utils.date.timeAgo(props.item.creationTime) || '--'
 );
 const objectTooltip = computed(() =>
   [
@@ -91,13 +108,29 @@ const objectTooltip = computed(() =>
           <VStatusDot :state="statusState" :text="statusText" />
         </template>
       </VEntityField>
-      <VEntityField title="创建时间" width="10rem">
+      <VEntityField :title="replyQueue === 'waiting' ? '等待时长' : '创建时间'" width="10rem">
         <template #description>
-          <span class=":uno: truncate text-xs tabular-nums text-gray-500">
-            {{ creationTimeText }}
+          <span v-tooltip="creationTimeText" class=":uno: truncate text-xs tabular-nums text-gray-500">
+            {{ replyQueue === 'waiting' ? waitingTimeText : creationTimeText }}
           </span>
         </template>
       </VEntityField>
+      <VEntityField v-if="replyQueue === 'waiting' && canReply" title="操作" width="5rem">
+        <template #description>
+          <VButton size="sm" type="secondary" :disabled="updating" @click="emit('reply')">
+            回复
+          </VButton>
+        </template>
+      </VEntityField>
+    </template>
+
+    <template v-if="replyQueue !== 'all'" #dropdownItems>
+      <VDropdownItem v-if="replyQueue === 'waiting' && canReply" :disabled="updating" @click="emit('reply')">
+        回复
+      </VDropdownItem>
+      <VDropdownItem :disabled="updating" @click="emit('mark')">
+        {{ replyQueue === 'waiting' ? '标记无需回复' : '取消无需回复' }}
+      </VDropdownItem>
     </template>
   </VEntity>
 </template>

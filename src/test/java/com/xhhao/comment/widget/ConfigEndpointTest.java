@@ -7,6 +7,8 @@ import com.xhhao.comment.utils.JsonUtils;
 import com.xhhao.comment.widget.ai.CommentNextAiAssistantProfileResolver;
 import com.xhhao.comment.widget.ai.HaloAiFoundationAvailability;
 import com.xhhao.comment.widget.interactionplus.InteractionPlusAvailability;
+import com.xhhao.comment.widget.style.CommentNextStyle;
+import com.xhhao.comment.widget.style.CommentNextStyleStore;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -27,6 +29,9 @@ class ConfigEndpointTest {
         var context = mock(PluginContext.class);
         var aiAvailability = mock(HaloAiFoundationAvailability.class);
         var interactionAvailability = mock(InteractionPlusAvailability.class);
+        var styleStore = mock(CommentNextStyleStore.class);
+        when(styleStore.published()).thenReturn(Mono.just(
+            new CommentNextStyle("#356249", null, 12, "compact", "cards")));
         var configMap = new ConfigMap();
         configMap.setData(Map.of(
             "avatar", """
@@ -58,7 +63,7 @@ class ConfigEndpointTest {
         when(aiAvailability.isEnabled()).thenReturn(Mono.just(false));
         when(interactionAvailability.isEnabled()).thenReturn(Mono.just(false));
         var endpoint = new ConfigEndpoint(client, context, aiAvailability,
-            new CommentNextAiAssistantProfileResolver(client), interactionAvailability);
+            new CommentNextAiAssistantProfileResolver(client), interactionAvailability, styleStore);
 
         // Match Halo's Jackson 2 codec for plugin JsonNode responses.
         var strategies = HandlerStrategies.builder()
@@ -70,6 +75,9 @@ class ConfigEndpointTest {
             .get().uri("/config").exchange()
             .expectStatus().isOk()
             .expectBody()
+            .jsonPath("$.appearance.lightAccent").isEqualTo("#356249")
+            .jsonPath("$.appearance.radius").isEqualTo(12)
+            .jsonPath("$.appearance.draft").doesNotExist()
             .jsonPath("$.avatar.fallbackAvatars[0].url").isEqualTo("/upload/avatar.png")
             .jsonPath("$.avatar.apiKey").doesNotExist()
             .jsonPath("$.avatar.provider").doesNotExist()

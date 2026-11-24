@@ -16,6 +16,32 @@ describe('CommentNextCommentItem reply pagination', () => {
   });
 });
 
+it('shows saved locations on comments and replies that have no timestamp', () => {
+  const { body } = render(CommentNextCommentItem, {
+    props: {
+      comment: {
+        id: 'located-comment',
+        content: '<p>Comment</p>',
+        author: { displayName: 'Commenter' },
+        ipLocation: '广东',
+        replies: [
+          {
+            id: 'located-reply',
+            content: '<p>Reply</p>',
+            author: { displayName: 'Replier' },
+            ipLocation: '日本',
+          },
+        ],
+      },
+      showCommenterDevice: false,
+    },
+  });
+
+  expect(body).toContain('title="IP 属地：广东"');
+  expect(body).toContain('title="IP 属地：日本"');
+  expect(body).not.toContain('<time');
+});
+
 function commentWithFiveOfSevenReplies(): CommentNextComment {
   return {
     id: 'comment-1',

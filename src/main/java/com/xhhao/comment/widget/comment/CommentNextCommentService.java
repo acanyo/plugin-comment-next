@@ -57,7 +57,9 @@ class CommentNextCommentService {
             .flatMap(tuple -> {
                 var access = tuple.getT1();
                 var badgeContext = tuple.getT2();
-                return Mono.zip(commentPage(query, access), pinnedComments(query, access))
+                var pinned = query.separatesPinned() ? pinnedComments(query, access)
+                    : Mono.just(List.<Comment>of());
+                return Mono.zip(commentPage(query, access), pinned)
                     .flatMap(pages -> toCommentPageNode(pages.getT1(), pages.getT2(), query,
                         access, badgeContext));
             });
@@ -74,6 +76,61 @@ class CommentNextCommentService {
                     .flatMap(comment -> replyPageNode(comment, query.getPage(), query.getSize(),
                         access, badgeContext));
             });
+    }
+
+    Mono<CommentNextCommentLocation> locate(CommentNextCommentLocationQuery query) {
+        return accessService.getCurrentAccess().flatMap(access -> {
+            if (query.target() == CommentNextCommentLocationQuery.Target.COMMENT) {
+                return visibleComment(query.targetName(), query.subject(), access)
+                    .flatMap(comment -> locateCommentPage(comment, query, access))
+                    .map(page -> new CommentNextCommentLocation(query.targetName(), page, null));
+            }
+            return client.fetch(Reply.class, query.targetName())
+                .filter(reply -> reply.getSpec() != null
+                    && StringUtils.hasText(reply.getSpec().getCommentName()))
+                .flatMap(reply -> visibleComment(reply.getSpec().getCommentName(), query.subject(), access)
+                    .filter(comment -> isVisibleReply(reply, comment, access)))
+                .flatMap(comment -> Mono.zip(
+                    locateCommentPage(comment, query, access),
+                    locateReplyPage(comment, query.targetName(), query.replySize(), access)
+                ).map(pages -> new CommentNextCommentLocation(comment.getMetadata().getName(),
+                    pages.getT1(), pages.getT2())));
+        });
+    }
+
+    private Mono<Comment> visibleComment(String name, Ref subject, CommentNextAccessContext access) {
+        return client.fetch(Comment.class, name)
+            .filter(comment -> isVisibleComment(comment, access))
+            .filter(comment -> matchesSubject(comment.getSpec().getSubjectRef(), subject));
+    }
+
+    private Mono<Integer> locateCommentPage(Comment comment, CommentNextCommentLocationQuery query,
+        CommentNextAccessContext access) {
+        if (query.separatePinned() && isTop(comment.getSpec())) {
+            return Mono.just(1);
+        }
+        var options = paginatedCommentOptions(query.subject(), access, query.separatePinned());
+        var names = query.sort() == CommentNextCommentQuery.SortMode.HOT
+            ? hotComments(options, query.separatePinned()).flatMapMany(Flux::fromIterable)
+                .map(item -> item.getMetadata().getName())
+            : client.listAllNames(Comment.class, options, commentSort(query.sort(), query.separatePinned()));
+        return pageContaining(names, comment.getMetadata().getName(), query.size());
+    }
+
+    private Mono<Integer> locateReplyPage(Comment comment, String name, int size,
+        CommentNextAccessContext access) {
+        var options = ListOptions.builder(notDeletingOptions())
+            .andQuery(equal("spec.commentName", comment.getMetadata().getName())).build();
+        var names = client.listAll(Reply.class, options, Sort.by("metadata.name"))
+            .filter(reply -> isVisibleReply(reply, comment, access))
+            .sort(replyComparator())
+            .map(reply -> reply.getMetadata().getName());
+        return pageContaining(names, name, size);
+    }
+
+    private Mono<Integer> pageContaining(Flux<String> names, String name, int size) {
+        return names.index().filter(entry -> name.equals(entry.getT2())).next()
+            .map(entry -> Math.toIntExact(entry.getT1() / size + 1));
     }
 
     Mono<ObjectNode> listFeatured(CommentNextFeaturedCommentQuery query) {
@@ -243,35 +300,31 @@ class CommentNextCommentService {
 
     private Mono<ListResult<Comment>> commentPage(CommentNextCommentQuery query,
         CommentNextAccessContext access) {
+        var separatePinned = query.separatesPinned();
+        var options = paginatedCommentOptions(query.toRef(), access, separatePinned);
         if (query.getSortMode() == CommentNextCommentQuery.SortMode.HOT) {
-            return hotCommentPage(query, access);
+            return hotComments(options, separatePinned).map(comments -> new ListResult<>(
+                query.getPage(), query.getSize(), comments.size(),
+                ListResult.subList(comments, query.getPage(), query.getSize())
+            ));
         }
 
-        return client.listBy(Comment.class, commentListOptions(query.toRef(), access, false),
-            PageRequestImpl.of(query.getPage(), query.getSize(), commentSort(query))
+        return client.listBy(Comment.class, options,
+            PageRequestImpl.of(query.getPage(), query.getSize(),
+                commentSort(query.getSortMode(), separatePinned))
         );
     }
 
-    private Mono<ListResult<Comment>> hotCommentPage(CommentNextCommentQuery query,
-        CommentNextAccessContext access) {
-        return client.listAll(Comment.class, commentListOptions(query.toRef(), access, false),
-                firstCommentSort())
+    private Mono<List<Comment>> hotComments(ListOptions options, boolean separatePinned) {
+        return client.listAll(Comment.class, options, firstCommentSort())
             .collectList()
             .flatMap(comments -> counterService.fetchUpvotes(
                     CommentNextCounterService.COMMENTS_PLURAL,
                     extensionNames(comments)
                 )
-                .map(upvotes -> {
-                    var sortedComments = comments.stream()
-                        .sorted(hotCommentComparator(upvotes))
-                        .toList();
-                    return new ListResult<>(
-                        query.getPage(),
-                        query.getSize(),
-                        sortedComments.size(),
-                        ListResult.subList(sortedComments, query.getPage(), query.getSize())
-                    );
-                }));
+                .map(upvotes -> comments.stream()
+                    .sorted(hotCommentComparator(upvotes, separatePinned))
+                    .toList()));
     }
 
     private boolean isVisibleComment(Comment comment, CommentNextAccessContext access) {
@@ -282,7 +335,7 @@ class CommentNextCommentService {
         if (spec == null) {
             return false;
         }
-        if (access.canViewAll() || isOwner(spec.getOwner(), access.username())) {
+        if (access.canViewAll() || (!access.anonymous() && isOwner(spec.getOwner(), access.username()))) {
             return true;
         }
         return Boolean.TRUE.equals(spec.getApproved()) && !Boolean.TRUE.equals(spec.getHidden());
@@ -290,6 +343,11 @@ class CommentNextCommentService {
 
     private ListOptions commentListOptions(Ref ref, CommentNextAccessContext access) {
         return commentListOptions(ref, access, null);
+    }
+
+    private ListOptions paginatedCommentOptions(Ref ref, CommentNextAccessContext access,
+        boolean separatePinned) {
+        return commentListOptions(ref, access, separatePinned ? Boolean.FALSE : null);
     }
 
     private ListOptions commentListOptions(Ref ref, CommentNextAccessContext access, Boolean top) {
@@ -331,18 +389,19 @@ class CommentNextCommentService {
         if (spec == null || !comment.getMetadata().getName().equals(spec.getCommentName())) {
             return false;
         }
-        if (access.canViewAll() || isOwner(spec.getOwner(), access.username())) {
+        if (access.canViewAll() || (!access.anonymous() && isOwner(spec.getOwner(), access.username()))) {
             return true;
         }
         return Boolean.TRUE.equals(spec.getApproved()) && !Boolean.TRUE.equals(spec.getHidden());
     }
 
     private boolean matchesSubject(Ref subjectRef, CommentNextFeaturedCommentQuery query) {
-        if (!query.hasSubject()) {
-            return true;
-        }
+        return !query.hasSubject() || matchesSubject(subjectRef, query.toRef());
+    }
+
+    private boolean matchesSubject(Ref subjectRef, Ref expected) {
         return subjectRef != null && Comment.toSubjectRefKey(subjectRef)
-            .equals(Comment.toSubjectRefKey(query.toRef()));
+            .equals(Comment.toSubjectRefKey(expected));
     }
 
     private boolean isOwner(Comment.CommentOwner owner, String username) {
@@ -352,17 +411,15 @@ class CommentNextCommentService {
             && ownerIdentity(User.KIND, username).equals(ownerIdentity(owner.getKind(), owner.getName()));
     }
 
-    private Sort commentSort(CommentNextCommentQuery query) {
-        var creationTimeOrder = query.getSortMode() == CommentNextCommentQuery.SortMode.EARLIEST
+    private Sort commentSort(CommentNextCommentQuery.SortMode sort, boolean separatePinned) {
+        var creationTimeOrder = sort == CommentNextCommentQuery.SortMode.EARLIEST
             ? Sort.Order.asc("spec.creationTime")
             : Sort.Order.desc("spec.creationTime");
 
-        return Sort.by(
-            Sort.Order.desc("spec.top"),
-            Sort.Order.asc("spec.priority"),
-            creationTimeOrder,
-            Sort.Order.asc("metadata.name")
-        );
+        var chronologicalOrder = Sort.by(creationTimeOrder, Sort.Order.asc("metadata.name"));
+        return separatePinned
+            ? Sort.by(Sort.Order.desc("spec.top"), Sort.Order.asc("spec.priority")).and(chronologicalOrder)
+            : chronologicalOrder;
     }
 
     private Mono<String> firstCommentName(Ref ref, CommentNextAccessContext access) {
@@ -391,15 +448,17 @@ class CommentNextCommentService {
             .thenComparing(reply -> reply.getMetadata().getName());
     }
 
-    private Comparator<Comment> hotCommentComparator(Map<String, Integer> upvotes) {
-        return Comparator
-            .comparing((Comment comment) -> !isTop(comment.getSpec()))
-            .thenComparingInt(comment -> priority(comment.getSpec()))
-            .thenComparing(Comparator.comparingInt((Comment comment) ->
-                upvotes.getOrDefault(comment.getMetadata().getName(), 0)).reversed())
+    private Comparator<Comment> hotCommentComparator(Map<String, Integer> upvotes,
+        boolean separatePinned) {
+        var popularityOrder = Comparator.comparingInt((Comment comment) ->
+                upvotes.getOrDefault(comment.getMetadata().getName(), 0)).reversed()
             .thenComparing((Comment comment) -> creationTime(comment.getSpec()),
                 Comparator.reverseOrder())
             .thenComparing(comment -> comment.getMetadata().getName());
+        return separatePinned
+            ? Comparator.comparingInt((Comment comment) -> priority(comment.getSpec()))
+                .thenComparing(popularityOrder)
+            : popularityOrder;
     }
 
     private Comparator<FeaturedCommentItem> featuredComparator() {

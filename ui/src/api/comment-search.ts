@@ -7,6 +7,8 @@ export type CommentSearchTarget = 'all' | 'comment' | 'reply';
 
 export type CommentSearchStatus = 'all' | 'visible' | 'pending' | 'hidden';
 
+export type CommentSearchReplyQueue = 'all' | 'waiting' | 'dismissed';
+
 export interface CommentSearchItem {
   targetType: 'comment' | 'reply';
   name: string;
@@ -39,6 +41,8 @@ export interface ListCommentSearchOptions {
   size?: number;
   target?: CommentSearchTarget;
   status?: CommentSearchStatus;
+  replyQueue?: CommentSearchReplyQueue;
+  postName?: string;
   keyword?: string;
   email?: string;
   ipAddress?: string;
@@ -62,6 +66,9 @@ export async function listCommentSearch(
         size: options.size ?? 20,
         target: options.target ?? 'all',
         status: options.status ?? 'all',
+        replyQueue:
+          options.replyQueue === 'all' ? undefined : options.replyQueue,
+        postName: options.postName || undefined,
         keyword: options.keyword || undefined,
         email: options.email || undefined,
         ipAddress: options.ipAddress || undefined,
@@ -72,6 +79,16 @@ export async function listCommentSearch(
     }
   );
   return data;
+}
+
+export async function setCommentReplyDismissed(
+  name: string,
+  dismissed: boolean
+) {
+  await axiosInstance.put(
+    `${COMMENT_SEARCH_ENDPOINT}/${encodeURIComponent(name)}/reply-queue`,
+    { dismissed }
+  );
 }
 
 export async function replaceCommentEmail(

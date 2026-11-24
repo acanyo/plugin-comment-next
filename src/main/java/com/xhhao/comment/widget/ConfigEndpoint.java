@@ -8,6 +8,7 @@ import com.xhhao.comment.widget.ai.CommentNextAiAssistantProfileResolver;
 import com.xhhao.comment.widget.ai.HaloAiFoundationAvailability;
 import com.xhhao.comment.widget.interactionplus.InteractionPlusAvailability;
 import com.xhhao.comment.widget.security.email.CommentNextEmailRestrictionConfig;
+import com.xhhao.comment.widget.style.CommentNextStyleStore;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -123,6 +124,8 @@ public class ConfigEndpoint implements CustomEndpoint {
 
     private final InteractionPlusAvailability interactionPlusAvailability;
 
+    private final CommentNextStyleStore styleStore;
+
     private final ObjectMapper objectMapper = JsonUtils.createObjectMapper();
 
     @Override
@@ -143,7 +146,16 @@ public class ConfigEndpoint implements CustomEndpoint {
             .flatMap(this::appendAiAssistantProfile)
             .flatMap(this::appendAiFoundationAvailability)
             .flatMap(this::appendInteractionPlusAvailability)
+            .flatMap(this::appendPublishedStyle)
             .flatMap(rootNode -> ServerResponse.ok().bodyValue(rootNode));
+    }
+
+    private Mono<ObjectNode> appendPublishedStyle(ObjectNode config) {
+        config.remove("appearance");
+        return styleStore.published().map(style -> {
+            config.set("appearance", objectMapper.valueToTree(style));
+            return config;
+        }).onErrorReturn(config);
     }
 
     private ObjectNode toConfigNode(ConfigMap configMap) {

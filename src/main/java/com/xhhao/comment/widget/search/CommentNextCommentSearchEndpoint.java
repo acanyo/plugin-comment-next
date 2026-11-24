@@ -19,11 +19,14 @@ public class CommentNextCommentSearchEndpoint implements CustomEndpoint {
 
     private final CommentNextCommentEmailReplacementService emailReplacementService;
 
+    private final CommentNextReplyQueueService replyQueueService;
+
     @Override
     public RouterFunction<ServerResponse> endpoint() {
         return RouterFunctions.route()
             .GET("comment-search", this::search)
             .POST("comment-search/replace-email", this::replaceEmail)
+            .PUT("comment-search/{name}/reply-queue", this::updateReplyQueue)
             .build();
     }
 
@@ -37,6 +40,17 @@ public class CommentNextCommentSearchEndpoint implements CustomEndpoint {
             .switchIfEmpty(Mono.error(new ServerWebInputException("邮箱替换请求不能为空。")))
             .flatMap(emailReplacementService::replaceEmail)
             .flatMap(result -> ServerResponse.ok().bodyValue(result));
+    }
+
+    private Mono<ServerResponse> updateReplyQueue(ServerRequest request) {
+        return request.bodyToMono(ReplyQueueUpdate.class)
+            .filter(update -> update.dismissed() != null)
+            .switchIfEmpty(Mono.error(new ServerWebInputException("请选择待回复状态。")))
+            .flatMap(update -> replyQueueService.setDismissed(request.pathVariable("name"), update.dismissed()))
+            .then(ServerResponse.noContent().build());
+    }
+
+    record ReplyQueueUpdate(Boolean dismissed) {
     }
 
     @Override

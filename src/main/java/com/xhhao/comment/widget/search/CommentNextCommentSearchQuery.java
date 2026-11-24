@@ -24,10 +24,25 @@ final class CommentNextCommentSearchQuery {
         return positiveInt("size", DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     }
 
+    ReplyQueue replyQueue() {
+        return switch (queryParam("replyQueue")) {
+            case "waiting" -> ReplyQueue.WAITING;
+            case "dismissed" -> ReplyQueue.DISMISSED;
+            default -> ReplyQueue.ALL;
+        };
+    }
+
+    String postName() {
+        return queryParam("postName").strip();
+    }
+
     CommentNextCommentSearchCriteria criteria() {
+        var queue = replyQueue();
         return new CommentNextCommentSearchCriteria(
-            CommentNextCommentSearchCriteria.Target.from(queryParam("target")),
-            CommentNextCommentSearchCriteria.Status.from(queryParam("status")),
+            queue == ReplyQueue.ALL ? CommentNextCommentSearchCriteria.Target.from(queryParam("target"))
+                : CommentNextCommentSearchCriteria.Target.COMMENT,
+            queue == ReplyQueue.ALL ? CommentNextCommentSearchCriteria.Status.from(queryParam("status"))
+                : CommentNextCommentSearchCriteria.Status.VISIBLE,
             queryParam("keyword"),
             queryParam("email"),
             queryParam("ipAddress"),
@@ -54,5 +69,11 @@ final class CommentNextCommentSearchQuery {
 
     private String queryParam(String name) {
         return request.queryParam(name).orElse("");
+    }
+
+    enum ReplyQueue {
+        ALL,
+        WAITING,
+        DISMISSED
     }
 }

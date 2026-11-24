@@ -9,6 +9,7 @@ import com.xhhao.comment.widget.report.CommentNextReportService;
 import java.time.Duration;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseCookie;
 import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Component;
@@ -47,6 +48,7 @@ public class CommentNextCommentEndpoint implements CustomEndpoint {
         return RouterFunctions.route()
             .GET("comments", this::listComments)
             .GET("comments/featured", this::listFeaturedComments)
+            .GET("comments/locate", this::locateComment)
             .GET("comments/{name}/replies", this::listReplies)
             .GET("target-reactions", this::reactionSummary)
             .POST("target-reactions", this::toggleReaction)
@@ -65,6 +67,13 @@ public class CommentNextCommentEndpoint implements CustomEndpoint {
     private Mono<ServerResponse> listFeaturedComments(ServerRequest request) {
         return commentService.listFeatured(new CommentNextFeaturedCommentQuery(request))
             .flatMap(comments -> ServerResponse.ok().bodyValue(comments));
+    }
+
+    private Mono<ServerResponse> locateComment(ServerRequest request) {
+        return commentService.locate(CommentNextCommentLocationQuery.from(request))
+            .flatMap(location -> ServerResponse.ok().cacheControl(CacheControl.noStore())
+                .bodyValue(location))
+            .switchIfEmpty(ServerResponse.notFound().cacheControl(CacheControl.noStore()).build());
     }
 
     private Mono<ServerResponse> listReplies(ServerRequest request) {

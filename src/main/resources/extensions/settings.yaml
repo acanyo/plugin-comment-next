@@ -153,9 +153,15 @@ spec:
           id: ipLocationEnabled
           key: ipLocationEnabled
           value: true
-          help: 开启后，评论与回复会显示发表时的 IP 属地，例如「广东」「日本」。默认优先使用内置离线库解析，前台不会暴露完整 IP。
+          help: 开启后，评论与回复可以显示已保存的省份或国家，例如「广东」「日本」。关闭时同时暂停在线查询。
+        - $formkit: switch
+          label: 启用在线属地查询
+          name: onlineLookupEnabled
+          value: false
+          help: >-
+            默认关闭。开启后，新评论或回复保存时由服务端向下方接口发送评论者的完整 IP 并查询属地。
+            评论可先发布，查到后显示省份或国家。历史评论可用下方按钮补查属地。
         - $formkit: text
-          if: "$get(ipLocationEnabled).value === true"
           label: IP 属地接口 URL 模板
           name: apiUrlTemplate
           id: ipLocationApiUrlTemplate
@@ -163,33 +169,25 @@ spec:
           value: "https://whois.pconline.com.cn/ipJson.jsp?ip={ip}&json=true"
           validation: required
           help: >-
-            使用 {ip} 作为 IP 占位符，必须使用 https（不加密的 http 接口在部分环境下会被拦截）。默认使用太平洋电脑网的 pconline 接口：国内 IP 返回「广东省」这类中文属地，境外 IP 只返回国家；该接口是 GBK 编码，插件会按响应声明的编码解码，不会乱码。插件会读取 pro、province、regionName、region、city、location、addr 等常见字段：国内 IP 显示省份，境外 IP 显示国家，若接口只提供英文地名或国家代码，属地也会相应显示为英文或代码。可替换为其他免费接口，例如 https://api.mir6.com/api/ip?ip={ip}&type=json（境内外都返回中文省市）。请求由插件后端发起，配置地址不会暴露到前台。
+            使用 {ip} 作为 IP 占位符。默认接口用于查询 IPv4。查询 IPv6 时可配置支持 IPv6 的公网 HTTPS 接口。插件支持常见 JSON 字段和 GBK 响应。
         - $formkit: number
-          if: "$get(ipLocationEnabled).value === true"
           label: 属地缓存时长（分钟）
           name: cacheMinutes
           id: ipLocationCacheMinutes
           key: ipLocationCacheMinutes
           value: 1440
           validation: required
-          help: 同一 IP 在缓存时长内复用解析结果，避免重复读取离线库或请求在线接口。
+          help: 同一 IP 在缓存时长内复用查询结果。
         - $formkit: number
-          if: "$get(ipLocationEnabled).value === true"
           label: 接口超时（毫秒）
           name: timeoutMillis
           id: ipLocationTimeoutMillis
           key: ipLocationTimeoutMillis
           value: 3000
           validation: required
-          help: 仅在离线库未命中或关闭离线解析时请求在线接口。此时评论响应会等待接口返回或超时，失败后不展示属地，不影响评论内容。
-        - $formkit: switch
-          if: "$get(ipLocationEnabled).value === true"
-          label: 优先使用内置离线库
-          name: offlineFallback
-          id: ipLocationOfflineFallback
-          key: ipLocationOfflineFallback
-          value: true
-          help: 插件内置 ip2region 离线库（IPv4 + IPv6），优先在本地解析中文属地，命中时不请求在线接口。未命中时再使用上方配置的接口；关闭此项后仅使用在线接口。
+          help: 超时或查不到时，评论照常展示，属地留空。
+        - $formkit: commentNextIpLocationBackfill
+          name: ipLocationBackfillAction
     - group: emailRestriction
       label: 评论邮箱
       formSchema:

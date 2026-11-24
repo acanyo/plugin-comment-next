@@ -2,8 +2,8 @@
 import { untrack } from 'svelte';
 import CommentNextAvatar from './CommentNextAvatar.svelte';
 import CommentNextBadge from './CommentNextBadge.svelte';
+import CommentNextCommentMeta from './CommentNextCommentMeta.svelte';
 import CommentNextContent from './CommentNextContent.svelte';
-import CommentNextEnvironmentTags from './CommentNextEnvironmentTags.svelte';
 import CommentNextHipAuthor from './CommentNextHipAuthor.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import CommentNextReactionButton from './CommentNextReactionButton.svelte';
@@ -26,11 +26,11 @@ import type {
   CommentNextBadgeConfig,
   CommentNextBadge as CommentNextBadgeModel,
   CommentNextComment,
+  CommentNextCommentPage,
   CommentNextPageInfo,
 } from './types/comment';
 import type { CommentNextEmotePack } from './types/emote';
 import { commentAnchor, getCommentAnchorHref } from './utils/comment-anchor';
-import { formatRelativeTime } from './utils/date';
 import {
   COMMENT_NEXT_UPVOTED_COMMENTS_KEY,
   hasRememberedUpvote,
@@ -38,14 +38,12 @@ import {
   rememberUpvote,
   rememberUpvoteCount,
 } from './utils/upvote';
-import { getCommentEnvironmentTags } from './utils/user-agent';
 
 const {
   baseUrl = '',
   comment,
   badges = [],
   badgeConfig = {},
-  first = false,
   loggedIn = false,
   allowAnonymous = true,
   showCaptcha = false,
@@ -53,6 +51,7 @@ const {
   captchaConfig,
   demoData = false,
   replySize = 10,
+  linkedReplyPage,
   showCommenterDevice = true,
   enableImageLightbox = true,
   aiConfig,
@@ -68,7 +67,6 @@ const {
   comment: CommentNextComment;
   badges?: CommentNextBadgeModel[];
   badgeConfig?: CommentNextBadgeConfig;
-  first?: boolean;
   loggedIn?: boolean;
   allowAnonymous?: boolean;
   showCaptcha?: boolean;
@@ -76,6 +74,7 @@ const {
   captchaConfig?: CommentNextSecurityConfig['captcha'];
   demoData?: boolean;
   replySize?: number;
+  linkedReplyPage?: CommentNextCommentPage;
   showCommenterDevice?: boolean;
   enableImageLightbox?: boolean;
   aiConfig?: CommentNextAiConfig;
@@ -105,18 +104,27 @@ let replyAuthors = $state<Record<string, string>>(
 let repliesLoading = $state(false);
 let repliesError = $state('');
 
-const environmentTags = $derived(
-  getCommentEnvironmentTags({
-    userAgent: comment.userAgent,
-  })
-);
+const shownReplies = $derived.by(() => {
+  if (!linkedReplyPage) return replies;
+  const loadedNames = new Set(replies.map((reply) => reply.id));
+  return [
+    ...replies,
+    ...linkedReplyPage.items.filter((reply) => !loadedNames.has(reply.id)),
+  ];
+});
 const replyCount = $derived(
-  replyPage?.total ?? comment.stats?.replies ?? replies.length
+  replyPage?.total ??
+    linkedReplyPage?.total ??
+    comment.stats?.replies ??
+    replies.length
 );
 const hasMoreReplies = $derived(
-  Boolean(replyPage?.hasNext) || replyCount > replies.length
+  replyCount > shownReplies.length ||
+    (!linkedReplyPage && Boolean(replyPage?.hasNext))
 );
-const remainingReplyCount = $derived(Math.max(replyCount - replies.length, 0));
+const remainingReplyCount = $derived(
+  Math.max(replyCount - shownReplies.length, 0)
+);
 const commentReactionEnabled = $derived(
   Boolean(reactionConfig?.enabled && reactionConfig.commentEnabled !== false)
 );
@@ -239,7 +247,7 @@ function resolveReplyToName(reply: CommentNextComment): string {
   return (
     reply.replyToName ||
     replyAuthors[reply.quoteReplyId] ||
-    replies.find((item) => item.id === reply.quoteReplyId)?.author
+    shownReplies.find((item) => item.id === reply.quoteReplyId)?.author
       .displayName ||
     ''
   );
@@ -374,7 +382,6 @@ async function loadReplies({
 
 <article
   use:commentAnchor={{ kind: 'comment', id: comment.id }}
-  class:comment-next-comment-item-first={first}
   class="comment-next-comment-item"
 >
   <div class="comment-next-comment-avatar">
@@ -420,11 +427,13 @@ async function loadReplies({
         <span class="comment-next-comment-author">{comment.author.displayName}</span>
       {/if}
 
-      <span class="comment-next-comment-badges" aria-label="评论者徽章">
-        {#each badges as badge}
-          <CommentNextBadge {badge} />
-        {/each}
-      </span>
+      {#if badges.length}
+        <span class="comment-next-comment-badges" aria-label="评论者徽章">
+          {#each badges as badge}
+            <CommentNextBadge {badge} />
+          {/each}
+        </span>
+      {/if}
 
       {#if comment.top || comment.featured}
         <span class="comment-next-comment-flags" aria-label="评论状态">
@@ -461,30 +470,7 @@ async function loadReplies({
       {/if}
     </header>
 
-    {#if comment.creationTime}
-      <div class="comment-next-comment-submeta">
-        <time>{formatRelativeTime(comment.creationTime)}</time>
-        {#if comment.ipLocation}
-          <span
-            class="comment-next-ip-location"
-            title={`IP 属地：${comment.ipLocation}`}
-          >
-            <span class="comment-next-ip-location-icon">
-              <i
-                class="comment-next-ip-location-glyph i-mdi:map-marker"
-                aria-hidden="true"
-              ></i>
-            </span>
-            <span class="comment-next-ip-location-text">
-              {comment.ipLocation}
-            </span>
-          </span>
-        {/if}
-        {#if showCommenterDevice}
-          <CommentNextEnvironmentTags tags={environmentTags} compact />
-        {/if}
-      </div>
-    {/if}
+    <CommentNextCommentMeta entry={comment} {showCommenterDevice} />
 
     <CommentNextContent
       content={comment.content}
@@ -508,13 +494,15 @@ async function loadReplies({
           class:comment-next-comment-action-liked={upvoted}
           type="button"
           aria-label="点赞"
+          aria-pressed={upvoted}
           onclick={handleLocalUpvote}
         >
           <CommentNextIcon name={upvoted ? "heartFill" : "heart"} size={15} />
           <span>{upvotes}</span>
         </button>
       {/if}
-      <button type="button" aria-label="回复" disabled={repliesLoading} onclick={handleReplyAction}>
+      <button type="button" aria-label="回复" aria-expanded={replyComposerOpen && !quoteReply}
+        disabled={repliesLoading} onclick={handleReplyAction}>
         <span class:comment-next-comment-action-loading={repliesLoading}>
           <CommentNextIcon name={repliesLoading ? "loader" : "reply"} size={15} />
         </span>
@@ -564,9 +552,9 @@ async function loadReplies({
       </div>
     {/if}
 
-    {#if replies.length || repliesLoading || repliesError || hasMoreReplies}
-      <div class="comment-next-replies">
-        {#each replies as reply (reply.id)}
+    {#if shownReplies.length || repliesLoading || repliesError || hasMoreReplies}
+      <div class="comment-next-replies" role="group" aria-label={`回复 ${comment.author.displayName}`}>
+        {#each shownReplies as reply (reply.id)}
           <CommentNextReplyItem
             {baseUrl}
             {reply}
@@ -581,6 +569,7 @@ async function loadReplies({
             {emoteConfig}
             {avatarConfig}
             replyToName={resolveReplyToName(reply)}
+            replying={replyComposerOpen && quoteReply?.id === reply.id}
             onReply={openQuoteReply}
           />
           {#if replyComposerOpen && quoteReply?.id === reply.id}
@@ -622,7 +611,8 @@ async function loadReplies({
         {:else if hasMoreReplies}
           <div class="comment-next-replies-message">
             <button type="button" onclick={loadRemainingReplies}>
-              展开剩余 {remainingReplyCount} 条回复
+              {shownReplies.length ? `展开剩余 ${remainingReplyCount} 条回复` : `查看 ${remainingReplyCount} 条回复`}
+              <CommentNextIcon name="chevronDown" size={13} />
             </button>
           </div>
         {/if}
@@ -633,22 +623,35 @@ async function loadReplies({
 
 <style>
   .comment-next-comment-item {
-    --at-apply: relative grid grid-cols-[2.625rem_minmax(0,1fr)] gap-3.5 py-[1.125rem] px-0;
+    --comment-next-item-avatar-size: clamp(1.5rem, var(--comment-next-theme-avatar-size, 2.375rem), 3rem);
+    position: relative;
+    display: grid;
+    gap: 0.6875rem;
+    padding-block: var(--comment-next-style-item-space, 1rem);
+    grid-template-columns: var(--comment-next-item-avatar-size) minmax(0, 1fr);
     box-sizing: border-box;
     max-width: 100%;
     min-width: 0;
   }
 
-  .comment-next-comment-item:not(.comment-next-comment-item-first) {
-    --at-apply: border-t border-t-solid [border-top-color:var(--comment-next-border-subtle-color,#e7ecf2)];
+  :global([data-comment-list-style='cards']) .comment-next-comment-item {
+    border: 1px solid var(--comment-next-border-subtle-color, #e7ecf2);
+    border-radius: var(--comment-next-style-radius, var(--comment-next-radius-lg, 0.875rem));
+    padding-inline: clamp(0.625rem, 2.2cqi, 1rem);
+    background: var(--comment-next-surface-bg-color, Canvas);
   }
 
   .comment-next-comment-avatar {
-    --at-apply: w-[2.625rem] min-w-0 justify-self-start self-start overflow-visible pt-0.5 leading-none;
+    --comment-next-avatar-layout-size: var(--comment-next-item-avatar-size);
+    --at-apply: min-w-0 justify-self-start self-start overflow-visible pt-0.5 leading-none;
   }
 
   .comment-next-comment-avatar a {
     --at-apply: inline-flex h-fit w-fit flex-none items-center justify-center rounded-full text-inherit no-underline leading-none;
+  }
+
+  .comment-next-comment-avatar :global(hip-user-avatar) {
+    --hip-avatar-size: var(--comment-next-item-avatar-size);
   }
 
   .comment-next-comment-main {
@@ -658,11 +661,16 @@ async function loadReplies({
   }
 
   .comment-next-comment-meta {
-    --at-apply: mb-[0.2rem] flex min-w-0 flex-wrap items-center gap-[0.4rem];
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.1875rem 0.4375rem;
   }
 
   .comment-next-comment-author {
-    --at-apply: max-w-56 overflow-hidden text-ellipsis whitespace-nowrap text-[0.9375rem] text-[var(--comment-next-text-color,#172033)] font-extrabold no-underline;
+    --at-apply: max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[0.9375rem] text-[var(--comment-next-text-color,#172033)] font-[720] no-underline;
+    line-height: 1.4;
   }
 
   .comment-next-comment-author:hover {
@@ -670,74 +678,66 @@ async function loadReplies({
   }
 
   .comment-next-comment-author-hip {
-    --at-apply: inline-flex max-w-full min-w-0 items-center overflow-visible whitespace-normal text-[0.9375rem] text-[var(--comment-next-text-color,#172033)] font-extrabold;
+    --at-apply: inline-flex max-w-full min-w-0 items-center overflow-visible whitespace-normal text-[0.9375rem] text-[var(--comment-next-text-color,#172033)] font-[720];
   }
 
   .comment-next-comment-author-hip :global(hip-user-identity) {
     max-width: 100%;
   }
 
-  .comment-next-comment-badges {
-    --at-apply: inline-flex flex-wrap items-center gap-1;
-  }
-
+  .comment-next-comment-badges,
   .comment-next-comment-flags {
-    --at-apply: inline-flex flex-wrap items-center gap-1;
+    --at-apply: inline-flex min-w-0 flex-wrap items-center gap-1;
   }
 
   .comment-next-comment-flag {
-    --at-apply: inline-flex h-[1.25rem] items-center gap-1 rounded-full border border-solid px-1.5 text-[0.6875rem] font-[760] leading-none;
+    --at-apply: inline-flex h-5 items-center gap-0.5 rounded-md px-1.5 text-[0.6875rem] font-[650] leading-none;
   }
 
   .comment-next-comment-flag-pinned {
-    --at-apply: [border-color:var(--comment-next-pinned-border-color,rgb(252_211_77))] bg-[var(--comment-next-pinned-pill-bg-color,rgb(254_243_199))] text-[var(--comment-next-pinned-text-color,rgb(146_64_14))];
+    --at-apply: bg-[var(--comment-next-pinned-pill-bg-color,rgb(254_243_199))] text-[var(--comment-next-pinned-text-color,rgb(146_64_14))];
   }
 
   .comment-next-comment-flag-featured {
-    --at-apply: [border-color:var(--comment-next-featured-border-color,rgb(153_246_228))] bg-[var(--comment-next-featured-pill-bg-color,rgb(204_251_241))] text-[var(--comment-next-featured-text-color,rgb(15_118_110))];
+    --at-apply: bg-[var(--comment-next-featured-pill-bg-color,rgb(204_251_241))] text-[var(--comment-next-featured-text-color,rgb(15_118_110))];
   }
 
-  .comment-next-comment-submeta,
   .comment-next-comment-state {
     --at-apply: inline-flex items-center gap-2 text-xs text-[var(--comment-next-muted-color,#6b7687)] font-[560];
   }
 
-  .comment-next-comment-submeta {
-    --at-apply: mb-2 flex-wrap;
-  }
-
-  .comment-next-ip-location {
-    --at-apply: inline-flex min-h-[1.375rem] max-w-48 box-border items-center gap-1 text-xs text-[var(--comment-next-muted-color,#6b7687)] font-[560] leading-none;
-  }
-
-  .comment-next-ip-location-icon {
-    --at-apply: inline-flex text-inherit;
-  }
-
-  .comment-next-ip-location-glyph {
-    --at-apply: inline-block h-[1em] w-[1em] text-[0.8125rem];
-  }
-
-  .comment-next-ip-location-text {
-    --at-apply: min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
-  }
-
   .comment-next-comment-actions {
-    --at-apply: mt-[0.55rem] flex items-center gap-3;
+    --at-apply: flex flex-wrap items-center gap-x-1 gap-y-0.5;
+    margin-block-start: 0.3125rem;
+    margin-inline-start: -0.35rem;
   }
 
-  .comment-next-comment-actions button,
-  .comment-next-comment-anchor {
-    --at-apply: inline-flex h-6 min-w-0 box-border cursor-pointer items-center justify-start gap-1 border-0 rounded-none bg-transparent p-0 text-[0.8125rem] text-[var(--comment-next-muted-color,#6b7687)] font-[680] font-inherit transition-[color,transform] duration-140 ease-in-out;
+  .comment-next-comment-actions > button,
+  .comment-next-comment-anchor,
+  .comment-next-comment-actions :global(.comment-next-target-reaction-button),
+  .comment-next-comment-actions :global(.comment-next-report-button) {
+    --at-apply: inline-flex min-h-7 min-w-0 box-border cursor-pointer items-center justify-start gap-1 rounded-md border-0 bg-transparent px-[0.35rem] py-0 text-xs text-[var(--comment-next-muted-color,#6b7687)] font-[620] font-inherit;
     text-decoration: none;
+    font-variant-numeric: tabular-nums;
   }
 
-  .comment-next-comment-actions button:hover,
-  .comment-next-comment-anchor:hover {
-    --at-apply: text-[var(--comment-next-primary-color,rgb(59,130,246))];
+  .comment-next-comment-actions > button:enabled:hover,
+  .comment-next-comment-actions > button[aria-expanded='true'],
+  .comment-next-comment-anchor:hover,
+  .comment-next-replies-message button:hover {
+    color: var(--comment-next-primary-color, #2563eb);
+    background: var(--comment-next-control-hover-bg-color, #eef2f4);
   }
 
-  .comment-next-comment-actions button:disabled {
+  .comment-next-comment-actions > :is(button, a):focus-visible,
+  .comment-next-comment-actions :global(.comment-next-target-reaction-button:focus-visible),
+  .comment-next-comment-actions :global(.comment-next-report-button:focus-visible),
+  .comment-next-replies-message button:focus-visible {
+    outline: 2px solid var(--comment-next-primary-color, #2563eb);
+    outline-offset: 1px;
+  }
+
+  .comment-next-comment-actions > button:disabled {
     --at-apply: cursor-wait opacity-76;
   }
 
@@ -750,62 +750,64 @@ async function loadReplies({
     --at-apply: animate-spin;
   }
 
-  .comment-next-comment-actions button:active,
-  .comment-next-comment-anchor:active {
-    --at-apply: translate-y-px;
-  }
-
   .comment-next-replies {
-    --at-apply: relative ml-0.5 mt-3.5 rounded-none border-l border-l-dashed [border-left-color:var(--comment-next-reply-guide-color,#c8d8ee)] bg-transparent py-0.5 pl-4 pr-0;
+    --comment-next-reply-indent: 0.875rem;
+    --comment-next-reply-avatar-size: 1.8125rem;
+    --comment-next-thread-line-color: var(--comment-next-border-subtle-color, #e3e9f0);
+    --comment-next-thread-line-color: color-mix(in srgb, var(--comment-next-reply-guide-color, #c8d8ee) 60%, var(--comment-next-border-subtle-color, #e3e9f0));
+    position: relative;
+    margin-block-start: 0.5rem;
+    padding-inline-start: var(--comment-next-reply-indent);
+    border-inline-start: 1px dashed var(--comment-next-thread-line-color);
     box-sizing: border-box;
     max-width: 100%;
     min-width: 0;
   }
 
   .comment-next-reply-composer-slot {
-    --at-apply: mt-3.5;
+    margin-block: 0.625rem;
     box-sizing: border-box;
     max-width: 100%;
     min-width: 0;
   }
 
   .comment-next-reply-composer-slot-nested {
-    --at-apply: ml-[2.375rem] mr-0 mb-3.5 mt-1;
-    max-width: calc(100% - 2.375rem);
+    margin-inline-start: calc(var(--comment-next-reply-avatar-size) + 0.5625rem);
   }
 
   .comment-next-replies-message {
-    --at-apply: flex items-center gap-2 px-0 pb-0 pt-2.5 text-[0.8125rem] text-[var(--comment-next-muted-color,#6b7687)] font-[650];
+    --at-apply: flex flex-wrap items-center gap-2 py-1 text-xs text-[var(--comment-next-muted-color,#6b7687)];
   }
 
   .comment-next-replies-message button {
-    --at-apply: inline-flex h-7 cursor-pointer items-center justify-center gap-[0.35rem] border-0 rounded-none bg-transparent px-2.5 py-0 text-[0.8125rem] text-[var(--comment-next-primary-color,rgb(59,130,246))] font-[650] font-inherit transition-[background-color,color] duration-140 ease-in-out;
-  }
-
-  .comment-next-replies-message button:hover {
-    --at-apply: text-[var(--comment-next-primary-hover-color,#2563eb)];
+    --at-apply: inline-flex min-h-8 cursor-pointer items-center justify-center gap-[0.35rem] rounded-md border-0 bg-transparent px-1.5 py-0 text-xs text-[var(--comment-next-primary-color,#2563eb)] font-[650] font-inherit;
   }
 
   .comment-next-replies-more-loading {
     --at-apply: animate-spin;
   }
 
-  @media (max-width: 640px) {
+  @container comment-next-thread (max-width: 36rem) {
     .comment-next-comment-item {
-      --at-apply: grid-cols-[2rem_minmax(0,1fr)] gap-2.5 py-4 px-0;
+      --comment-next-item-avatar-size: clamp(1.5rem, var(--comment-next-theme-avatar-size, 2.0625rem), 3rem);
+      gap: 0.5625rem;
+      padding-block: var(--comment-next-style-item-space, 0.875rem);
     }
 
-    .comment-next-comment-author {
-      --at-apply: max-w-36;
+    .comment-next-comment-actions > button,
+    .comment-next-comment-anchor,
+    .comment-next-comment-actions :global(.comment-next-target-reaction-button),
+    .comment-next-comment-actions :global(.comment-next-report-button) {
+      min-height: 2rem;
     }
 
     .comment-next-reply-composer-slot-nested {
-      --at-apply: ml-0;
-      max-width: 100%;
+      margin-inline-start: 0;
     }
 
     .comment-next-replies {
-      --at-apply: pl-3;
+      --comment-next-reply-indent: 0.625rem;
+      --comment-next-reply-avatar-size: 1.625rem;
     }
   }
 

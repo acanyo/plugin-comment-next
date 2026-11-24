@@ -2,6 +2,7 @@ package com.xhhao.comment.widget.iplocation;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.net.InetAddresses;
 import com.xhhao.comment.utils.JsonUtils;
 import com.xhhao.comment.widget.network.CommentNextOutboundUriPolicy;
 import java.net.InetSocketAddress;
@@ -9,6 +10,7 @@ import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
@@ -55,7 +57,7 @@ class CommentNextIpLocationClient {
                     var contentType = response.headers().asHttpHeaders().getContentType();
                     Charset charset = contentType == null ? null : contentType.getCharset();
                     return response.bodyToMono(byte[].class)
-                        .map(bytes -> locationFromBody(bytes, charset));
+                        .map(bytes -> locationFromBody(bytes, charset, ipAddress));
                 }))
             .filter(location -> !location.isBlank())
             .timeout(timeout);
@@ -65,11 +67,24 @@ class CommentNextIpLocationClient {
      * 属地接口的响应格式并不统一：pconline 返回 text/html + GBK，mir6/zxinc 返回 text/json。
      * 因此先按响应声明的编码解码，再解析 JSON，避免中文乱码。
      */
-    static String locationFromBody(byte[] bytes, Charset charset) {
+    static String locationFromBody(byte[] bytes, Charset charset, String requestedIp) {
         if (bytes == null || bytes.length == 0) {
             return "";
         }
-        return CommentNextIpLocationResponseParser.location(parseJson(decode(bytes, charset)));
+        var response = parseJson(decode(bytes, charset));
+        return response != null && matchesRequestedIp(response, requestedIp)
+            ? CommentNextIpLocationResponseParser.location(response)
+            : "";
+    }
+
+    private static boolean matchesRequestedIp(JsonNode response, String requestedIp) {
+        var data = response.path("data");
+        var address = InetAddresses.forString(requestedIp);
+        return Stream.of(response.path("ip"), response.path("query"), data.path("ip"), data.path("query"))
+            .map(value -> value.asText("").strip())
+            .filter(InetAddresses::isInetAddress)
+            .map(InetAddresses::forString)
+            .allMatch(address::equals);
     }
 
     private static String decode(byte[] bytes, Charset charset) {
@@ -110,6 +125,10 @@ class CommentNextIpLocationClient {
             || !apiUrlTemplate.contains("{ip}")) {
             throw new IllegalArgumentException("IP 属地接口 URL 模板必须包含 {ip}");
         }
-        return URI.create(apiUrlTemplate.strip().replace("{ip}", ipAddress));
+        var uri = URI.create(apiUrlTemplate.strip().replace("{ip}", ipAddress));
+        if (!"https".equalsIgnoreCase(uri.getScheme())) {
+            throw new IllegalArgumentException("IP 属地接口必须使用 HTTPS");
+        }
+        return uri;
     }
 }

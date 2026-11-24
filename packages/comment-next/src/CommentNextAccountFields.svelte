@@ -1,32 +1,16 @@
 <script lang="ts">
-import CommentNextAvatar from './CommentNextAvatar.svelte';
-import CommentNextIcon from './CommentNextIcon.svelte';
-import type { CommentNextAvatarConfig } from './services/config';
-
 const {
-  visible = true,
-  loggedIn = false,
-  avatarUrl = '',
-  avatarAlt = '',
-  avatarSeed = '',
-  avatarConfig,
-  userDisplayName = '',
   displayName = '',
   email = '',
   website = '',
+  disabled = false,
   onChange = () => {},
   onEmailBlur = () => {},
 }: {
-  visible?: boolean;
-  loggedIn?: boolean;
-  avatarUrl?: string;
-  avatarAlt?: string;
-  avatarSeed?: string;
-  avatarConfig?: CommentNextAvatarConfig;
-  userDisplayName?: string;
   displayName?: string;
   email?: string;
   website?: string;
+  disabled?: boolean;
   onChange?: (values: {
     displayName: string;
     email: string;
@@ -48,153 +32,111 @@ function updateField(
 }
 </script>
 
-{#if visible}
-  <div class:comment-next-account-fields-logged-in={loggedIn} class="comment-next-account-fields" aria-label="评论身份">
-    <div class="comment-next-account-avatar">
-      <CommentNextAvatar seed={avatarSeed} config={avatarConfig} src={avatarUrl} alt={avatarAlt || displayName || userDisplayName} size={34} />
-    </div>
-
-    {#if loggedIn}
-      <div class="comment-next-account-current-user">
-        <span class="comment-next-account-current-label">当前账号</span>
-        <span class="comment-next-account-current-name">{userDisplayName || "已登录用户"}</span>
-      </div>
-    {:else}
-      <label class="comment-next-field">
-        <span class="comment-next-field-icon" aria-hidden="true">
-          <CommentNextIcon name="user" size={16} />
-        </span>
-        <input
-          name="displayName"
-          type="text"
-          placeholder="昵称"
-          autocomplete="name"
-          value={displayName}
-          required
-          oninput={(event) => updateField("displayName", event.currentTarget.value)}
-        />
-      </label>
-      <label class="comment-next-field">
-        <span class="comment-next-field-icon" aria-hidden="true">
-          <CommentNextIcon name="mail" size={16} />
-        </span>
-        <input
-          name="email"
-          type="email"
-          placeholder="邮箱"
-          autocomplete="email"
-          value={email}
-          required
-          oninput={(event) => updateField("email", event.currentTarget.value)}
-          onblur={(event) => onEmailBlur(event.currentTarget.value)}
-        />
-      </label>
-      <label class="comment-next-field">
-        <span class="comment-next-field-icon" aria-hidden="true">
-          <CommentNextIcon name="globe" size={16} />
-        </span>
-        <input
-          name="website"
-          type="url"
-          placeholder="网站（可选）"
-          autocomplete="url"
-          value={website}
-          oninput={(event) => updateField("website", event.currentTarget.value)}
-        />
-      </label>
-    {/if}
-  </div>
-{/if}
+<fieldset class="comment-next-account-fields" {disabled}>
+  <legend class="comment-next-account-legend">访客资料</legend>
+  <label class="comment-next-field">
+    <span>昵称</span>
+    <input
+      name="displayName"
+      type="text"
+      autocomplete="nickname"
+      value={displayName}
+      required
+      pattern=".*\S.*"
+      oninput={(event) => updateField('displayName', event.currentTarget.value)}
+    />
+  </label>
+  <label class="comment-next-field">
+    <span>邮箱</span>
+    <input
+      name="email"
+      type="email"
+      autocomplete="email"
+      value={email}
+      required
+      oninput={(event) => updateField('email', event.currentTarget.value)}
+      onblur={(event) => onEmailBlur(event.currentTarget.value)}
+    />
+  </label>
+  <label class="comment-next-field comment-next-field-website">
+    <span>网站 <small>选填</small></span>
+    <input
+      name="website"
+      type="url"
+      autocomplete="url"
+      value={website}
+      oninput={(event) => updateField('website', event.currentTarget.value)}
+    />
+  </label>
+</fieldset>
 
 <style>
   .comment-next-account-fields {
-    --at-apply: grid grid-cols-[auto_repeat(3,minmax(0,1fr))] items-center gap-0 box-border border-b [border-bottom-style:var(--comment-next-divider-style,dashed)] [border-bottom-color:var(--comment-next-divider-color,#d4dde8)] rounded-t-[var(--comment-next-radius-lg,0.875rem)] bg-[var(--comment-next-account-fields-bg,transparent)] px-3.5 py-2.5;
+    display: grid;
+    grid-template-columns: var(--comment-next-guest-fields-columns, repeat(auto-fit, minmax(min(100%, 9rem), 1fr)));
+    gap: 0.625rem 0.75rem;
+    box-sizing: border-box;
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: var(--comment-next-account-fields-bg, transparent);
   }
 
-  .comment-next-account-fields-logged-in {
-    --at-apply: grid-cols-[auto_minmax(0,1fr)];
-  }
-
-  .comment-next-account-avatar {
-    --at-apply: flex items-center justify-center pr-3;
-  }
-
-  .comment-next-account-current-user {
-    --at-apply: flex min-w-0 items-baseline gap-2;
-  }
-
-  .comment-next-account-current-label {
-    --at-apply: whitespace-nowrap text-[0.78125rem] text-[var(--comment-next-muted-color,#6b7687)] font-[620];
-  }
-
-  .comment-next-account-current-name {
-    --at-apply: min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.9375rem] text-[var(--comment-next-text-color,#172033)] font-[760];
+  .comment-next-account-legend {
+    --at-apply: sr-only;
   }
 
   .comment-next-field {
-    --at-apply: relative flex h-9 min-w-0 box-border items-center gap-2.5 rounded-[0.625rem] border-0 bg-transparent px-3.5 py-0 text-[var(--comment-next-muted-color,#6b7687)] transition-[box-shadow,background-color,color] duration-140 ease-in-out;
+    display: grid;
+    min-width: 0;
+    gap: 0.3125rem;
+    color: var(--comment-next-text-color, #172033);
+    font-size: 0.8125rem;
+    font-weight: 620;
+    line-height: 1.35;
   }
 
-  .comment-next-field + .comment-next-field::before {
-    --at-apply: absolute top-[0.45rem] bottom-[0.45rem] left-0 w-px;
-    background-image: linear-gradient(
-      to bottom,
-      var(--comment-next-field-divider-color, #dbe4ed) 45%,
-      transparent 0
-    );
-    background-size: 1px 0.375rem;
-    content: "";
-    --at-apply: transition-opacity duration-140 ease-in-out;
+  .comment-next-field-website {
+    grid-column: var(--comment-next-guest-website-column, auto);
   }
 
-  .comment-next-field:focus-within {
-    --at-apply: bg-[var(--comment-next-field-focus-bg-color,#ffffff)] text-[var(--comment-next-primary-color,rgb(59,130,246))] shadow-[0_6px_14px_rgb(15_23_42_/_0.05),0_0_0_1px_var(--comment-next-primary-color,rgb(59,130,246))_inset];
-  }
-
-  .comment-next-field:focus-within::before,
-  .comment-next-field:focus-within + .comment-next-field::before {
-    --at-apply: opacity-0;
-  }
-
-  .comment-next-field-icon {
-    --at-apply: inline-flex w-[1.125rem] items-center justify-center text-current opacity-92;
+  .comment-next-field small {
+    margin-inline-start: 0.125rem;
+    color: var(--comment-next-muted-color, #667085);
+    font-size: 0.75rem;
+    font-weight: 400;
   }
 
   .comment-next-field input {
-    --at-apply: min-w-0 w-full border-0 bg-transparent text-[0.90625rem] text-[var(--comment-next-text-color,#172033)] font-medium font-inherit outline-none;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: var(--comment-next-composer-control-height);
+    padding: 0.375rem 0.625rem;
+    border: 1px solid var(--comment-next-field-border-color, var(--comment-next-border-color, #d5dde7));
+    border-radius: var(--comment-next-composer-control-radius);
+    background: var(--comment-next-field-bg-color, #fff);
+    color: inherit;
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 450;
+    transition: border-color 140ms ease;
   }
 
-  .comment-next-field input::placeholder {
-    --at-apply: text-[var(--comment-next-placeholder-color,#8a95a5)] font-medium;
+  .comment-next-field input:focus {
+    border-color: var(--comment-next-composer-accent);
+    outline: 1px solid var(--comment-next-composer-accent);
+    background: var(--comment-next-field-focus-bg-color, #fff);
   }
 
-  @media (max-width: 720px) {
-    .comment-next-account-fields {
-      --at-apply: grid-cols-[auto_minmax(0,1fr)] gap-0.5 p-2.5;
-    }
-
-    .comment-next-account-fields:not(.comment-next-account-fields-logged-in) .comment-next-account-avatar {
-      --at-apply: row-span-3 self-start pt-1;
-    }
-
-    .comment-next-account-fields:not(.comment-next-account-fields-logged-in) .comment-next-field {
-      --at-apply: col-start-2;
-    }
-
-    .comment-next-field + .comment-next-field::before {
-      --at-apply: top-[-0.0625rem] right-3 bottom-auto left-3 h-px w-auto;
-      background-image: linear-gradient(
-        to right,
-        var(--comment-next-field-divider-color, #dbe4ed) 45%,
-        transparent 0
-      );
-      background-size: 0.375rem 1px;
-    }
+  .comment-next-field input:disabled {
+    opacity: 0.65;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .comment-next-field {
-      --at-apply: transition-none;
+    .comment-next-field input {
+      transition: none;
     }
   }
 </style>

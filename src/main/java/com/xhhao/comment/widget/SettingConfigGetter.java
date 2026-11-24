@@ -1,5 +1,6 @@
 package com.xhhao.comment.widget;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.xhhao.comment.widget.captcha.CaptchaType;
 import com.xhhao.comment.widget.ranking.CommentNextRankingConfig;
 import com.xhhao.comment.widget.security.CommentNextSecurityReviewAction;
@@ -293,6 +294,7 @@ public interface SettingConfigGetter {
 
     @Data
     @Accessors(chain = true)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     class IpLocationConfig {
         public static final String GROUP = "ipLocation";
 
@@ -311,7 +313,7 @@ public interface SettingConfigGetter {
 
         private int timeoutMillis = DEFAULT_TIMEOUT_MILLIS;
 
-        private boolean offlineFallback = true;
+        private boolean onlineLookupEnabled;
 
         public static IpLocationConfig empty() {
             return new IpLocationConfig();

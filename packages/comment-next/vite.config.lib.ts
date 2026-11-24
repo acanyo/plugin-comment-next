@@ -29,7 +29,11 @@ export default defineConfig({
     StaticCopy({
       targets: [
         {
-          src: ['./dist/comment-next.iife.js', './dist/comment-next.css'],
+          src: [
+            './dist/comment-next.iife.js',
+            './dist/comment-next.css',
+            './src/theme/comment-next-loader.js',
+          ],
           dest: fileURLToPath(
             new URL('../../src/main/resources/static', import.meta.url)
           ),
@@ -38,14 +42,20 @@ export default defineConfig({
         {
           src: 'node_modules/altcha/dist/main/altcha.i18n.min.js',
           dest: fileURLToPath(
-            new URL('../../src/main/resources/static/vendor/altcha', import.meta.url)
+            new URL(
+              '../../src/main/resources/static/vendor/altcha',
+              import.meta.url
+            )
           ),
           rename: { stripBase: true },
         },
         {
           src: 'node_modules/cap-widget/cap.min.js',
           dest: fileURLToPath(
-            new URL('../../src/main/resources/static/vendor/cap', import.meta.url)
+            new URL(
+              '../../src/main/resources/static/vendor/cap',
+              import.meta.url
+            )
           ),
           rename: { stripBase: true },
         },

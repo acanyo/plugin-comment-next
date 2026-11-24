@@ -1,10 +1,14 @@
 <script lang="ts">
-import { onMount } from 'svelte';
+import { onMount, tick } from 'svelte';
 import { resolveCommentBadges } from './badges/resolve';
 import CommentNextCommentItem from './CommentNextCommentItem.svelte';
 import CommentNextCommentSkeleton from './CommentNextCommentSkeleton.svelte';
 import CommentNextIcon from './CommentNextIcon.svelte';
 import { createDemoCommentPage, demoBadgeConfig } from './demo/comments';
+import {
+  fetchLinkedCommentPage,
+  type LinkedReplyPage,
+} from './services/comment-location';
 import { fetchCommentPage } from './services/comments';
 import type {
   CommentNextAiConfig,
@@ -18,9 +22,16 @@ import type {
 import type {
   CommentNextBadgeConfig,
   CommentNextComment,
+  CommentNextCommentPage,
   CommentNextCommentSort,
 } from './types/comment';
 import type { CommentNextEmotePack } from './types/emote';
+import {
+  type CommentAnchorTarget,
+  findCommentAnchor,
+  parseCommentAnchor,
+  revealCommentAnchor,
+} from './utils/comment-anchor';
 
 const {
   baseUrl = '',
@@ -75,7 +86,6 @@ const {
 } = $props();
 
 let comments = $state<CommentNextComment[]>([]);
-let pinnedComments = $state<CommentNextComment[]>([]);
 let page = $state(1);
 let total = $state(0);
 let totalPages = $state(1);
@@ -84,20 +94,23 @@ let hasNext = $state(false);
 let firstCommentId = $state('');
 let loading = $state(false);
 let errorMessage = $state('');
+let anchorMessage = $state('');
 let sortMode = $state<CommentNextCommentSort>('latest');
+let linkedReplies = $state<LinkedReplyPage>();
+// biome-ignore lint/style/useConst: Svelte assigns the section through bind:this.
+let listElement = $state<HTMLElement>();
+let pendingLoad:
+  | { controller: AbortController; target?: CommentAnchorTarget }
+  | undefined;
+let clearHighlight: (() => void) | undefined;
+let refreshTimers: number[] = [];
 
 const badgeConfig = $derived<CommentNextBadgeConfig>(
   demoData ? demoBadgeConfig : (configuredBadgeConfig ?? {})
 );
 const visibleComments = $derived(
-  (demoData ? sortComments(comments, sortMode) : comments).filter(
-    (comment) => !comment.top
-  )
+  demoData ? sortComments(comments, sortMode) : comments
 );
-const visiblePinnedComments = $derived([
-  ...pinnedComments,
-  ...comments.filter((comment) => comment.top),
-]);
 const paginationItems = $derived(resolvePaginationItems(page, totalPages));
 const sortOptions: Array<{ label: string; value: CommentNextCommentSort }> = [
   { label: '最新', value: 'latest' },
@@ -107,37 +120,59 @@ const sortOptions: Array<{ label: string; value: CommentNextCommentSort }> = [
 const aiMentionName = $derived(resolveAiMentionName(aiConfig));
 
 onMount(() => {
-  void refreshComments();
+  void loadComments(1, parseCommentAnchor(window.location.hash));
 
   const handleCreated = () => {
+    if (pendingLoad?.target) return;
+    clearRefreshTimers();
     void refreshComments({ scrollIntoView: true });
-    scheduleCreatedRefreshes();
+    refreshTimers = [1800, 5200].map((delay) =>
+      window.setTimeout(() => void refreshComments(), delay)
+    );
   };
 
   window.addEventListener('halo:comment:created', handleCreated);
+  window.addEventListener('hashchange', handleHashChange);
 
   return () => {
     window.removeEventListener('halo:comment:created', handleCreated);
+    window.removeEventListener('hashchange', handleHashChange);
+    pendingLoad?.controller.abort();
+    clearHighlight?.();
+    clearRefreshTimers();
   };
 });
 
-async function refreshComments(options: { scrollIntoView?: boolean } = {}) {
-  page = 1;
-  await loadComments();
-
-  if (options.scrollIntoView) {
-    requestAnimationFrame(() => {
-      document.querySelector('comment-next, comment-widget')?.scrollIntoView({
-        block: 'start',
-        behavior: 'smooth',
-      });
-    });
+function handleHashChange() {
+  const target = parseCommentAnchor(window.location.hash);
+  clearHighlight?.();
+  anchorMessage = '';
+  if (!target) {
+    if (pendingLoad?.target) void loadComments(page);
+    return;
   }
+
+  clearRefreshTimers();
+  if (!pendingLoad && focusLinkedTarget(target)) return;
+  void loadComments(page, target);
 }
 
-function scheduleCreatedRefreshes() {
-  window.setTimeout(() => void refreshComments(), 1800);
-  window.setTimeout(() => void refreshComments(), 5200);
+function focusLinkedTarget(target: CommentAnchorTarget): boolean {
+  const node = listElement && findCommentAnchor(listElement, target);
+  if (!node) return false;
+  clearHighlight?.();
+  clearHighlight = revealCommentAnchor(node);
+  return true;
+}
+
+async function refreshComments(options: { scrollIntoView?: boolean } = {}) {
+  if ((await loadComments(1)) && options.scrollIntoView)
+    scrollCommentsIntoView();
+}
+
+function clearRefreshTimers() {
+  for (const timer of refreshTimers) window.clearTimeout(timer);
+  refreshTimers = [];
 }
 
 async function selectPage(
@@ -150,12 +185,9 @@ async function selectPage(
     return;
   }
 
-  page = normalizedPage;
-  await loadComments();
-
-  if (options.scrollIntoView) {
+  clearRefreshTimers();
+  if ((await loadComments(normalizedPage)) && options.scrollIntoView)
     scrollCommentsIntoView();
-  }
 }
 
 async function selectSort(nextSortMode: CommentNextCommentSort) {
@@ -164,72 +196,101 @@ async function selectSort(nextSortMode: CommentNextCommentSort) {
   }
 
   sortMode = nextSortMode;
+  clearRefreshTimers();
   await refreshComments();
 }
 
-async function loadComments() {
-  if (demoData) {
-    const demoPage = createDemoCommentPage();
-    comments = demoPage.items;
-    pinnedComments = demoPage.pinnedItems ?? [];
-    total = demoPage.total;
-    totalPages = demoPage.totalPages;
-    hasPrevious = demoPage.hasPrevious;
-    hasNext = demoPage.hasNext;
-    firstCommentId = demoPage.firstCommentId ?? '';
-    errorMessage = '';
-    return;
-  }
-
-  if (!group || !kind || !name) {
-    comments = [];
-    pinnedComments = [];
-    total = 0;
-    totalPages = 1;
-    hasPrevious = false;
-    hasNext = false;
-    firstCommentId = '';
-    return;
-  }
+async function loadComments(
+  nextPage: number,
+  target?: CommentAnchorTarget
+): Promise<boolean> {
+  pendingLoad?.controller.abort();
+  clearHighlight?.();
+  const controller = new AbortController();
+  const request = { controller, target };
+  pendingLoad = request;
+  errorMessage = '';
+  anchorMessage = '';
+  loading = true;
 
   try {
-    loading = true;
-    errorMessage = '';
+    if (demoData) {
+      applyCommentPage(createDemoCommentPage());
+      if (target) {
+        await tick();
+        if (!controller.signal.aborted) focusLinkedTarget(target);
+      }
+      return !controller.signal.aborted;
+    }
+    if (!group || !kind || !name) {
+      applyCommentPage();
+      return false;
+    }
 
-    const data = await fetchCommentPage({
+    const options = {
       baseUrl,
       group,
       kind,
       name,
       version,
-      page,
+      page: nextPage,
       size: pageSize,
       replySize,
       withReplies,
       sort: sortMode,
-    });
+      separatePinned: false,
+      signal: controller.signal,
+    };
+    const linked = target
+      ? await fetchLinkedCommentPage(options, target).catch((error) => {
+          if (controller.signal.aborted) throw error;
+          console.warn('Failed to locate linked comment', error);
+          return undefined;
+        })
+      : undefined;
+    if (controller.signal.aborted) return false;
+    const data = linked?.data ?? (await fetchCommentPage(options));
+    if (controller.signal.aborted) return false;
 
-    comments = data.items;
-    pinnedComments = data.pinnedItems ?? [];
-    page = data.page;
-    total = data.total;
-    totalPages = Math.max(data.totalPages || 1, 1);
-    hasPrevious = data.hasPrevious;
-    hasNext = data.hasNext;
-    firstCommentId = data.firstCommentId ?? '';
+    applyCommentPage(data, linked?.replies);
+    if (target) {
+      await tick();
+      if (controller.signal.aborted) return false;
+      if (
+        !focusLinkedTarget(target) &&
+        document.querySelectorAll('comment-next, comment-widget').length <= 1
+      ) {
+        anchorMessage = '无法定位这条评论或回复。';
+        scrollCommentsIntoView();
+      }
+    }
+    return true;
   } catch (error) {
+    if (controller.signal.aborted) return false;
     console.error(error);
     errorMessage = '评论列表加载失败';
-    comments = [];
-    pinnedComments = [];
-    total = 0;
-    totalPages = 1;
-    hasPrevious = false;
-    hasNext = false;
-    firstCommentId = '';
+    applyCommentPage();
+    return false;
   } finally {
-    loading = false;
+    if (pendingLoad === request) {
+      pendingLoad = undefined;
+      loading = false;
+    }
   }
+}
+
+function applyCommentPage(
+  data?: CommentNextCommentPage,
+  linked?: LinkedReplyPage
+) {
+  comments = data?.items ?? [];
+  linkedReplies = linked;
+  page = data?.page ?? 1;
+  total = data?.total ?? 0;
+  totalPages = Math.max(data?.totalPages ?? 1, 1);
+  hasPrevious = Boolean(data?.hasPrevious);
+  hasNext = Boolean(data?.hasNext);
+  firstCommentId = data?.firstCommentId ?? '';
 }
 
 function isFirstComment(comment: CommentNextComment): boolean {
@@ -240,45 +301,18 @@ function sortComments(
   items: CommentNextComment[],
   mode: CommentNextCommentSort
 ): CommentNextComment[] {
-  if (mode === 'latest') {
-    return [...items].sort((left, right) => {
-      const moderationDiff = compareCommentModeration(left, right);
-      return moderationDiff || commentTime(right) - commentTime(left);
-    });
-  }
-
-  if (mode === 'earliest') {
-    return [...items].sort((left, right) => {
-      const moderationDiff = compareCommentModeration(left, right);
-      return moderationDiff || commentTime(left) - commentTime(right);
-    });
-  }
-
   return [...items].sort((left, right) => {
-    const moderationDiff = compareCommentModeration(left, right);
-    if (moderationDiff) {
-      return moderationDiff;
-    }
-
     const upvotesDiff =
-      (right.stats?.upvotes ?? 0) - (left.stats?.upvotes ?? 0);
+      mode === 'hot'
+        ? (right.stats?.upvotes ?? 0) - (left.stats?.upvotes ?? 0)
+        : 0;
     if (upvotesDiff) {
       return upvotesDiff;
     }
 
-    return commentTime(right) - commentTime(left);
+    const timeDifference = commentTime(left) - commentTime(right);
+    return mode === 'earliest' ? timeDifference : -timeDifference;
   });
-}
-
-function compareCommentModeration(
-  left: CommentNextComment,
-  right: CommentNextComment
-): number {
-  if (left.top !== right.top) {
-    return left.top ? -1 : 1;
-  }
-
-  return (left.priority ?? 0) - (right.priority ?? 0);
 }
 
 function commentTime(comment: CommentNextComment): number {
@@ -291,7 +325,8 @@ function clampPage(nextPage: number): number {
 
 function scrollCommentsIntoView() {
   requestAnimationFrame(() => {
-    document.querySelector('comment-next, comment-widget')?.scrollIntoView({
+    const root = listElement?.getRootNode();
+    (root instanceof ShadowRoot ? root.host : listElement)?.scrollIntoView?.({
       block: 'start',
       behavior: 'smooth',
     });
@@ -365,7 +400,6 @@ function resolvePaginationItems(
     {comment}
     badges={resolveCommentBadges(comment, { isFirstComment: isFirstComment(comment), config: badgeConfig })}
     {badgeConfig}
-    first={isFirstComment(comment)}
     {loggedIn}
     {allowAnonymous}
     {showCaptcha}
@@ -373,6 +407,7 @@ function resolvePaginationItems(
     {captchaConfig}
     {demoData}
     {replySize}
+    linkedReplyPage={linkedReplies?.commentName === comment.id ? linkedReplies.data : undefined}
     {showCommenterDevice}
     {enableImageLightbox}
     {aiConfig}
@@ -386,19 +421,9 @@ function resolvePaginationItems(
   />
 {/snippet}
 
-<section class="comment-next-comments" aria-label="评论列表">
-  {#if visiblePinnedComments.length}
-    <section class="comment-next-comments-pinned" aria-label="置顶评论">
-      <div class="comment-next-comments-list">
-        {#each visiblePinnedComments as comment (comment.id)}
-          {@render renderComment(comment)}
-        {/each}
-      </div>
-    </section>
-  {/if}
-
+<section bind:this={listElement} class="comment-next-comments" aria-label="评论列表" aria-busy={loading}>
   <div class="comment-next-comments-bar">
-    <div class="comment-next-comments-tabs" aria-label="评论排序">
+    <div class="comment-next-comments-tabs" role="group" aria-label="评论排序">
       {#each sortOptions as option}
         <button
           class:comment-next-comments-tab-active={sortMode === option.value}
@@ -412,22 +437,28 @@ function resolvePaginationItems(
       {/each}
     </div>
     {#if errorMessage}
-      <button class="comment-next-comments-retry" type="button" onclick={() => refreshComments()}>
+      <button class="comment-next-comments-retry" type="button" onclick={() => loadComments(page, parseCommentAnchor(window.location.hash))}>
         <CommentNextIcon name="refresh" size={13} />
         重试
       </button>
+    {:else if total > 0}
+      <span class="comment-next-comments-count">{total.toLocaleString('zh-CN')} 条评论</span>
     {/if}
   </div>
 
-  {#if loading && !comments.length && !pinnedComments.length}
+  {#if anchorMessage}
+    <p class="comment-next-anchor-notice" role="status">{anchorMessage}</p>
+  {/if}
+
+  {#if loading && !comments.length}
     <CommentNextCommentSkeleton />
   {:else if visibleComments.length}
-    <div class="comment-next-comments-list" role="region" aria-label="普通评论">
+    <div class="comment-next-comments-list">
       {#each visibleComments as comment (comment.id)}
         {@render renderComment(comment)}
       {/each}
     </div>
-  {:else if !visiblePinnedComments.length || errorMessage}
+  {:else}
     <div class="comment-next-comments-empty">
       <span class="comment-next-comments-empty-icon">
         <CommentNextIcon name="message" size={18} />
@@ -484,45 +515,68 @@ function resolvePaginationItems(
 </section>
 
 <style>
+  .comment-next-anchor-notice {
+    margin: 0 0 0.75rem;
+    color: var(--comment-next-muted-color, #64748b);
+    font-size: 0.875rem;
+  }
+
+  .comment-next-comments :global([data-comment-next-highlight]) {
+    background-color: color-mix(in srgb, var(--comment-next-primary-color, #2563eb) 12%, transparent);
+    border-radius: 0.5rem;
+    outline: 2px solid color-mix(in srgb, var(--comment-next-primary-color, #2563eb) 65%, transparent);
+    outline-offset: 2px;
+  }
+
   .comment-next-comments {
     --at-apply: box-border w-full text-[var(--comment-next-text-color,#172033)];
     max-width: 100%;
     min-width: 0;
-    font-family: var(
-      --comment-next-font-family,
-      ui-sans-serif,
-      system-ui,
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
-      sans-serif
-    );
+    font-family: inherit;
+  }
+
+  :global([data-comment-list-style='cards']) .comment-next-comments-list {
+    display: grid;
+    gap: 0.625rem;
+    padding-block-start: 0.625rem;
   }
 
   .comment-next-comments-bar {
-    --at-apply: flex min-h-10 items-center justify-between gap-[1.125rem] border-b border-b-solid [border-bottom-color:var(--comment-next-border-subtle-color,#e3e9f0)];
+    --at-apply: flex min-h-10 flex-wrap items-center justify-between gap-x-2 border-b border-b-solid [border-bottom-color:var(--comment-next-border-subtle-color,#e3e9f0)];
+    padding-block-end: 0.375rem;
   }
 
   .comment-next-comments-tabs {
-    --at-apply: inline-flex min-w-0 items-stretch self-stretch gap-5;
+    --at-apply: inline-flex min-w-0 flex-wrap items-center gap-0.5;
+  }
+
+  .comment-next-comments-count {
+    --at-apply: py-1 text-xs text-[var(--comment-next-muted-color,#6b7687)];
+    margin-inline-start: auto;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   .comment-next-comments-tabs button {
-    --at-apply: relative inline-flex min-w-9 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-sm text-[var(--comment-next-muted-color,#6b7687)] font-[720] font-inherit transition-colors duration-140 ease-in-out;
+    --at-apply: inline-flex min-h-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent px-2.5 py-0 text-[0.8125rem] text-[var(--comment-next-muted-color,#6b7687)] font-[650] font-inherit transition-colors duration-140 ease-in-out;
   }
 
-  .comment-next-comments-tabs button::after {
-    --at-apply: absolute right-0 bottom-[-1px] left-0 h-0.5 rounded-full bg-transparent transition-colors duration-140 ease-in-out;
-    content: "";
+  .comment-next-comments-tabs button:enabled:hover {
+    background: var(--comment-next-control-hover-bg-color, #eef2f4);
+    color: var(--comment-next-text-color, #172033);
   }
 
-  .comment-next-comments-tabs button:hover,
-  .comment-next-comments-tabs .comment-next-comments-tab-active {
-    --at-apply: text-[var(--comment-next-primary-color,rgb(59,130,246))];
+  .comment-next-comments-tabs .comment-next-comments-tab-active,
+  .comment-next-comments-tabs .comment-next-comments-tab-active:enabled:hover {
+    color: var(--comment-next-primary-color, #2563eb);
+    background: var(--comment-next-pill-active-bg-color, #eff6ff);
   }
 
-  .comment-next-comments-tabs .comment-next-comments-tab-active::after {
-    --at-apply: bg-[var(--comment-next-primary-color,rgb(59,130,246))];
+  .comment-next-comments-tabs button:focus-visible,
+  .comment-next-comments-retry:focus-visible,
+  .comment-next-comments-pagination button:focus-visible {
+    outline: 2px solid var(--comment-next-primary-color, #2563eb);
+    outline-offset: 1px;
   }
 
   .comment-next-comments-tabs button:disabled {
@@ -547,6 +601,10 @@ function resolvePaginationItems(
     --at-apply: grid;
     max-width: 100%;
     min-width: 0;
+  }
+
+  .comment-next-comments-list > :global(.comment-next-comment-item + .comment-next-comment-item) {
+    border-block-start: 1px solid var(--comment-next-border-subtle-color, #e3e9f0);
   }
 
   .comment-next-comments-empty {
@@ -592,7 +650,6 @@ function resolvePaginationItems(
   @media (prefers-reduced-motion: reduce) {
     .comment-next-comments-retry,
     .comment-next-comments-tabs button,
-    .comment-next-comments-tabs button::after,
     .comment-next-comments-pagination button {
       --at-apply: transition-none;
     }

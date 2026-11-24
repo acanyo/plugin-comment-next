@@ -1,6 +1,7 @@
 package com.xhhao.comment.widget.iplocation;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.Set;
 import org.springframework.util.StringUtils;
 
 /**
@@ -11,6 +12,8 @@ import org.springframework.util.StringUtils;
  * 国内 IP 只展示省份（如「广东」），境外 IP 展示国家（如「日本」）。
  */
 final class CommentNextIpLocationResponseParser {
+
+    private static final Set<String> PROVINCE_LEVEL_CITIES = Set.of("北京", "上海", "天津", "重庆");
 
     private CommentNextIpLocationResponseParser() {
     }
@@ -42,15 +45,17 @@ final class CommentNextIpLocationResponseParser {
 
         var province = firstText(node,
             "regionName", "region_name", "province", "pro", "state", "region");
-        var city = firstText(node, "city", "cityName", "city_name", "districts");
+        var city = CommentNextIpLocationText.trimAdministrativeSuffix(
+            firstText(node, "city", "cityName", "city_name"));
+        var municipality = PROVINCE_LEVEL_CITIES.contains(city) ? city : "";
         var whole = firstText(node, "location", "addr");
 
-        if (CommentNextIpLocationText.isChina(country, countryCode)
-            || CommentNextIpLocationText.looksChineseRegion(province)
-            || CommentNextIpLocationText.looksChineseRegion(city)) {
+        var inferredChineseRegion = country.isEmpty() && countryCode.isEmpty()
+            && (CommentNextIpLocationText.looksChineseRegion(province) || !municipality.isEmpty());
+        if (CommentNextIpLocationText.isChina(country, countryCode) || inferredChineseRegion) {
             return CommentNextIpLocationText.firstNonBlank(
                 CommentNextIpLocationText.trimAdministrativeSuffix(province),
-                CommentNextIpLocationText.trimAdministrativeSuffix(city),
+                municipality,
                 CommentNextIpLocationText.regionFromText(whole),
                 "中国"
             );
@@ -59,7 +64,6 @@ final class CommentNextIpLocationResponseParser {
         return CommentNextIpLocationText.firstNonBlank(
             country,
             CommentNextIpLocationText.trimAdministrativeSuffix(province),
-            CommentNextIpLocationText.trimAdministrativeSuffix(city),
             countryCode,
             CommentNextIpLocationText.regionFromText(whole)
         );

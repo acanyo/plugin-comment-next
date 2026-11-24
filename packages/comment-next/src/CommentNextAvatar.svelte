@@ -57,7 +57,7 @@ function getPlaceholderText(value: string): string {
 </script>
 
 <span
-  class="comment-next-avatar inline-flex items-center justify-center flex-none overflow-hidden border border-solid [border-color:var(--comment-next-avatar-border-color,rgb(15_23_42_/_0.08))] [background:linear-gradient(180deg,rgb(255_255_255_/_0.88),rgb(238_244_244_/_0.9)),var(--comment-next-field-bg-color,#fbfcfd)] text-[var(--comment-next-muted-color,#6b7687)] shadow-[0_1px_2px_rgb(15_23_42_/_0.06)]"
+  class="comment-next-avatar inline-flex items-center justify-center flex-none overflow-hidden border border-solid [border-color:var(--comment-next-avatar-border-color,rgb(15_23_42_/_0.08))] bg-[var(--comment-next-pill-bg-color,#f3f5f8)] text-[var(--comment-next-muted-color,#6b7687)]"
   style={`--comment-next-avatar-instance-size: ${size}px`}
   aria-label={alt || "头像"}
 >
@@ -83,8 +83,8 @@ function getPlaceholderText(value: string): string {
 <style>
   .comment-next-avatar {
     --comment-next-avatar-effective-size: var(
-      --comment-next-avatar-instance-size,
-      var(--comment-next-avatar-size, var(--halo-cw-avatar-size, 36px))
+      --comment-next-avatar-layout-size,
+      var(--comment-next-avatar-instance-size, 36px)
     );
     box-sizing: border-box;
     flex: 0 0 var(--comment-next-avatar-effective-size);

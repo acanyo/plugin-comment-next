@@ -5,6 +5,7 @@ import {
   IconMessage,
   IconMotionLine,
   IconNotificationBadgeLine,
+  IconPalette,
   IconReplyLine,
   IconSearch,
   IconShieldUser,
@@ -42,10 +43,22 @@ const AiPromptDefaultsAction = defineAsyncComponent(
   () => import('./components/AiPromptDefaultsAction.vue')
 );
 
+const IpLocationBackfillAction = defineAsyncComponent(
+  () => import('./components/IpLocationBackfillAction.vue')
+);
+
 export default definePlugin({
   components: {},
   formkit: {
     inputs: {
+      commentNextIpLocationBackfill: createInput(IpLocationBackfillAction, {
+        features: [
+          (node) => {
+            node.props.ignore = true;
+            node.parent = null;
+          },
+        ],
+      }),
       commentNextPromptDefaults: createInput(AiPromptDefaultsAction, {
         features: [
           (node) => {
@@ -65,6 +78,24 @@ export default definePlugin({
     },
   },
   routes: [
+    {
+      parentName: 'CommentsRoot',
+      route: {
+        path: 'comment-next-style',
+        name: 'CommentNextStyleWorkbench',
+        component: () => import('./style/CommentStyleWorkbench.vue'),
+        meta: {
+          title: '评论样式工作台',
+          permissions: ['plugin:comment-next:style:manage'],
+          hideFooter: true,
+          menu: {
+            name: '样式工作台',
+            icon: markRaw(IconPalette),
+            priority: 2.03,
+          },
+        },
+      },
+    },
     {
       parentName: 'CommentsRoot',
       route: {

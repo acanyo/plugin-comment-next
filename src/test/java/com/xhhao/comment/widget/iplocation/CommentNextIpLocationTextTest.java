@@ -40,41 +40,6 @@ class CommentNextIpLocationTextTest {
     }
 
     @Test
-    void readsIp2RegionRegionTextOfBothDataStructures() {
-        // ip2region 2.x: 国家|区域|省份|城市|ISP
-        assertEquals(
-            "广东",
-            CommentNextIpLocationText.fromIp2Region("中国|0|广东省|广州市|电信")
-        );
-        assertEquals(
-            "美国",
-            CommentNextIpLocationText.fromIp2Region("美国|0|堪萨斯州|里诺县|谷歌云")
-        );
-        assertEquals(
-            "中国",
-            CommentNextIpLocationText.fromIp2Region("中国|0|0|0|0")
-        );
-
-        // ip2region 3.x: 国家|省份|城市|ISP|国家代码（境外国家名是英文）
-        assertEquals(
-            "广东",
-            CommentNextIpLocationText.fromIp2Region("中国|广东省|广州市|电信|CN")
-        );
-        assertEquals(
-            "美国",
-            CommentNextIpLocationText.fromIp2Region("United States|California|0|Google LLC|US")
-        );
-        assertEquals(
-            "日本",
-            CommentNextIpLocationText.fromIp2Region("Japan|Hokkaido|Ishikari|0|JP")
-        );
-
-        assertEquals("", CommentNextIpLocationText.fromIp2Region(""));
-        assertEquals("", CommentNextIpLocationText.fromIp2Region("0|0|0|0|0"));
-        assertEquals("", CommentNextIpLocationText.fromIp2Region("中国|广东省"));
-    }
-
-    @Test
     void recognizesChinaFromNameOrCountryCode() {
         assertTrue(CommentNextIpLocationText.isChina("中国", ""));
         assertTrue(CommentNextIpLocationText.isChina("China", ""));
@@ -106,5 +71,13 @@ class CommentNextIpLocationTextTest {
         assertEquals("", CommentNextIpLocationText.normalize("0"));
         assertEquals("", CommentNextIpLocationText.normalize("   "));
         assertEquals(48, CommentNextIpLocationText.normalize("深".repeat(80)).length());
+    }
+
+    @Test
+    void rejectsIpAddressesAndAcceptsRegionNamesAsLabels() {
+        assertEquals("Québec", CommentNextIpLocationText.displayLabel(" Québec "));
+        assertEquals("Côte d’Ivoire", CommentNextIpLocationText.displayLabel("Côte d’Ivoire"));
+        assertEquals("", CommentNextIpLocationText.displayLabel("Japan 192.0.2.1"));
+        assertEquals("", CommentNextIpLocationText.displayLabel("2001:db8::1"));
     }
 }

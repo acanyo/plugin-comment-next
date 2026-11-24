@@ -1,9 +1,23 @@
 export type CommentAnchorKind = 'comment' | 'reply';
 
-type CommentAnchorOptions = {
+export interface CommentAnchorTarget {
   kind: CommentAnchorKind;
   id: string;
-};
+}
+
+export function parseCommentAnchor(
+  hash: string
+): CommentAnchorTarget | undefined {
+  if (!hash.startsWith('#comment-next-')) return undefined;
+  try {
+    const fragment = decodeURIComponent(hash.slice(1));
+    const match = /^comment-next-(comment|reply)-(.+)$/u.exec(fragment);
+    if (match)
+      return { kind: match[1] === 'reply' ? 'reply' : 'comment', id: match[2] };
+  } catch {
+    return undefined;
+  }
+}
 
 export function getCommentAnchorId(
   kind: CommentAnchorKind,
@@ -19,60 +33,42 @@ export function getCommentAnchorHref(
   return `#${encodeURIComponent(getCommentAnchorId(kind, id))}`;
 }
 
-export function commentAnchor(
-  node: HTMLElement,
-  options: CommentAnchorOptions
-) {
-  let currentOptions = options;
-
-  function scrollToAnchor() {
-    if (currentHashAnchor() !== node.id) {
-      return;
-    }
-
-    requestAnimationFrame(() => {
-      node.scrollIntoView({
-        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
-        block: 'start',
-      });
-    });
-  }
-
-  function applyAnchor() {
-    node.id = getCommentAnchorId(currentOptions.kind, currentOptions.id);
-    node.style.scrollMarginTop = 'var(--comment-next-anchor-offset, 5rem)';
-    scrollToAnchor();
-  }
-
-  window.addEventListener('hashchange', scrollToAnchor);
-  applyAnchor();
-
+export function commentAnchor(node: HTMLElement, options: CommentAnchorTarget) {
+  node.style.scrollMarginTop = 'var(--comment-next-anchor-offset, 5rem)';
+  node.tabIndex = -1;
+  node.id = getCommentAnchorId(options.kind, options.id);
   return {
-    update(nextOptions: CommentAnchorOptions) {
-      currentOptions = nextOptions;
-      applyAnchor();
-    },
-    destroy() {
-      window.removeEventListener('hashchange', scrollToAnchor);
+    update(nextOptions: CommentAnchorTarget) {
+      node.id = getCommentAnchorId(nextOptions.kind, nextOptions.id);
     },
   };
 }
 
-function currentHashAnchor(): string {
-  if (typeof window === 'undefined') {
-    return '';
-  }
-
-  try {
-    return decodeURIComponent(window.location.hash.slice(1));
-  } catch {
-    return window.location.hash.slice(1);
-  }
+export function findCommentAnchor(
+  root: HTMLElement,
+  target: CommentAnchorTarget
+) {
+  const id = getCommentAnchorId(target.kind, target.id);
+  return Array.from(root.querySelectorAll<HTMLElement>('article[id]')).find(
+    (node) => node.id === id
+  );
 }
 
-function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  );
+export function revealCommentAnchor(node: HTMLElement): () => void {
+  node.setAttribute('data-comment-next-highlight', '');
+  node.focus({ preventScroll: true });
+  const reduceMotion = window.matchMedia?.(
+    '(prefers-reduced-motion: reduce)'
+  ).matches;
+  node.scrollIntoView?.({
+    behavior: reduceMotion ? 'instant' : 'smooth',
+    block: 'start',
+  });
+
+  const clear = () => node.removeAttribute('data-comment-next-highlight');
+  const timer = window.setTimeout(clear, 2800);
+  return () => {
+    window.clearTimeout(timer);
+    clear();
+  };
 }

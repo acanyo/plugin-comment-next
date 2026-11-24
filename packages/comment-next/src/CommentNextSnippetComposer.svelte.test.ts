@@ -1,10 +1,11 @@
 import { flushSync, mount, tick, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
+import { commentDraftKey } from './services/comment-drafts';
 import type { CommentNextComposerSubmitPayload } from './types/composer';
 
 vi.mock('./services/current-user', () => ({
-  fetchCurrentUser: async () => undefined,
+  fetchCurrentUser: async () => ({ name: 'reader', displayName: '读者' }),
 }));
 
 let component: ReturnType<typeof mount>;
@@ -15,6 +16,7 @@ let submit = vi.fn(
 );
 
 beforeEach(() => {
+  localStorage.clear();
   vi.stubGlobal('matchMedia', () => ({
     matches: false,
     addEventListener() {},
@@ -33,12 +35,21 @@ beforeEach(() => {
       approved: true,
     })
   );
+  mountComposer();
+});
+
+function mountComposer() {
   component = mount(CommentNextBaseComposer, {
     target: document.body,
-    props: { loggedIn: true, showAi: false, onSubmit: submit },
+    props: {
+      loggedIn: true,
+      showAi: false,
+      draftTarget: 'test-post',
+      onSubmit: submit,
+    },
   });
   flushSync();
-});
+}
 
 afterEach(async () => {
   await unmount(component);
@@ -107,6 +118,44 @@ describe('article snippet composer', () => {
     expect(document.querySelector('[contenteditable]')?.textContent).toBe(
       '未提交的观点'
     );
+  });
+
+  it('restores the excerpt and private selection, and clears the saved draft after submission', async () => {
+    await tick();
+    const privateInput = () =>
+      document.querySelector<HTMLInputElement>('[name="hidden"]');
+    privateInput()?.click();
+    quote('私密评论引用的段落');
+    write('有引用的草稿');
+    const key = commentDraftKey('test-post', 'reader');
+    await vi.waitFor(() => expect(localStorage.getItem(key)).not.toBeNull());
+    await unmount(component);
+
+    mountComposer();
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toContain('已恢复本地草稿')
+    );
+    expect(privateInput()?.checked).toBe(true);
+    expect(
+      document.querySelector('[aria-label="引用的文章片段"]')?.textContent
+    ).toContain('私密评论引用的段落');
+    expect(document.querySelector('[contenteditable]')?.textContent).toBe(
+      '有引用的草稿'
+    );
+
+    send();
+    await vi.waitFor(() => expect(localStorage.getItem(key)).toBeNull());
+    expect(submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hidden: true,
+        snippet: expect.objectContaining({ exact: '私密评论引用的段落' }),
+      })
+    );
+    await unmount(component);
+    mountComposer();
+    await tick();
+    expect(document.querySelector('[contenteditable]')?.textContent).toBe('');
+    expect(privateInput()?.checked).toBe(false);
   });
 
   it('removes the quote without clearing the comment draft', async () => {

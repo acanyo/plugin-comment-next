@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { Snippet } from 'svelte';
 import { onMount, tick } from 'svelte';
 import CommentNextAiPanel from './CommentNextAiPanel.svelte';
 import CommentNextEmotePanel from './CommentNextEmotePanel.svelte';
@@ -9,6 +10,7 @@ import CommentNextTooltip from './CommentNextTooltip.svelte';
 import type { CommentNextAiMode } from './services/ai';
 import type { CommentNextEmoteItem, CommentNextEmotePack } from './types/emote';
 import { COMMENT_NEXT_MODAL_OPEN_EVENT } from './utils/overlays';
+import { anchoredPanelStyle, openTopLayer } from './utils/top-layer';
 
 type CommentNextComposerVariant = 'comment' | 'reply';
 type CommentNextEmotePreviewState = {
@@ -22,9 +24,10 @@ const {
   loggedIn = false,
   allowAnonymous = true,
   enablePrivate = true,
+  privateComment = false,
   submitting = false,
   submitDisabled = false,
-  submitLabel = '提交',
+  submitLabel = '发布评论',
   loginLabel = '登录后评论',
   aiLabel = 'AI 评论',
   aiAssistantName = '评论助手',
@@ -46,6 +49,7 @@ const {
   imageAccept = 'image/*',
   emotePacks = [],
   emotePageSize,
+  identity,
   onToggleCommandMenu = () => {},
   onCloseCommandMenu = () => {},
   onCommandModeSelect = () => {},
@@ -53,11 +57,13 @@ const {
   onEmoteSelect = () => {},
   onImageUpload = () => {},
   onLogin = () => {},
+  onPrivateChange = () => {},
 }: {
   commandMenuOpen?: boolean;
   loggedIn?: boolean;
   allowAnonymous?: boolean;
   enablePrivate?: boolean;
+  privateComment?: boolean;
   submitting?: boolean;
   submitDisabled?: boolean;
   submitLabel?: string;
@@ -82,6 +88,7 @@ const {
   imageAccept?: string;
   emotePacks?: CommentNextEmotePack[];
   emotePageSize?: number;
+  identity?: Snippet;
   onToggleCommandMenu?: () => void;
   onCloseCommandMenu?: () => void;
   onCommandModeSelect?: (mode: CommentNextAiMode, tags: string[]) => void;
@@ -89,12 +96,13 @@ const {
   onEmoteSelect?: (item: CommentNextEmoteItem) => void;
   onImageUpload?: (file: File) => Promise<void> | void;
   onLogin?: () => void;
+  onPrivateChange?: (checked: boolean) => void;
 } = $props();
 
 const insertTools = [
   { key: 'smile', icon: 'smile', title: '表情' },
-  { key: 'at', icon: 'at', title: '@ 提及' },
   { key: 'image', icon: 'image', title: '图片' },
+  { key: 'at', icon: 'at', title: '@ 提及' },
 ];
 
 // biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
@@ -112,7 +120,6 @@ let emotePanelStyle = $state('');
 let emotePreview = $state<CommentNextEmotePreviewState | undefined>();
 let aiPanelStyle = $state('');
 let aiPanelHeight = $state(340);
-let isMobileViewport = $state(false);
 
 const hasEmotePacks = $derived(emotePacks.some((pack) => pack.items.length));
 const visibleInsertTools = $derived(
@@ -133,19 +140,10 @@ const visibleInsertTools = $derived(
   })
 );
 const hasVisibleInsertTools = $derived(visibleInsertTools.length > 0);
-const floatingEmotePanel = $derived(
-  compact || !showSubmitArea || isMobileViewport
-);
-
+const hasTools = $derived(hasVisibleInsertTools || showAi);
 onMount(() => {
-  const mobileMedia = window.matchMedia('(max-width: 780px)');
-  const syncMobileViewport = () => {
-    isMobileViewport = mobileMedia.matches;
-  };
   const handleViewportChange = () => {
-    syncMobileViewport();
-
-    if (emotePanelOpen && floatingEmotePanel) {
+    if (emotePanelOpen) {
       void updateEmotePanelPosition();
     }
 
@@ -191,8 +189,12 @@ onMount(() => {
     onCloseCommandMenu();
   };
 
-  syncMobileViewport();
-  mobileMedia.addEventListener('change', syncMobileViewport);
+  const composer = footerElement?.closest('form');
+  const observer =
+    composer && typeof ResizeObserver === 'function'
+      ? new ResizeObserver(handleViewportChange)
+      : undefined;
+  if (composer) observer?.observe(composer);
   document.addEventListener('pointerdown', handlePointerDown, true);
   document.addEventListener('keydown', handleKeyDown);
   window.addEventListener(COMMENT_NEXT_MODAL_OPEN_EVENT, handleModalOpen);
@@ -200,7 +202,7 @@ onMount(() => {
   window.addEventListener('scroll', handleViewportChange, true);
 
   return () => {
-    mobileMedia.removeEventListener('change', syncMobileViewport);
+    observer?.disconnect();
     document.removeEventListener('pointerdown', handlePointerDown, true);
     document.removeEventListener('keydown', handleKeyDown);
     window.removeEventListener(COMMENT_NEXT_MODAL_OPEN_EVENT, handleModalOpen);
@@ -214,7 +216,7 @@ $effect(() => {
     emotePanelOpen = false;
   }
 
-  if (emotePanelOpen && floatingEmotePanel) {
+  if (emotePanelOpen) {
     void updateEmotePanelPosition();
     return;
   }
@@ -259,10 +261,6 @@ function handleInsertToolClick(key: string) {
     }
 
     emotePanelOpen = !emotePanelOpen;
-
-    if (emotePanelOpen && floatingEmotePanel) {
-      void updateEmotePanelPosition();
-    }
 
     return;
   }
@@ -363,7 +361,13 @@ async function updateEmotePanelPosition() {
   );
   const maxLeft = window.innerWidth - panelWidth - viewportPadding;
   const left = Math.min(Math.max(viewportPadding, rect.left), maxLeft);
-  const top = openBelow ? rect.bottom + gap : rect.top - gap - panelHeight;
+  const anchorTop = openBelow
+    ? rect.bottom + gap
+    : rect.top - gap - panelHeight;
+  const top = Math.min(
+    anchorTop,
+    window.innerHeight - panelHeight - viewportPadding
+  );
 
   emotePanelStyle = [
     `--comment-next-emote-fixed-left:${Math.max(viewportPadding, left)}px`,
@@ -378,15 +382,11 @@ async function updateMentionPickerPosition() {
   await tick();
   const button = footerElement?.querySelector('[data-comment-next-tool="at"]');
   if (!button) return;
-  const rect = button.getBoundingClientRect();
-  const width = Math.min(344, window.innerWidth - 24);
-  const left = Math.min(
-    Math.max(12, rect.left),
-    window.innerWidth - width - 12
+  mentionPanelStyle = anchoredPanelStyle(
+    button.getBoundingClientRect(),
+    344,
+    84
   );
-  const top =
-    window.innerHeight - rect.bottom > 100 ? rect.bottom + 8 : rect.top - 92;
-  mentionPanelStyle = `left:${left}px;top:${Math.max(12, top)}px;width:${width}px`;
 }
 
 async function updateAiPanelPosition(height = aiPanelHeight) {
@@ -425,388 +425,413 @@ async function updateAiPanelPosition(height = aiPanelHeight) {
 }
 </script>
 
-<div bind:this={footerElement} class:comment-next-footer-compact={compact} class="comment-next-footer">
-  <div class:comment-next-toolbar-visible={hasVisibleInsertTools || showAi} class="comment-next-footer-left">
-    {#if hasVisibleInsertTools}
-    <div class="comment-next-insert-tools-region">
-      {#if emotePanelOpen && hasEmotePacks}
-        <CommentNextEmotePanel
-          fixed={floatingEmotePanel}
-          panelStyle={emotePanelStyle}
-          packs={emotePacks}
-          pageSize={emotePageSize}
-          selectedItemId={selectedEmoteId}
-          onSelect={handleEmoteSelect}
-          onPreviewChange={(entry) => (emotePreview = entry)}
-        />
-      {/if}
-
-      <div class="comment-next-insert-tools" aria-label="插入工具栏">
-        {#if imageUploadEnabled || imageUploading}
-        <input
-          bind:this={imageInputElement}
-          class="comment-next-upload-input"
-          type="file"
-          accept={imageAccept}
-          disabled={submitting || aiLoading}
-          onchange={handleImageFileChange}
-        />
+{#if identity || hasTools || showSubmitArea}
+  <div bind:this={footerElement} class="comment-next-footer comment-next-composer-action-row">
+    {#if identity || hasTools}
+      <div class="comment-next-footer-left">
+        {#if identity}
+          <div class="comment-next-footer-identity">{@render identity()}</div>
         {/if}
-        {#each visibleInsertTools as tool}
-          <CommentNextTooltip text={tool.title} disabled={tool.key === "at" && mentionPanelOpen}>
-            <button
-              class:comment-next-tool-button-active={(tool.key === "smile" && emotePanelOpen) || (tool.key === "image" && imageUploading)}
-              class="comment-next-tool-button"
-              type="button"
-              data-comment-next-tool={tool.key}
-              aria-label={tool.key === "at" ? `@${aiAssistantName}，邀请助手回复` : tool.title}
-              aria-expanded={tool.key === "smile" ? emotePanelOpen : tool.key === "at" ? mentionPanelOpen : undefined}
-              aria-haspopup={tool.key === "at" ? "listbox" : undefined}
-              aria-busy={tool.key === "image" && imageUploading ? "true" : undefined}
-              disabled={isInsertToolDisabled(tool.key)}
-              onpointerdown={(event) => {
-                if (tool.key === "at") event.preventDefault();
-              }}
-              onclick={() => handleInsertToolClick(tool.key)}
-            >
-              <CommentNextIcon name={tool.key === "image" && imageUploading ? "loader" : tool.icon} size={20} />
-            </button>
+        {#if hasTools}
+          <div class="comment-next-footer-tools">
+            {#if hasVisibleInsertTools}
+              <div class="comment-next-insert-tools-region">
+                {#if emotePanelOpen && hasEmotePacks}
+                  <CommentNextEmotePanel
+                    panelStyle={emotePanelStyle}
+                    packs={emotePacks}
+                    pageSize={emotePageSize}
+                    selectedItemId={selectedEmoteId}
+                    onSelect={handleEmoteSelect}
+                    onPreviewChange={(entry) => (emotePreview = entry)}
+                  />
+                {/if}
+
+                <div class="comment-next-insert-tools" role="group" aria-label="插入工具栏">
+                  {#if imageUploadEnabled || imageUploading}
+                    <input
+                      bind:this={imageInputElement}
+                      type="file"
+                      accept={imageAccept}
+                      hidden
+                      disabled={submitting || aiLoading}
+                      onchange={handleImageFileChange}
+                    />
+                  {/if}
+                  {#each visibleInsertTools as tool (tool.key)}
+                    <CommentNextTooltip text={tool.title} disabled={tool.key === 'at' && mentionPanelOpen}>
+                      <button
+                        class:comment-next-tool-button-active={(tool.key === 'smile' && emotePanelOpen) || (tool.key === 'image' && imageUploading)}
+                        class="comment-next-tool-button"
+                        type="button"
+                        data-comment-next-tool={tool.key}
+                        aria-label={tool.key === 'at' ? `@${aiAssistantName}，邀请助手回复` : tool.title}
+                        aria-expanded={tool.key === 'smile' ? emotePanelOpen : tool.key === 'at' ? mentionPanelOpen : undefined}
+                        aria-haspopup={tool.key === 'at' ? 'listbox' : undefined}
+                        aria-busy={tool.key === 'image' && imageUploading ? true : undefined}
+                        disabled={isInsertToolDisabled(tool.key)}
+                        onpointerdown={(event) => {
+                          if (tool.key === 'at') event.preventDefault();
+                        }}
+                        onclick={() => handleInsertToolClick(tool.key)}
+                      >
+                        <CommentNextIcon name={tool.key === 'image' && imageUploading ? 'loader' : tool.icon} size={17} />
+                      </button>
+                    </CommentNextTooltip>
+                  {/each}
+                </div>
+              </div>
+              {#if emotePreview}
+                <CommentNextEmotePreview
+                  item={emotePreview.item}
+                  packName={emotePreview.packName}
+                  style={emotePreview.style}
+                />
+              {/if}
+            {/if}
+
+            {#if mentionPanelOpen && showMention}
+              <div use:openTopLayer class="comment-next-mention-picker" style={mentionPanelStyle} role="listbox" aria-label="AI 助手候选">
+                <CommentNextMentionOption
+                  mentionName={aiAssistantMentionName || `@${aiAssistantName}`}
+                  avatar={aiAssistantAvatar}
+                  onSelect={() => {
+                    mentionPanelOpen = false;
+                    onMentionAssistant();
+                  }}
+                />
+              </div>
+            {/if}
+
+            {#if showAi}
+              <div class="comment-next-quick-actions">
+                {#if commandMenuOpen}
+                  <CommentNextAiPanel
+                    activeMode={aiMode}
+                    loading={aiLoading}
+                    {variant}
+                    assistantName={aiAssistantName}
+                    panelStyle={aiPanelStyle}
+                    hasContent={aiHasContent}
+                    hasSubject={aiHasSubject}
+                    hasReplyTarget={aiHasReplyTarget}
+                    onHeightChange={(height) => (aiPanelHeight = height)}
+                    onGenerate={handleCommandModeSelect}
+                    onClose={() => {
+                      onCloseCommandMenu();
+                      aiButtonElement?.focus({ preventScroll: true });
+                    }}
+                  />
+                {/if}
+
+                <button
+                  bind:this={aiButtonElement}
+                  class:comment-next-quick-button-active={commandMenuOpen}
+                  class="comment-next-quick-button"
+                  type="button"
+                  aria-label={aiLabel}
+                  title={aiLabel}
+                  aria-haspopup="dialog"
+                  aria-expanded={commandMenuOpen}
+                  disabled={submitting || aiLoading}
+                  onclick={handleQuickActionClick}
+                >
+                  <CommentNextIcon name="sparkle" size={16} />
+                  <span>{aiLabel}</span>
+                </button>
+              </div>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    {#if showSubmitArea}
+      <div class="comment-next-submit-area">
+        {#if enablePrivate && loggedIn}
+          <CommentNextTooltip text="仅自己和管理员可见" align="end">
+            <label class="comment-next-private-option">
+              <input
+                class="comment-next-private-input"
+                type="checkbox"
+                name="hidden"
+                aria-label="私密评论"
+                checked={privateComment}
+                disabled={submitting}
+                onchange={(event) => onPrivateChange(event.currentTarget.checked)}
+              />
+              <span class="comment-next-private-chip">
+                <CommentNextIcon name={privateComment ? 'check' : 'lock'} size={15} />
+                <span class="comment-next-private-label">私密</span>
+              </span>
+            </label>
           </CommentNextTooltip>
-        {/each}
-      </div>
-    </div>
-    {#if emotePreview}
-      <CommentNextEmotePreview
-        item={emotePreview.item}
-        packName={emotePreview.packName}
-        style={emotePreview.style}
-      />
-    {/if}
-    {/if}
+        {/if}
 
-    {#if mentionPanelOpen && showMention}
-      <div class="comment-next-mention-picker" style={mentionPanelStyle} role="listbox" aria-label="AI 助手候选">
-        <CommentNextMentionOption
-          mentionName={aiAssistantMentionName || `@${aiAssistantName}`}
-          avatar={aiAssistantAvatar}
-          onSelect={() => {
-            mentionPanelOpen = false;
-            onMentionAssistant();
-          }}
-        />
+        <button
+          class="comment-next-submit-button"
+          type={!loggedIn && !allowAnonymous ? 'button' : 'submit'}
+          disabled={submitting || submitDisabled}
+          aria-busy={submitting || submitDisabled || undefined}
+          onclick={!loggedIn && !allowAnonymous ? onLogin : undefined}
+        >
+          <span>{!loggedIn && !allowAnonymous ? loginLabel : submitLabel}</span>
+          <span class="comment-next-submit-icon" class:comment-next-loading-icon={submitting || submitDisabled}>
+            <CommentNextIcon
+              name={submitting || submitDisabled ? 'loader' : !loggedIn && !allowAnonymous ? 'login' : 'send'}
+              size={14}
+            />
+          </span>
+        </button>
       </div>
     {/if}
-
-    {#if showAi}
-    <div class="comment-next-quick-actions">
-      {#if commandMenuOpen}
-        <CommentNextAiPanel
-          activeMode={aiMode}
-          loading={aiLoading}
-          {variant}
-          assistantName={aiAssistantName}
-          panelStyle={aiPanelStyle}
-          hasContent={aiHasContent}
-          hasSubject={aiHasSubject}
-          hasReplyTarget={aiHasReplyTarget}
-          onHeightChange={(height) => (aiPanelHeight = height)}
-          onGenerate={handleCommandModeSelect}
-          onClose={() => {
-            onCloseCommandMenu();
-            aiButtonElement?.focus({ preventScroll: true });
-          }}
-        />
-      {/if}
-
-      <button
-        bind:this={aiButtonElement}
-        class:comment-next-quick-button-active={commandMenuOpen}
-        class="comment-next-quick-button"
-        type="button"
-        aria-label="AI 评论"
-        aria-haspopup="dialog"
-        aria-expanded={commandMenuOpen}
-        disabled={submitting || aiLoading}
-        onclick={handleQuickActionClick}
-      >
-        <CommentNextIcon name="messageSparkle" size={21} />
-        <span>{aiLabel}</span>
-      </button>
-    </div>
-    {/if}
-
-
   </div>
-
-  {#if showSubmitArea}
-  <div class="comment-next-submit-area">
-    {#if enablePrivate && loggedIn}
-      <div class="comment-next-private-control">
-        <CommentNextTooltip text="仅自己和管理员可见" align="end" mobileAlign="start">
-          <label class="comment-next-private-option">
-            <input class="comment-next-private-input" type="checkbox" name="hidden" aria-label="私密评论" />
-            <span class="comment-next-private-chip">
-              <CommentNextIcon name="lock" size={14} />
-              <span>私密</span>
-            </span>
-          </label>
-        </CommentNextTooltip>
-      </div>
-    {/if}
-
-    <button
-      class="comment-next-submit-button"
-      type={!loggedIn && !allowAnonymous ? "button" : "submit"}
-      disabled={submitting || submitDisabled}
-      onclick={!loggedIn && !allowAnonymous ? onLogin : undefined}
-    >
-      {#if submitting}
-        <span class="comment-next-loading-icon">
-          <CommentNextIcon name="loader" size={17} />
-        </span>
-      {:else if !loggedIn && !allowAnonymous}
-        <CommentNextIcon name="login" size={17} />
-      {:else}
-        <CommentNextIcon name="send" size={17} />
-      {/if}
-      {!loggedIn && !allowAnonymous ? loginLabel : submitLabel}
-    </button>
-  </div>
-  {/if}
-</div>
+{/if}
 
 <style>
   .comment-next-footer {
-    --at-apply: flex min-h-14 box-border items-center justify-between gap-3 border-t [border-top-style:var(--comment-next-divider-style,dashed)] [border-top-color:var(--comment-next-divider-color,#d4dde8)] rounded-b-[var(--comment-next-radius-lg,0.875rem)] [background:var(--comment-next-footer-surface-bg,transparent,var(--comment-next-footer-bg-color,#fbfcfc))] px-3.5 py-0;
-    max-width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3125rem 0.625rem;
+    box-sizing: border-box;
     min-width: 0;
   }
 
   .comment-next-footer-left,
-  .comment-next-quick-actions,
-  .comment-next-insert-tools-region,
-  .comment-next-insert-tools,
-  .comment-next-submit-area,
-  .comment-next-private-control,
-  .comment-next-private-option {
-    --at-apply: flex items-center;
-  }
-
+  .comment-next-footer-identity,
+  .comment-next-footer-tools,
   .comment-next-quick-actions,
   .comment-next-insert-tools,
   .comment-next-submit-area {
-    --at-apply: gap-2;
+    display: flex;
+    align-items: center;
+    min-width: 0;
   }
 
+  .comment-next-footer-left,
+  .comment-next-footer-tools,
+  .comment-next-submit-area {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+
+  .comment-next-footer-left,
+  .comment-next-footer-tools {
+    gap: 0.25rem 0.1875rem;
+  }
+
+  .comment-next-submit-area {
+    justify-content: flex-end;
+    gap: 0.3125rem;
+    margin-inline-start: auto;
+  }
+
+  .comment-next-insert-tools-region,
   .comment-next-quick-actions {
-    --at-apply: relative;
+    position: relative;
+    min-width: 0;
   }
 
   .comment-next-mention-picker {
     --at-apply: fixed z-[2147482991] box-border rounded-[0.875rem] border border-solid [border-color:var(--comment-next-menu-border-color,#d5dde7)] bg-[var(--comment-next-menu-bg-color,#ffffff)] p-2 shadow-[0_12px_36px_rgb(15_23_42_/_0.14)];
+    inset: auto;
+    margin: 0;
   }
 
-  .comment-next-footer-left {
-    --at-apply: min-w-0 gap-0.5;
-    max-width: 100%;
-  }
-
-  .comment-next-toolbar-visible {
-    --at-apply: rounded-full border border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-toolbar-bg-color,#ffffff)] p-[0.1875rem];
-    max-width: 100%;
-  }
-
-  .comment-next-submit-area {
-    max-width: 100%;
-    min-width: 0;
-  }
-
-  .comment-next-insert-tools-region {
-    --at-apply: relative min-w-0;
-  }
-
-  .comment-next-footer-compact {
-    --at-apply: min-h-12 px-2.5 py-0;
-  }
-
-  .comment-next-footer-compact .comment-next-quick-button {
-    --at-apply: h-[1.9375rem] min-w-0 px-2.5 py-0 text-[0.8125rem];
-  }
-
-  .comment-next-footer-compact .comment-next-submit-button {
-    --at-apply: h-8 min-w-18 px-3.5 py-0 text-sm;
-  }
-
-  .comment-next-quick-button,
   .comment-next-tool-button,
+  .comment-next-quick-button,
+  .comment-next-private-chip,
   .comment-next-submit-button {
-    --at-apply: font-inherit;
-  }
-
-  .comment-next-quick-button {
-    --at-apply: inline-flex h-8 w-auto max-w-36 min-w-0 cursor-pointer items-center justify-center gap-[0.3rem] rounded-full border-0 bg-transparent px-3 py-0 text-sm text-[var(--comment-next-icon-color,#39445d)] font-[650] transition-[background-color,color,border-color,box-shadow,transform] duration-140 ease-in-out;
-  }
-
-  .comment-next-quick-button span {
-    --at-apply: min-w-0 truncate;
-  }
-
-  .comment-next-quick-button:hover,
-  .comment-next-quick-button-active {
-    --at-apply: [border-color:var(--comment-next-primary-color,rgb(59,130,246))] bg-[var(--comment-next-pill-active-bg-color,rgb(239_246_255))] text-[var(--comment-next-primary-color,rgb(59,130,246))];
-  }
-
-  .comment-next-quick-button:active {
-    --at-apply: translate-y-px;
-  }
-
-  .comment-next-quick-button:disabled {
-    --at-apply: cursor-not-allowed opacity-45;
-  }
-
-  .comment-next-insert-tools {
-    --at-apply: min-w-0 overflow-visible gap-0.5;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: var(--comment-next-composer-control-height);
+    gap: 0.375rem;
+    padding: 0 0.5rem;
+    border: 1px solid transparent;
+    border-radius: var(--comment-next-composer-control-radius);
+    background: transparent;
+    color: var(--comment-next-muted-color, #667085);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
   }
 
   .comment-next-tool-button {
-    --at-apply: inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-[0.4375rem] border-0 bg-transparent p-0 text-[var(--comment-next-icon-color,#39445d)] transition-[background-color,color,transform] duration-140 ease-in-out;
+    min-width: var(--comment-next-composer-tool-width, var(--comment-next-composer-control-height));
+    padding-inline: 0;
   }
 
-  .comment-next-tool-button:hover {
-    --at-apply: bg-[var(--comment-next-control-hover-bg-color,#eef2f4)] text-[var(--comment-next-text-color,#172033)];
+  .comment-next-tool-button:where(:hover:not(:disabled)),
+  .comment-next-quick-button:where(:hover:not(:disabled)),
+  .comment-next-private-input:where(:not(:disabled)) + .comment-next-private-chip:where(:hover) {
+    background: var(--comment-next-control-hover-bg-color, #eef2f4);
+    color: var(--comment-next-text-color, #172033);
   }
 
-  .comment-next-tool-button:disabled {
-    --at-apply: cursor-not-allowed opacity-45;
+  .comment-next-quick-button {
+    min-width: 0;
+    max-width: 10rem;
   }
 
-  .comment-next-tool-button-active {
-    --at-apply: bg-[var(--comment-next-pill-active-bg-color,rgb(239_246_255))] text-[var(--comment-next-primary-color,rgb(59,130,246))];
+  .comment-next-quick-button span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
-  .comment-next-tool-button:active {
-    --at-apply: translate-y-px;
-  }
-
-  .comment-next-tool-button[aria-busy="true"] :global(.comment-next-icon) {
-    --at-apply: animate-spin;
-  }
-
-  .comment-next-upload-input {
-    --at-apply: sr-only;
-  }
-
-  .comment-next-private-control {
-    --at-apply: gap-1;
-  }
-
-  .comment-next-private-option {
-    --at-apply: h-8 cursor-pointer whitespace-nowrap;
+  .comment-next-quick-button-active,
+  .comment-next-tool-button-active,
+  .comment-next-private-input:checked + .comment-next-private-chip {
+    background: var(--comment-next-composer-tint);
+    color: var(--comment-next-composer-action-ink);
   }
 
   .comment-next-private-input {
     --at-apply: sr-only;
   }
 
+  .comment-next-private-option {
+    display: inline-flex;
+  }
+
   .comment-next-private-chip {
-    --at-apply: inline-flex h-8 box-border items-center justify-center gap-1.5 rounded-[0.5625rem] border border-solid border-transparent bg-transparent px-2.5 py-0 text-sm text-[var(--comment-next-muted-color,#6b7687)] font-[650] transition-[background-color,border-color,color,box-shadow,transform] duration-140 ease-in-out;
-  }
-
-  .comment-next-private-option:hover .comment-next-private-chip {
-    --at-apply: bg-[var(--comment-next-control-hover-bg-color,#eef2f4)] text-[var(--comment-next-text-color,#172033)];
-  }
-
-  .comment-next-private-input:checked + .comment-next-private-chip {
-    --at-apply: [border-color:rgb(147_197_253_/_0.55)] bg-[var(--comment-next-pill-active-bg-color,rgb(239_246_255))] text-[var(--comment-next-primary-color,rgb(59,130,246))] shadow-[0_5px_14px_rgb(59_130_246_/_0.10)];
-  }
-
-  .comment-next-private-input:focus-visible + .comment-next-private-chip {
-    --at-apply: outline-2 outline-solid outline-offset-2 [outline-color:var(--comment-next-focus-ring-color,rgb(147_197_253))];
-  }
-
-  .comment-next-private-input:active + .comment-next-private-chip {
-    --at-apply: translate-y-px;
+    white-space: nowrap;
   }
 
   .comment-next-submit-button {
-    --at-apply: inline-flex h-9 min-w-[5.75rem] cursor-pointer items-center justify-center gap-[0.45rem] rounded-[0.5625rem] border-0 bg-[var(--comment-next-primary-color,#172033)] px-4 py-0 text-[0.9375rem] text-white font-[650] shadow-[0_9px_18px_rgb(23_32_51_/_0.14)] transition-[background-color,box-shadow,transform] duration-140 ease-in-out;
+    flex: none;
+    gap: 0.4375rem;
+    max-width: 100%;
+    padding-inline: 0.6875rem;
+    background: var(--comment-next-composer-tint);
+    color: var(--comment-next-composer-action-ink);
+    font-weight: 650;
   }
 
-  .comment-next-submit-button:hover {
-    --at-apply: bg-[var(--comment-next-primary-hover-color,rgb(59,130,246))] shadow-[0_10px_20px_rgb(59_130_246_/_0.18)];
+  .comment-next-submit-icon {
+    display: inline-flex;
+    flex: none;
   }
 
-  .comment-next-submit-button:active {
-    --at-apply: translate-y-px;
+  .comment-next-submit-button:hover:not(:disabled) {
+    background: var(--comment-next-composer-action-hover);
+  }
+
+  .comment-next-submit-button:active:not(:disabled) {
+    background: var(--comment-next-composer-submit-bg);
+    color: var(--comment-next-composer-submit-text, var(--comment-next-composer-on-accent, #fff));
+  }
+
+  @supports (color: light-dark(white, black)) {
+    .comment-next-submit-button {
+      background: light-dark(
+        var(--comment-next-style-light-accent, var(--comment-next-composer-tint)),
+        var(--comment-next-style-dark-accent, var(--comment-next-composer-tint))
+      );
+      color: light-dark(
+        var(--comment-next-style-light-ink, var(--comment-next-composer-action-ink)),
+        var(--comment-next-style-dark-ink, var(--comment-next-composer-action-ink))
+      );
+    }
+
+    .comment-next-submit-button:hover:not(:disabled) {
+      background: light-dark(
+        var(--comment-next-style-light-accent, var(--comment-next-composer-action-hover)),
+        var(--comment-next-style-dark-accent, var(--comment-next-composer-action-hover))
+      );
+    }
+
+    .comment-next-submit-button:active:not(:disabled) {
+      background: light-dark(
+        var(--comment-next-style-light-accent, var(--comment-next-composer-submit-bg)),
+        var(--comment-next-style-dark-accent, var(--comment-next-composer-submit-bg))
+      );
+      color: light-dark(
+        var(--comment-next-style-light-ink, var(--comment-next-composer-submit-text, var(--comment-next-composer-on-accent, #fff))),
+        var(--comment-next-style-dark-ink, var(--comment-next-composer-submit-text, var(--comment-next-composer-on-accent, #fff)))
+      );
+    }
   }
 
   .comment-next-submit-button:focus-visible,
   .comment-next-quick-button:focus-visible,
-  .comment-next-tool-button:focus-visible {
-    --at-apply: outline-2 outline-solid outline-offset-2 [outline-color:var(--comment-next-focus-ring-color,rgb(147_197_253))];
+  .comment-next-tool-button:focus-visible,
+  .comment-next-private-input:focus-visible + .comment-next-private-chip {
+    outline: 2px solid var(--comment-next-composer-accent);
+    outline-offset: 2px;
   }
 
-  .comment-next-submit-button:disabled {
-    --at-apply: cursor-not-allowed opacity-72;
+  .comment-next-submit-button:disabled,
+  .comment-next-quick-button:disabled,
+  .comment-next-tool-button:disabled,
+  .comment-next-private-input:disabled + .comment-next-private-chip {
+    cursor: not-allowed;
+    opacity: 0.55;
   }
 
+  .comment-next-tool-button[aria-busy="true"] :global(.comment-next-icon),
   .comment-next-loading-icon {
     --at-apply: animate-spin;
   }
 
-  @media (max-width: 780px) {
-    .comment-next-footer {
-      --at-apply: grid min-h-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5;
-    }
-
-    .comment-next-footer-left {
-      --at-apply: min-w-0 flex-wrap gap-2;
-    }
-
-    .comment-next-submit-area {
-      --at-apply: min-w-0 justify-end gap-2;
-    }
-
-    .comment-next-insert-tools-region {
-      --at-apply: w-auto;
-    }
-
-    .comment-next-insert-tools {
-      --at-apply: overflow-visible;
-    }
-
+  @container comment-next-composer (max-width: 28rem) {
     .comment-next-quick-button {
-      --at-apply: h-8 min-w-0 px-2.5 text-[0.8125rem];
+      min-width: var(--comment-next-composer-tool-width, var(--comment-next-composer-control-height));
+      padding: 0;
     }
 
-    .comment-next-submit-button {
-      --at-apply: h-8 min-w-18 px-3.5 text-sm;
+    .comment-next-quick-button span {
+      display: none;
     }
 
-    .comment-next-private-chip {
-      --at-apply: h-8 px-2 text-[0.8125rem];
+    .comment-next-footer {
+      column-gap: 0.3125rem;
     }
   }
 
-  @media (max-width: 420px) {
-    .comment-next-footer {
-      --at-apply: grid-cols-1;
+  @container comment-next-composer (max-width: 24rem) {
+    .comment-next-footer,
+    .comment-next-submit-area {
+      column-gap: 0.1875rem;
     }
 
-    .comment-next-submit-area {
-      --at-apply: w-full justify-between;
+    .comment-next-footer-left,
+    .comment-next-footer-tools {
+      column-gap: 0.125rem;
+    }
+
+    .comment-next-submit-button {
+      padding-inline: 0.625rem;
+    }
+
+    .comment-next-private-chip {
+      min-width: var(--comment-next-composer-tool-width);
+      padding-inline: 0;
+    }
+
+    .comment-next-private-label,
+    .comment-next-submit-icon {
+      display: none;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .comment-next-quick-button,
     .comment-next-tool-button,
+    .comment-next-quick-button,
+    .comment-next-private-chip,
     .comment-next-submit-button {
-      --at-apply: transition-none;
+      transition: none;
     }
 
+    .comment-next-tool-button[aria-busy="true"] :global(.comment-next-icon),
     .comment-next-loading-icon {
-      --at-apply: animate-none;
+      animation: none;
     }
   }
 </style>

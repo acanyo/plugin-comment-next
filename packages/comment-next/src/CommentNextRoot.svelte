@@ -20,6 +20,10 @@ import {
   ensureInteractionPlusRuntime,
   shouldLoadInteractionPlusRuntime,
 } from './services/interaction-plus';
+import {
+  type CommentNextStyle,
+  resolveCommentStyle,
+} from './theme/comment-style';
 import type {
   CommentNextCreatedEventDetail,
   CommentNextReplyTarget,
@@ -29,6 +33,7 @@ import type {
   CommentNextRawEmotePacks,
 } from './types/emote';
 import type { CommentNextSnippetAnchor } from './types/snippet';
+import { parseCommentAnchor } from './utils/comment-anchor';
 import {
   sanitizeCommentSubmitHtml,
   sanitizeConsoleCommentHtml,
@@ -60,6 +65,7 @@ let {
   showComments = true,
   replyTarget = $bindable<CommentNextReplyTarget | undefined>(),
   demoData = false,
+  previewStyle,
   pageSize = 20,
   replySize = 10,
   withReplies = true,
@@ -89,6 +95,7 @@ let {
   showComments?: boolean;
   replyTarget?: CommentNextReplyTarget;
   demoData?: boolean;
+  previewStyle?: CommentNextStyle;
   pageSize?: number;
   replySize?: number;
   withReplies?: boolean;
@@ -110,6 +117,8 @@ let configLoaded = $state(false);
 let configFailed = $state(false);
 let globalInfoLoaded = $state(false);
 let globalInfoFailed = $state(false);
+let rootElement = $state<HTMLDivElement>();
+let commentsActivated = $state(false);
 // biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
 let boxRef = $state<
   | (CommentNextComposerRef & {
@@ -125,6 +134,12 @@ const globalInfoReady = $derived(
   demoData || globalInfoLoaded || globalInfoFailed
 );
 const configReady = $derived(pluginConfigReady && globalInfoReady);
+const appearance = $derived(
+  resolveCommentStyle(demoData ? previewStyle : pluginConfig?.appearance)
+);
+const renderComments = $derived(
+  showComments && configReady && (demoData || commentsActivated)
+);
 const basicConfig = $derived(pluginConfig?.basic);
 const securityConfig = $derived(pluginConfig?.security);
 const aiConfig = $derived(pluginConfig?.ai);
@@ -179,6 +194,37 @@ const resolvedReplySize = $derived(
     replySize
   )
 );
+
+$effect(() => {
+  const element = rootElement;
+  if (!element || !showComments || demoData || commentsActivated) return;
+
+  const openLinkedComment = () => {
+    if (parseCommentAnchor(window.location.hash)) commentsActivated = true;
+  };
+  if (
+    typeof IntersectionObserver === 'undefined' ||
+    parseCommentAnchor(window.location.hash)
+  ) {
+    commentsActivated = true;
+    return;
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting))
+        commentsActivated = true;
+    },
+    { rootMargin: '320px 0px' }
+  );
+
+  observer.observe(element);
+  window.addEventListener('hashchange', openLinkedComment);
+  return () => {
+    observer.disconnect();
+    window.removeEventListener('hashchange', openLinkedComment);
+  };
+});
 
 onMount(() => {
   if (demoData) {
@@ -347,9 +393,18 @@ function handleEditorChange(html: string) {
   );
 }
 
+function handleCreated(detail: CommentNextCreatedEventDetail) {
+  if (showComments) commentsActivated = true;
+  onCreated(detail);
+}
+
 export function focus() {
-  if (editorOnly) editorComposerRef?.focus();
-  else boxRef?.focus();
+  if (editorOnly) {
+    editorComposerRef?.focus();
+  } else {
+    if (showComments) commentsActivated = true;
+    boxRef?.focus();
+  }
 }
 
 export function reset() {
@@ -395,8 +450,15 @@ export function cancelReply(): boolean {
     onChange={handleEditorChange}
   />
 {:else}
-  <div class="comment-next-root grid w-full gap-4">
-    {#if showComments && configReady && reactionConfig?.enabled}
+  <div
+    bind:this={rootElement}
+    class="comment-next-root grid w-full gap-4"
+    class:comment-next-custom-accent={appearance.customAccent}
+    data-comment-density={appearance.density}
+    data-comment-list-style={appearance.listStyle}
+    style={appearance.variables}
+  >
+    {#if renderComments && reactionConfig?.enabled}
       <CommentNextReactionBar
         {baseUrl}
         {group}
@@ -428,7 +490,7 @@ export function cancelReply(): boolean {
       {showFooter}
       {showSubmitArea}
       bind:replyTarget
-      {onCreated}
+      onCreated={handleCreated}
       {commandMenuOpen}
       {inlineSuggestion}
       {selectionTools}
@@ -444,7 +506,7 @@ export function cancelReply(): boolean {
       <CommentNextSnippetTrigger subject={{baseUrl,group,kind,name,version}} onQuote={(anchor) => boxRef?.quoteSnippet(anchor) ?? false} />
     {/if}
 
-    {#if showComments && configReady}
+    {#if renderComments}
       <CommentNextCommentList
         {baseUrl}
         {group}
@@ -478,8 +540,48 @@ export function cancelReply(): boolean {
 <style>
   .comment-next-root {
     --at-apply: grid w-full gap-4;
+    container: comment-next-thread / inline-size;
     box-sizing: border-box;
     max-width: 100%;
     min-width: 0;
+  }
+
+  .comment-next-root[data-comment-density='compact'] {
+    --comment-next-style-item-space: 0.75rem;
+    --comment-next-style-reply-space: 0.5rem;
+  }
+
+  .comment-next-root[data-comment-density='spacious'] {
+    --comment-next-style-item-space: 1.5rem;
+    --comment-next-style-reply-space: 1rem;
+  }
+
+  @supports (color: light-dark(white, black)) {
+    .comment-next-custom-accent {
+      --comment-next-primary-color: light-dark(
+        var(--comment-next-style-light-accent, var(--comment-next-theme-primary)),
+        var(--comment-next-style-dark-accent, var(--comment-next-theme-primary))
+      );
+      --comment-next-primary-hover-color: light-dark(
+        var(--comment-next-style-light-accent, var(--comment-next-theme-primary-hover)),
+        var(--comment-next-style-dark-accent, var(--comment-next-theme-primary-hover))
+      );
+      --comment-next-focus-border-color: light-dark(
+        var(--comment-next-style-light-accent, var(--comment-next-theme-focus)),
+        var(--comment-next-style-dark-accent, var(--comment-next-theme-focus))
+      );
+      --comment-next-link-color: light-dark(
+        var(--comment-next-style-light-accent, var(--comment-next-theme-link)),
+        var(--comment-next-style-dark-accent, var(--comment-next-theme-link))
+      );
+      --comment-next-link-hover-color: light-dark(
+        var(--comment-next-style-light-accent, var(--comment-next-theme-link-hover)),
+        var(--comment-next-style-dark-accent, var(--comment-next-theme-link-hover))
+      );
+      --comment-next-pill-active-bg-color: light-dark(
+        var(--comment-next-style-light-accent-tint, var(--comment-next-theme-pill-active)),
+        var(--comment-next-style-dark-accent-tint, var(--comment-next-theme-pill-active))
+      );
+    }
   }
 </style>

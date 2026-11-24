@@ -12,6 +12,7 @@ import {
   restoreTextSelectionOffset,
 } from './utils/autolink';
 import { isImageFile } from './utils/image-files';
+import { anchoredPanelStyle, openTopLayer } from './utils/top-layer';
 
 type PendingCommandTrigger = {
   startOffset: number;
@@ -50,6 +51,7 @@ const MAX_MEDIA_SIZE = 4096;
 
 const {
   placeholder = '写下你的评论...',
+  label = '评论内容',
   aiOpen = false,
   inlineSuggestion = false,
   selectionTools = false,
@@ -61,7 +63,7 @@ const {
   aiAssistantAvatar = '',
   aiMentionEnabled = true,
   allowImages = true,
-  topRounded = false,
+  readOnly = false,
   onChange = () => {},
   onImagePaste = () => {},
   onCommandMenuRequest = () => {},
@@ -72,6 +74,7 @@ const {
   onRejectSuggestion = () => {},
 }: {
   placeholder?: string;
+  label?: string;
   aiOpen?: boolean;
   inlineSuggestion?: boolean;
   selectionTools?: boolean;
@@ -83,7 +86,7 @@ const {
   aiAssistantAvatar?: string;
   aiMentionEnabled?: boolean;
   allowImages?: boolean;
-  topRounded?: boolean;
+  readOnly?: boolean;
   onChange?: (html: string) => void;
   onImagePaste?: (files: File[]) => Promise<void> | void;
   onCommandMenuRequest?: () => void;
@@ -118,15 +121,20 @@ const mentionSuggestionVisible = $derived(
 );
 
 onMount(() => {
-  window.addEventListener('resize', updateResizeHandlePosition);
-  window.addEventListener('scroll', updateResizeHandlePosition, true);
+  const handleViewportChange = () => {
+    updateResizeHandlePosition();
+    if (pendingMentionTrigger)
+      void updateMentionPanelPosition(pendingMentionTrigger);
+  };
+  window.addEventListener('resize', handleViewportChange);
+  window.addEventListener('scroll', handleViewportChange, true);
   window.addEventListener('pointermove', handleResizePointerMove, true);
   window.addEventListener('pointerup', handleResizePointerUp, true);
   window.addEventListener('pointercancel', handleResizePointerUp, true);
 
   return () => {
-    window.removeEventListener('resize', updateResizeHandlePosition);
-    window.removeEventListener('scroll', updateResizeHandlePosition, true);
+    window.removeEventListener('resize', handleViewportChange);
+    window.removeEventListener('scroll', handleViewportChange, true);
     window.removeEventListener('pointermove', handleResizePointerMove, true);
     window.removeEventListener('pointerup', handleResizePointerUp, true);
     window.removeEventListener('pointercancel', handleResizePointerUp, true);
@@ -168,14 +176,33 @@ export function getLimitedMediaDimensions(): Array<{
   });
 }
 
-export function reset() {
+export function setHtml(html: string) {
   if (!editorElement) {
     return;
   }
 
-  editorElement.innerHTML = '';
+  if (autolinkTimer !== undefined) window.clearTimeout(autolinkTimer);
+  editorElement.innerHTML = html;
+  for (const image of editorElement.querySelectorAll(
+    'img.comment-next-image'
+  )) {
+    image.classList.replace('comment-next-image', 'comment-next-editor-image');
+  }
+  for (const image of editorElement.querySelectorAll(
+    'img.comment-next-emote-image'
+  )) {
+    image.classList.replace(
+      'comment-next-emote-image',
+      'comment-next-editor-emote-image'
+    );
+  }
+  for (const lottie of editorElement.querySelectorAll('halo-lottie')) {
+    lottie.classList.add('comment-next-editor-lottie');
+    lottie.setAttribute('contenteditable', 'false');
+  }
   clearSelectedMedia();
-  onChange('');
+  pendingCommandTrigger = undefined;
+  closeMentionPanel();
 }
 
 export function focus() {
@@ -743,25 +770,13 @@ async function updateMentionPanelPosition(trigger: PendingMentionTrigger) {
     trigger.startOffset,
     trigger.endOffset
   );
-  const wrapRect = editorWrapElement.getBoundingClientRect();
   const editorRect = editorElement.getBoundingClientRect();
   const triggerRect = range?.getBoundingClientRect();
   const rect =
     triggerRect && triggerRect.width + triggerRect.height > 0
       ? triggerRect
       : editorRect;
-  const panelWidth = Math.min(288, Math.max(220, wrapRect.width - 24));
-  const left = Math.min(
-    Math.max(12, rect.left - wrapRect.left),
-    Math.max(12, wrapRect.width - panelWidth - 12)
-  );
-  const top = Math.max(12, rect.bottom - wrapRect.top + 8);
-
-  mentionPanelStyle = [
-    `--comment-next-mention-left:${left}px`,
-    `--comment-next-mention-top:${top}px`,
-    `--comment-next-mention-width:${panelWidth}px`,
-  ].join(';');
+  mentionPanelStyle = anchoredPanelStyle(rect, 288, 76);
 }
 
 function normalizeMentionName(value: string): string {
@@ -1042,18 +1057,18 @@ function isNodeInsideTransient(node: Node): boolean {
   bind:this={editorWrapElement}
   class:comment-next-editor-wrap-inline={inlineSuggestion}
   class:comment-next-editor-wrap-selection={selectionTools}
-  class:comment-next-editor-wrap-top-rounded={topRounded}
   class="comment-next-editor-wrap"
 >
   <div
     bind:this={editorElement}
     class="comment-next-editor"
-    contenteditable="true"
+    contenteditable={!readOnly}
     role="textbox"
     tabindex="0"
     aria-multiline="true"
+    aria-readonly={readOnly}
     data-placeholder={placeholder}
-    aria-label="评论内容"
+    aria-label={label}
     oninput={handleEditorInput}
     onpointerdown={handleEditorPointerDown}
     onkeydown={handleEditorKeyDown}
@@ -1100,6 +1115,7 @@ function isNodeInsideTransient(node: Node): boolean {
 
   {#if mentionSuggestionVisible}
     <div
+      use:openTopLayer
       class="comment-next-mention-panel"
       data-comment-next-transient="true"
       role="listbox"
@@ -1132,37 +1148,38 @@ function isNodeInsideTransient(node: Node): boolean {
 
 <style>
   .comment-next-editor-wrap {
-    --at-apply: relative min-h-[var(--comment-next-editor-min-height,12.5rem)] overflow-visible [background:var(--comment-next-editor-surface-bg,transparent,var(--comment-next-editor-bg-color,#ffffff))];
+    position: relative;
     box-sizing: border-box;
     max-width: 100%;
     min-width: 0;
-  }
-
-  .comment-next-editor-wrap-top-rounded {
-    --at-apply: rounded-t-[var(--comment-next-radius-lg,0.875rem)];
-  }
-
-  .comment-next-editor-wrap::after {
-    --at-apply: absolute right-4 bottom-0 left-4 h-0 border-t [border-top-style:var(--comment-next-divider-style,dashed)] [border-top-color:var(--comment-next-divider-color,#d4dde8)] bg-transparent;
-    content: "";
+    border-radius: inherit;
+    background: var(--comment-next-editor-surface-bg, transparent);
   }
 
   .comment-next-editor-wrap-inline,
   .comment-next-editor-wrap-selection {
-    --at-apply: [background:var(--comment-next-editor-ai-surface-bg,radial-gradient(circle_at_1.5rem_1.25rem,rgb(59_130_246_/_0.14),transparent_8rem),linear-gradient(180deg,rgb(255_255_255_/_0.98),rgb(247_252_251_/_0.98)),var(--comment-next-editor-bg-color,#ffffff))];
+    background: var(--comment-next-editor-ai-surface-bg, var(--comment-next-composer-tint));
   }
 
   .comment-next-editor {
-    --at-apply: box-border min-h-[var(--comment-next-editor-min-height,12.5rem)] text-[0.9375rem] text-[var(--comment-next-text-color,#172033)] leading-[1.7] outline-none caret-[var(--comment-next-primary-color,rgb(59,130,246))];
+    box-sizing: border-box;
+    min-height: var(--comment-next-editor-min-height, var(--comment-next-composer-default-height, 8.25rem));
     max-width: 100%;
     min-width: 0;
     overflow-wrap: anywhere;
-    padding: var(--comment-next-editor-padding, 1.125rem 1.25rem 1.25rem);
+    padding: var(--comment-next-editor-padding, 0.9375rem var(--comment-next-composer-gutter) 0.75rem);
+    color: inherit;
+    font-size: var(--comment-next-font-size, inherit);
+    line-height: 1.65;
+    caret-color: var(--comment-next-composer-accent);
+    outline: none;
   }
 
   .comment-next-editor:empty::before {
     content: attr(data-placeholder);
-    --at-apply: pointer-events-none text-[var(--comment-next-placeholder-color,#8b96a7)];
+    pointer-events: none;
+    color: var(--comment-next-muted-color, #667085);
+    color: color-mix(in srgb, var(--comment-next-placeholder-color, #8b96a7) 80%, var(--comment-next-text-color, #172033));
   }
 
   .comment-next-editor-wrap-inline .comment-next-editor {
@@ -1174,7 +1191,7 @@ function isNodeInsideTransient(node: Node): boolean {
   }
 
   .comment-next-editor-suggestion {
-    padding: 0 1.25rem 1.25rem;
+    padding: 0 var(--comment-next-composer-gutter) 1rem var(--comment-next-composer-writing-inset);
   }
 
   .comment-next-editor :global(.comment-next-auto-link) {
@@ -1229,10 +1246,9 @@ function isNodeInsideTransient(node: Node): boolean {
   }
 
   .comment-next-mention-panel {
-    --at-apply: absolute z-50 box-border rounded-[0.875rem] border border-solid [border-color:var(--comment-next-menu-border-color,#d5dde7)] bg-[var(--comment-next-menu-bg-color,#ffffff)] p-1.5 text-[var(--comment-next-text-color,#172033)] shadow-[0_18px_42px_rgb(15_23_42_/_0.16),0_1px_0_rgb(255_255_255_/_0.82)_inset];
-    left: var(--comment-next-mention-left, 1rem);
-    top: var(--comment-next-mention-top, 3rem);
-    width: var(--comment-next-mention-width, 18rem);
+    --at-apply: fixed z-50 box-border rounded-[0.875rem] border border-solid [border-color:var(--comment-next-menu-border-color,#d5dde7)] bg-[var(--comment-next-menu-bg-color,#ffffff)] p-1.5 text-[var(--comment-next-text-color,#172033)] shadow-[0_18px_42px_rgb(15_23_42_/_0.16),0_1px_0_rgb(255_255_255_/_0.82)_inset];
+    inset: auto;
+    margin: 0;
     animation: comment-next-mention-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
@@ -1307,28 +1323,20 @@ function isNodeInsideTransient(node: Node): boolean {
     }
   }
 
-  @media (max-width: 640px) {
-    .comment-next-editor-wrap {
-      --at-apply: min-h-[var(--comment-next-editor-mobile-min-height,9rem)];
-    }
-
+  @container comment-next-composer (max-width: 36rem) {
     .comment-next-editor {
-      --at-apply: min-h-[var(--comment-next-editor-mobile-min-height,9rem)];
+      min-height: var(--comment-next-editor-mobile-min-height, var(--comment-next-composer-default-mobile-height, 7rem));
       padding: var(
         --comment-next-editor-mobile-padding,
-        var(--comment-next-editor-padding, 1rem)
+        var(--comment-next-editor-padding, 0.8125rem var(--comment-next-composer-gutter) 0.625rem)
       );
+      font-size: 1rem;
     }
 
     .comment-next-selection-bar {
       --at-apply: right-3 left-3 overflow-x-auto;
     }
 
-    .comment-next-mention-panel {
-      --at-apply: right-3 w-auto;
-      left: max(0.75rem, var(--comment-next-mention-left, 0.75rem));
-      max-width: calc(100% - 1.5rem);
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {

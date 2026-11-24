@@ -30,7 +30,7 @@ class CommentNextIpLocationResponseParserTest {
               "status": "success",
               "country": "日本",
               "countryCode": "JP",
-              "regionName": "东京都",
+              "regionName": "东京都中央市",
               "city": "东京"
             }
             """);
@@ -39,7 +39,7 @@ class CommentNextIpLocationResponseParserTest {
     }
 
     @Test
-    void fallsBackToCityWhenProvinceMissing() throws Exception {
+    void recognizesMunicipalityWhenProvinceMissing() throws Exception {
         var response = JsonUtils.createObjectMapper().readTree("""
             {
               "status": "success",
@@ -50,6 +50,15 @@ class CommentNextIpLocationResponseParserTest {
             """);
 
         assertEquals("北京", CommentNextIpLocationResponseParser.location(response));
+    }
+
+    @Test
+    void keepsCountryWhenProviderGivesOnlyACityWithinIt() throws Exception {
+        var response = JsonUtils.createObjectMapper().readTree("""
+            {"country": "中国", "city": "深圳市"}
+            """);
+
+        assertEquals("中国", CommentNextIpLocationResponseParser.location(response));
     }
 
     @Test
@@ -76,12 +85,12 @@ class CommentNextIpLocationResponseParserTest {
     void readsCountryFromPconlineOverseasResponse() throws Exception {
         var response = JsonUtils.createObjectMapper().readTree("""
             {
-              "ip": "8.8.8.8",
+              "ip": "1.1.1.1",
               "pro": "",
               "proCode": "999999",
               "city": "",
               "region": "",
-              "addr": " 美国",
+              "addr": " 美国APNIC&CloudFlare公共DNS服务器",
               "err": "noprovince"
             }
             """);

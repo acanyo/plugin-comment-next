@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { sanitizeCommentHtml, sanitizeCommentSubmitHtml } from './html';
-import { upgradeLottieImages } from './lottie-html';
+import { containsLottieImage, upgradeLottieImages } from './lottie-html';
 
 function fragment(html: string): DocumentFragment {
   const template = document.createElement('template');
@@ -98,6 +98,14 @@ describe('Lottie comment source policy', () => {
 });
 
 describe('Lottie content adapter', () => {
+  it('recognizes an animation added as the root of a new subtree', () => {
+    const image = document.createElement('img');
+    image.src = '/photo.png';
+    expect(containsLottieImage(image)).toBe(false);
+    image.src = '/animation.lottie';
+    expect(containsLottieImage(image)).toBe(true);
+  });
+
   it('removes blocked stored animation images', () => {
     document.body.innerHTML =
       '<img src="https://evil.example/wave.lottie" title="comment-next-lottie:format=lottie">';

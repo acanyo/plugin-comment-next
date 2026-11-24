@@ -1,6 +1,7 @@
 <script lang="ts">
 import CommentNextLottie from './CommentNextLottie.svelte';
 import type { CommentNextEmoteItem } from './types/emote';
+import { openTopLayer } from './utils/top-layer';
 
 const {
   item,
@@ -21,6 +22,7 @@ const isLottie = $derived(item.type === 'lottie' && Boolean(item.contentUrl));
 
 {#if previewSrc || isLottie}
   <div
+    use:openTopLayer
     class:comment-next-emote-preview-lottie={isLottie}
     class="comment-next-emote-preview"
     role="status"
@@ -50,8 +52,8 @@ const isLottie = $derived(item.type === 'lottie' && Boolean(item.contentUrl));
 <style>
   .comment-next-emote-preview {
     --at-apply: pointer-events-none fixed z-[10000] flex w-34 flex-col items-center gap-1.5 rounded-[0.75rem] border border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-tooltip-bg-color,rgb(255_255_255_/_0.96))] p-2 text-center text-[var(--comment-next-tooltip-text-color,#172033)] shadow-[var(--comment-next-tooltip-shadow,0_14px_30px_rgb(15_23_42_/_0.18))] backdrop-blur-md;
-    left: var(--comment-next-emote-preview-left, 1rem);
-    top: var(--comment-next-emote-preview-top, 1rem);
+    inset: var(--comment-next-emote-preview-top, 1rem) auto auto var(--comment-next-emote-preview-left, 1rem);
+    margin: 0;
     animation: comment-next-emote-preview-in 120ms ease-out;
   }
 

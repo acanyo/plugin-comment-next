@@ -12,17 +12,21 @@ import {
   VPageHeader,
   VPagination,
   VSpace,
+  VTabbar,
 } from '@halo-dev/components';
 import { utils } from '@halo-dev/ui-shared';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   type CommentSearchItem,
+  type CommentSearchReplyQueue,
   type CommentSearchStatus,
   type CommentSearchTarget,
   listCommentSearch,
   replaceCommentEmail,
+  setCommentReplyDismissed,
 } from '../api/comment-search';
 import CommentSearchListItem from '../components/CommentSearchListItem.vue';
+import CommentSearchReplyModal from '../components/CommentSearchReplyModal.vue';
 
 const page = ref(1);
 const pageSize = ref(20);
@@ -31,6 +35,10 @@ const items = ref<CommentSearchItem[]>([]);
 const loading = ref(false);
 const fetching = ref(false);
 const advancedVisible = ref(false);
+const replyQueue = ref<CommentSearchReplyQueue>('all');
+const postName = ref<string>();
+const replyingTo = ref<CommentSearchItem>();
+const updatingReplyQueue = ref<string>();
 
 const target = ref<CommentSearchTarget>('all');
 const status = ref<CommentSearchStatus>('all');
@@ -48,6 +56,12 @@ const emailReplacementPermissions = [
   'plugin:comment-next:comment-search:manage',
 ];
 
+const queueTabs = [
+  { id: 'all', label: '全部评论' },
+  { id: 'waiting', label: '待我回复' },
+  { id: 'dismissed', label: '无需回复' },
+];
+
 const targetOptions: Array<{ label: string; value: CommentSearchTarget }> = [
   { label: '全部', value: 'all' },
   { label: '评论', value: 'comment' },
@@ -62,31 +76,44 @@ const statusOptions: Array<{ label: string; value: CommentSearchStatus }> = [
 ];
 
 const advancedFilters = [email, ipAddress, author, content, subject];
+const inReplyQueue = computed(() => replyQueue.value !== 'all');
 const hasAdvancedFilters = computed(() =>
   advancedFilters.some((filter) => Boolean(filter.value.trim()))
 );
 const hasFilters = computed(
   () =>
-    target.value !== 'all' ||
-    status.value !== 'all' ||
+    (inReplyQueue.value
+      ? Boolean(postName.value)
+      : target.value !== 'all' || status.value !== 'all') ||
     Boolean(keyword.value.trim()) ||
     hasAdvancedFilters.value
 );
 const canReplaceEmail = computed(() =>
   utils.permission.has(emailReplacementPermissions)
 );
+const canReply = computed(() =>
+  utils.permission.has(['system:comments:manage'])
+);
+const canSelectPosts = computed(() =>
+  utils.permission.has(['system:posts:view'])
+);
 
 onMounted(() => {
   loadItems({ initial: true });
 });
 
-watch([target, status], () => {
+watch([replyQueue, target, status, postName], ([queue], [previousQueue]) => {
   page.value = 1;
-  loadItems();
+  loadItems({ initial: queue !== previousQueue });
 });
 
 let filterTimer: number | undefined;
 let latestRequestId = 0;
+onBeforeUnmount(() => {
+  window.clearTimeout(filterTimer);
+  latestRequestId += 1;
+});
+
 watch([keyword, ...advancedFilters], () => {
   window.clearTimeout(filterTimer);
   filterTimer = window.setTimeout(() => {
@@ -106,6 +133,8 @@ async function loadItems(options: { initial?: boolean } = {}) {
       size: pageSize.value,
       target: target.value,
       status: status.value,
+      replyQueue: replyQueue.value,
+      postName: inReplyQueue.value ? postName.value : undefined,
       keyword: keyword.value.trim(),
       email: email.value.trim(),
       ipAddress: ipAddress.value.trim(),
@@ -114,11 +143,18 @@ async function loadItems(options: { initial?: boolean } = {}) {
       subject: subject.value.trim(),
     });
     if (requestId === latestRequestId) {
+      const lastPage = Math.max(1, result.totalPages);
+      if (page.value > lastPage) {
+        page.value = lastPage;
+        await loadItems();
+        return;
+      }
       items.value = result.items ?? [];
       total.value = result.total ?? items.value.length;
     }
   } catch (error) {
     console.error('Failed to search comments', error);
+    if (requestId === latestRequestId) Toast.error('评论查询失败');
   } finally {
     if (requestId === latestRequestId) {
       loading.value = false;
@@ -128,6 +164,7 @@ async function loadItems(options: { initial?: boolean } = {}) {
 }
 
 function clearFilters() {
+  postName.value = undefined;
   target.value = 'all';
   status.value = 'all';
   keyword.value = '';
@@ -140,6 +177,27 @@ function clearFilters() {
 }
 
 function handlePageChange() {
+  loadItems();
+}
+
+async function markReplyStatus(item: CommentSearchItem) {
+  if (!inReplyQueue.value || updatingReplyQueue.value) return;
+  const dismissed = replyQueue.value === 'waiting';
+  updatingReplyQueue.value = item.name;
+  try {
+    await setCommentReplyDismissed(item.name, dismissed);
+    Toast.success(dismissed ? '已标记无需回复' : '已取消无需回复');
+    await loadItems();
+  } catch (error) {
+    console.error('Failed to update reply queue', error);
+    Toast.error('更新待回复状态失败');
+  } finally {
+    updatingReplyQueue.value = undefined;
+  }
+}
+
+function handleReplied() {
+  replyingTo.value = undefined;
   loadItems();
 }
 
@@ -208,6 +266,7 @@ function submitEmailReplacement() {
     <VCard :body-class="[':uno: !p-0']">
       <template #header>
         <div class=":uno: block w-full bg-gray-50 px-4 py-3">
+          <VTabbar v-model:active-id="replyQueue" :items="queueTabs" type="outline" class=":uno: mb-3" />
           <div
             class=":uno: relative flex flex-col flex-wrap items-start gap-4 sm:flex-row sm:items-center"
           >
@@ -220,8 +279,8 @@ function submitEmailReplacement() {
 
             <VSpace spacing="lg" class=":uno: flex-wrap">
               <FilterCleanButton v-if="hasFilters" @click="clearFilters" />
-              <FilterDropdown v-model="target" label="类型" :items="targetOptions" />
-              <FilterDropdown v-model="status" label="状态" :items="statusOptions" />
+              <FilterDropdown v-if="!inReplyQueue" v-model="target" label="类型" :items="targetOptions" />
+              <FilterDropdown v-if="!inReplyQueue" v-model="status" label="状态" :items="statusOptions" />
               <VButton
                 size="sm"
                 type="secondary"
@@ -231,7 +290,7 @@ function submitEmailReplacement() {
                 {{ advancedVisible ? '收起条件' : '更多条件' }}
               </VButton>
               <VButton
-                v-if="canReplaceEmail"
+                v-if="canReplaceEmail && !inReplyQueue"
                 size="sm"
                 type="secondary"
                 @click="openEmailReplacement"
@@ -251,6 +310,15 @@ function submitEmailReplacement() {
               </button>
             </VSpace>
           </div>
+
+          <FormKit
+            v-if="inReplyQueue && canSelectPosts"
+            v-model="postName"
+            type="postSelect"
+            label="筛选文章"
+            placeholder="全部文章"
+            outer-class=":uno: mb-0 mt-3 max-w-sm"
+          />
 
           <div
             v-if="advancedVisible"
@@ -309,8 +377,8 @@ function submitEmailReplacement() {
 
       <Transition v-else-if="!items.length" appear name="fade">
         <VEmpty
-          title="没有匹配的评论"
-          message="可按邮箱、IP、评论者、内容和来源组合查询评论与回复。"
+          :title="replyQueue === 'waiting' ? '没有待回复的评论' : replyQueue === 'dismissed' ? '没有标记为无需回复的评论' : '没有匹配的评论'"
+          :message="inReplyQueue ? undefined : '可按邮箱、IP、评论者、内容和来源组合查询评论与回复。'"
         />
       </Transition>
 
@@ -320,6 +388,11 @@ function submitEmailReplacement() {
             v-for="item in items"
             :key="`${item.targetType}-${item.name}`"
             :item="item"
+            :reply-queue="replyQueue"
+            :can-reply="canReply"
+            :updating="Boolean(updatingReplyQueue) || fetching"
+            @reply="replyingTo = item"
+            @mark="markReplyStatus(item)"
           />
         </VEntityContainer>
       </Transition>
@@ -339,7 +412,15 @@ function submitEmailReplacement() {
     </VCard>
   </div>
 
+  <CommentSearchReplyModal
+    v-if="replyingTo"
+    :item="replyingTo"
+    @close="replyingTo = undefined"
+    @replied="handleReplied"
+  />
+
   <VModal
+    v-if="!inReplyQueue"
     v-model:visible="emailReplacementVisible"
     title="批量替换评论邮箱"
     :width="520"

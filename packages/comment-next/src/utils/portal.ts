@@ -32,7 +32,7 @@ function resolveStyleSource(node: HTMLElement): Element {
   const root = node.getRootNode();
 
   if (root instanceof ShadowRoot) {
-    return root.host;
+    return node.closest('.comment-next-root') ?? root.host;
   }
 
   return node.parentElement ?? document.documentElement;
@@ -40,6 +40,12 @@ function resolveStyleSource(node: HTMLElement): Element {
 
 function copyPortalVariables(source: Element, target: HTMLElement) {
   const sourceStyle = getComputedStyle(source);
+  target.style.colorScheme = sourceStyle.colorScheme;
+  target.style.setProperty(
+    '--comment-next-dialog-font-family',
+    sourceStyle.getPropertyValue('--comment-next-dialog-font-family').trim() ||
+      sourceStyle.fontFamily
+  );
 
   for (let index = 0; index < sourceStyle.length; index += 1) {
     const property = sourceStyle.item(index);

@@ -180,14 +180,8 @@ export function upgradeLottieImages(
     return false;
   }
 
-  const images: HTMLImageElement[] = [];
-  if (root instanceof Element && root.matches('img[src]')) {
-    images.push(root as HTMLImageElement);
-  }
-  images.push(...root.querySelectorAll<HTMLImageElement>('img[src]'));
-
   let upgraded = false;
-  for (const image of images) {
+  for (const image of getImages(root)) {
     const resolution = resolveLottieImage(image, allowedLottieHosts);
     if (resolution.status === 'blocked') {
       image.remove();
@@ -202,6 +196,22 @@ export function upgradeLottieImages(
   }
 
   return upgraded;
+}
+
+export function containsLottieImage(root: ParentNode): boolean {
+  return getImages(root).some(
+    (image) => resolveLottieImage(image).status !== 'not-lottie'
+  );
+}
+
+function getImages(root: ParentNode): HTMLImageElement[] {
+  const images = Array.from(
+    root.querySelectorAll<HTMLImageElement>('img[src]')
+  );
+  if (root instanceof HTMLImageElement && root.hasAttribute('src')) {
+    images.unshift(root);
+  }
+  return images;
 }
 
 function applyDisplayAttributes(element: Element, data: LottieImageData): void {
