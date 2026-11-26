@@ -1,6 +1,7 @@
 import { type ComponentProps, flushSync, mount, tick, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CommentNextBaseComposer from './CommentNextBaseComposer.svelte';
+import { saveAnonymousAccount } from './services/anonymous-account';
 import {
   commentDraftKey,
   rememberCommentDraftForLogin,
@@ -181,7 +182,7 @@ describe('commenting identity', () => {
     );
   });
 
-  it('validates the comment first, then publishes once after guest confirmation', async () => {
+  it('asks for guest details on the first comment and publishes directly after a reload', async () => {
     const onSubmit = vi.fn(async () => ({ approved: true }));
     await remount({ onSubmit });
 
@@ -216,38 +217,115 @@ describe('commenting identity', () => {
       })
     );
     expect(identityDialog()).toBeNull();
+    await vi.waitFor(() => expect(editor().textContent).toBe(''));
+    await remount({ onSubmit });
+
+    editor().textContent = '再次发表的评论';
+    editor().dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await clickButton('发布评论');
+
+    expect(identityDialog()).toBeNull();
+    await vi.waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+    expect(onSubmit).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        content: '再次发表的评论',
+        owner: {
+          displayName: '测试读者',
+          email: 'reader@halo.run',
+          website: '',
+        },
+      })
+    );
   });
 
+  it('uses the saved legacy guest details when profile edits are canceled', async () => {
+    const owner = {
+      displayName: '之前保存的昵称',
+      email: 'reader@halo.run',
+      website: 'https://halo.run/',
+    };
+    localStorage.setItem('halo-comment-custom-account', JSON.stringify(owner));
+    const onSubmit = vi.fn(async () => ({ approved: true }));
+    await remount({ onSubmit });
+
+    await clickAvatar();
+    await clickButton('游客评论');
+    await fillGuestDetails();
+    identityDialog()?.dispatchEvent(new Event('cancel', { cancelable: true }));
+    await tick();
+
+    editor().textContent = '使用已保存的游客资料';
+    editor().dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await clickButton('发布评论');
+
+    expect(identityDialog()).toBeNull();
+    await vi.waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ owner }));
+  });
+
+  it.each([{ email: 'invalid-email' }, { website: 'relative-url' }])(
+    'prompts for identity when the saved details contain %j',
+    async (invalidFields) => {
+      saveAnonymousAccount({
+        displayName: '测试读者',
+        email: 'reader@halo.run',
+        ...invalidFields,
+      });
+      const onSubmit = vi.fn();
+      await remount({ onSubmit });
+      editor().textContent = '资料需要修正的评论';
+      editor().dispatchEvent(new InputEvent('input', { bubbles: true }));
+      await clickButton('发布评论');
+
+      expect(identityDialog()?.textContent).toContain('游客评论');
+      expect(onSubmit).not.toHaveBeenCalled();
+    }
+  );
+
   it('offers only account login when the site requires it', async () => {
-    await remount({ allowAnonymous: false });
+    saveAnonymousAccount({ displayName: '测试读者', email: 'reader@halo.run' });
+    const onSubmit = vi.fn();
+    await remount({ allowAnonymous: false, onSubmit });
     await clickButton('登录后评论');
 
     expect(identityDialog()?.textContent).toContain('账号登录');
     expect(identityDialog()?.textContent).not.toContain('游客评论');
+    expect(onSubmit).not.toHaveBeenCalled();
     identityDialog()?.dispatchEvent(new Event('cancel', { cancelable: true }));
     await tick();
     expect(identityDialog()).toBeNull();
   });
 
-  it('continues a confirmed guest comment to the configured CAPTCHA', async () => {
-    const onSubmit = vi.fn();
-    await remount({ onSubmit, showCaptcha: true });
-    editor().textContent = '需要安全验证的评论';
-    editor().dispatchEvent(new InputEvent('input', { bubbles: true }));
+  it.each([false, true])(
+    'requires CAPTCHA before posting (saved details: %s)',
+    async (hasSavedDetails) => {
+      if (hasSavedDetails) {
+        saveAnonymousAccount({
+          displayName: '测试读者',
+          email: 'reader@halo.run',
+        });
+      }
+      const onSubmit = vi.fn();
+      await remount({ onSubmit, showCaptcha: true });
+      editor().textContent = '需要安全验证的评论';
+      editor().dispatchEvent(new InputEvent('input', { bubbles: true }));
 
-    await clickButton('发布评论');
-    await clickButton('游客评论');
-    await fillGuestDetails();
-    identityDialog()
-      ?.querySelector<HTMLButtonElement>('button[type="submit"]')
-      ?.click();
+      await clickButton('发布评论');
+      if (!hasSavedDetails) {
+        await clickButton('游客评论');
+        await fillGuestDetails();
+        identityDialog()
+          ?.querySelector<HTMLButtonElement>('button[type="submit"]')
+          ?.click();
+      }
 
-    await vi.waitFor(() =>
-      expect(document.body.textContent).toContain('安全验证')
-    );
-    expect(identityDialog()).toBeNull();
-    expect(onSubmit).not.toHaveBeenCalled();
-  });
+      await vi.waitFor(() =>
+        expect(document.body.textContent).toContain('安全验证')
+      );
+      expect(identityDialog()).toBeNull();
+      expect(onSubmit).not.toHaveBeenCalled();
+    }
+  );
 
   it.each([false, true])(
     'restores the guest draft after login when appropriate (account draft %s)',

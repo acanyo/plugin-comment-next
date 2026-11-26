@@ -20,6 +20,7 @@ import {
   getAiSuggestionErrorMessage,
 } from './services/ai';
 import {
+  isValidAnonymousAccount,
   loadAnonymousAccount,
   saveAnonymousAccount,
 } from './services/anonymous-account';
@@ -737,8 +738,12 @@ async function submitComposer({
   }
 
   if (!isLoggedIn && promptForIdentity) {
-    openIdentityDialog('submit');
-    return;
+    const account = loadAnonymousAccount();
+    if (!account || !isValidAnonymousAccount(account)) {
+      openIdentityDialog('submit');
+      return;
+    }
+    restoreAnonymousAccount(account);
   }
 
   if (anonymousMissingRequired) {
@@ -988,9 +993,7 @@ function isPendingReviewComment(result: unknown): result is CommentNextComment {
   );
 }
 
-function restoreAnonymousAccount() {
-  const account = loadAnonymousAccount();
-
+function restoreAnonymousAccount(account = loadAnonymousAccount()) {
   if (!account) {
     return;
   }

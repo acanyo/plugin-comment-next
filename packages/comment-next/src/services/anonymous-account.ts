@@ -31,6 +31,22 @@ export function saveAnonymousAccount(account: CommentNextComposerOwner): void {
   }
 }
 
+export function isValidAnonymousAccount(
+  account: CommentNextComposerOwner
+): boolean {
+  if (!account.displayName.trim() || !account.email.trim()) return false;
+
+  const input = document.createElement('input');
+  input.type = 'email';
+  input.value = account.email;
+  if (input.value !== account.email || !input.validity.valid) return false;
+
+  const website = account.website ?? '';
+  input.type = 'url';
+  input.value = website;
+  return input.value === website && input.validity.valid;
+}
+
 function readStoredAccount(
   storageKey: string
 ): CommentNextComposerOwner | undefined {
