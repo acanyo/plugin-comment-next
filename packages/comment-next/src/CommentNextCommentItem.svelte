@@ -1,5 +1,5 @@
 <script lang="ts">
-import { untrack } from 'svelte';
+import { onDestroy, untrack } from 'svelte';
 import CommentNextAvatar from './CommentNextAvatar.svelte';
 import CommentNextBadge from './CommentNextBadge.svelte';
 import CommentNextCommentMeta from './CommentNextCommentMeta.svelte';
@@ -103,6 +103,11 @@ let replyAuthors = $state<Record<string, string>>(
 );
 let repliesLoading = $state(false);
 let repliesError = $state('');
+let repliesCollapsed = $state(false);
+let linkCopied = $state(false);
+let linkCopyTimer: number | undefined;
+
+const COLLAPSED_REPLY_LIMIT = 2;
 
 const shownReplies = $derived.by(() => {
   if (!linkedReplyPage) return replies;
@@ -112,6 +117,11 @@ const shownReplies = $derived.by(() => {
     ...linkedReplyPage.items.filter((reply) => !loadedNames.has(reply.id)),
   ];
 });
+const visibleReplies = $derived(
+  repliesCollapsed && !linkedReplyPage
+    ? shownReplies.slice(0, COLLAPSED_REPLY_LIMIT)
+    : shownReplies
+);
 const replyCount = $derived(
   replyPage?.total ??
     linkedReplyPage?.total ??
@@ -119,11 +129,17 @@ const replyCount = $derived(
     replies.length
 );
 const hasMoreReplies = $derived(
-  replyCount > shownReplies.length ||
+  replyCount > visibleReplies.length ||
     (!linkedReplyPage && Boolean(replyPage?.hasNext))
 );
 const remainingReplyCount = $derived(
-  Math.max(replyCount - shownReplies.length, 0)
+  Math.max(replyCount - visibleReplies.length, 0)
+);
+const canCollapseReplies = $derived(
+  !repliesCollapsed &&
+    !linkedReplyPage &&
+    !hasMoreReplies &&
+    shownReplies.length > 3
 );
 const commentReactionEnabled = $derived(
   Boolean(reactionConfig?.enabled && reactionConfig.commentEnabled !== false)
@@ -149,8 +165,49 @@ $effect(() => {
     replyPage = comment.replyPage;
     replyAuthors = buildReplyAuthorMap(replies);
     repliesError = '';
+    repliesCollapsed = false;
+    linkCopied = false;
   }
 });
+
+onDestroy(() => {
+  if (linkCopyTimer !== undefined) {
+    window.clearTimeout(linkCopyTimer);
+  }
+});
+
+async function handleAnchorClick(event: MouseEvent) {
+  if (
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey ||
+    event.button !== 0 ||
+    typeof window === 'undefined' ||
+    !navigator.clipboard?.writeText
+  ) {
+    return;
+  }
+
+  const href = getCommentAnchorHref('comment', comment.id);
+  event.preventDefault();
+  try {
+    window.history.replaceState(null, '', href);
+    await navigator.clipboard.writeText(
+      new URL(href, window.location.href).href
+    );
+    linkCopied = true;
+    if (linkCopyTimer !== undefined) {
+      window.clearTimeout(linkCopyTimer);
+    }
+    linkCopyTimer = window.setTimeout(() => {
+      linkCopied = false;
+      linkCopyTimer = undefined;
+    }, 1800);
+  } catch {
+    window.location.hash = href;
+  }
+}
 
 async function handleLocalUpvote() {
   if (upvoted) {
@@ -314,6 +371,16 @@ async function loadRemainingReplies() {
     return;
   }
 
+  if (repliesCollapsed) {
+    repliesCollapsed = false;
+    const stillHasUnloaded =
+      replyCount > shownReplies.length ||
+      (!linkedReplyPage && Boolean(replyPage?.hasNext));
+    if (!stillHasUnloaded) {
+      return;
+    }
+  }
+
   let nextPage = replyPage ? replyPage.page + 1 : 1;
   let append = Boolean(replyPage);
   let shouldContinue = true;
@@ -466,7 +533,7 @@ async function loadReplies({
       {/if}
 
       {#if comment.approved === false}
-        <span class="comment-next-comment-state">待审核</span>
+        <span class="comment-next-comment-state comment-next-comment-state-pending">待审核</span>
       {/if}
     </header>
 
@@ -521,12 +588,14 @@ async function loadReplies({
       />
       <a
         class="comment-next-comment-anchor"
+        class:comment-next-comment-anchor-copied={linkCopied}
         href={getCommentAnchorHref('comment', comment.id)}
-        aria-label="跳转到此评论"
-        title="评论链接"
+        aria-label={linkCopied ? '已复制评论链接' : '复制并定位到此评论'}
+        title={linkCopied ? '已复制链接' : '复制评论链接'}
+        onclick={handleAnchorClick}
       >
-        <CommentNextIcon name="link" size={14} />
-        <span>链接</span>
+        <CommentNextIcon name={linkCopied ? 'check' : 'link'} size={14} />
+        <span>{linkCopied ? '已复制' : '链接'}</span>
       </a>
     </footer>
 
@@ -554,7 +623,7 @@ async function loadReplies({
 
     {#if shownReplies.length || repliesLoading || repliesError || hasMoreReplies}
       <div class="comment-next-replies" role="group" aria-label={`回复 ${comment.author.displayName}`}>
-        {#each shownReplies as reply (reply.id)}
+        {#each visibleReplies as reply (reply.id)}
           <CommentNextReplyItem
             {baseUrl}
             {reply}
@@ -611,8 +680,21 @@ async function loadReplies({
         {:else if hasMoreReplies}
           <div class="comment-next-replies-message">
             <button type="button" onclick={loadRemainingReplies}>
-              {shownReplies.length ? `展开剩余 ${remainingReplyCount} 条回复` : `查看 ${remainingReplyCount} 条回复`}
+              {visibleReplies.length ? `展开剩余 ${remainingReplyCount} 条回复` : `查看 ${remainingReplyCount} 条回复`}
               <CommentNextIcon name="chevronDown" size={13} />
+            </button>
+          </div>
+        {:else if canCollapseReplies}
+          <div class="comment-next-replies-message">
+            <button
+              class="comment-next-replies-collapse"
+              type="button"
+              onclick={() => {
+                repliesCollapsed = true;
+              }}
+            >
+              收起回复
+              <CommentNextIcon name="chevronUp" size={13} />
             </button>
           </div>
         {/if}
@@ -703,12 +785,21 @@ async function loadReplies({
   }
 
   .comment-next-comment-state {
-    --at-apply: inline-flex items-center gap-2 text-xs text-[var(--comment-next-muted-color,#6b7687)] font-[560];
+    --at-apply: inline-flex h-5 items-center gap-1 rounded-md border border-solid px-1.5 text-[0.6875rem] font-[600] leading-none;
+    border-color: color-mix(in srgb, var(--comment-next-muted-color, #6b7687) 20%, transparent);
+    background: color-mix(in srgb, var(--comment-next-muted-color, #6b7687) 10%, transparent);
+    color: var(--comment-next-muted-color, #6b7687);
+  }
+
+  .comment-next-comment-state-pending {
+    border-color: color-mix(in srgb, #d97706 28%, transparent);
+    background: color-mix(in srgb, #f59e0b 12%, transparent);
+    color: #b45309;
   }
 
   .comment-next-comment-actions {
     --at-apply: flex flex-wrap items-center gap-x-1 gap-y-0.5;
-    margin-block-start: 0.3125rem;
+    margin-block-start: 0.375rem;
     margin-inline-start: -0.35rem;
   }
 
@@ -716,9 +807,29 @@ async function loadReplies({
   .comment-next-comment-anchor,
   .comment-next-comment-actions :global(.comment-next-target-reaction-button),
   .comment-next-comment-actions :global(.comment-next-report-button) {
-    --at-apply: inline-flex min-h-7 min-w-0 box-border cursor-pointer items-center justify-start gap-1 rounded-md border-0 bg-transparent px-[0.35rem] py-0 text-xs text-[var(--comment-next-muted-color,#6b7687)] font-[620] font-inherit;
+    --at-apply: inline-flex min-h-7 min-w-0 box-border cursor-pointer items-center justify-start gap-1 rounded-md border-0 bg-transparent px-[0.35rem] py-0 text-xs text-[var(--comment-next-muted-color,#6b7687)] font-[620] font-inherit transition-[background-color,color,opacity] duration-140 ease-in-out;
     text-decoration: none;
     font-variant-numeric: tabular-nums;
+  }
+
+  .comment-next-comment-anchor-copied,
+  .comment-next-comment-anchor-copied:hover {
+    color: var(--comment-next-primary-color, #2563eb);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .comment-next-comment-anchor,
+    .comment-next-comment-actions :global(.comment-next-report-button) {
+      opacity: 0.45;
+    }
+
+    .comment-next-comment-item:hover > .comment-next-comment-main > .comment-next-comment-actions > .comment-next-comment-anchor,
+    .comment-next-comment-item:hover > .comment-next-comment-main > .comment-next-comment-actions :global(.comment-next-report-button),
+    .comment-next-comment-item:focus-within > .comment-next-comment-main > .comment-next-comment-actions > .comment-next-comment-anchor,
+    .comment-next-comment-item:focus-within > .comment-next-comment-main > .comment-next-comment-actions :global(.comment-next-report-button),
+    .comment-next-comment-anchor-copied {
+      opacity: 1;
+    }
   }
 
   .comment-next-comment-actions > button:enabled:hover,
@@ -754,11 +865,11 @@ async function loadReplies({
     --comment-next-reply-indent: 0.875rem;
     --comment-next-reply-avatar-size: 1.8125rem;
     --comment-next-thread-line-color: var(--comment-next-border-subtle-color, #e3e9f0);
-    --comment-next-thread-line-color: color-mix(in srgb, var(--comment-next-reply-guide-color, #c8d8ee) 60%, var(--comment-next-border-subtle-color, #e3e9f0));
+    --comment-next-thread-line-color: color-mix(in srgb, var(--comment-next-reply-guide-color, #c8d8ee) 58%, var(--comment-next-border-subtle-color, #e3e9f0));
     position: relative;
     margin-block-start: 0.5rem;
     padding-inline-start: var(--comment-next-reply-indent);
-    border-inline-start: 1px dashed var(--comment-next-thread-line-color);
+    border-inline-start: 1.5px solid var(--comment-next-thread-line-color);
     box-sizing: border-box;
     max-width: 100%;
     min-width: 0;
@@ -780,7 +891,11 @@ async function loadReplies({
   }
 
   .comment-next-replies-message button {
-    --at-apply: inline-flex min-h-8 cursor-pointer items-center justify-center gap-[0.35rem] rounded-md border-0 bg-transparent px-1.5 py-0 text-xs text-[var(--comment-next-primary-color,#2563eb)] font-[650] font-inherit;
+    --at-apply: inline-flex min-h-8 cursor-pointer items-center justify-center gap-[0.35rem] rounded-md border-0 bg-transparent px-1.5 py-0 text-xs text-[var(--comment-next-primary-color,#2563eb)] font-[650] font-inherit transition-colors duration-140 ease-in-out;
+  }
+
+  .comment-next-replies-message .comment-next-replies-collapse {
+    color: var(--comment-next-muted-color, #6b7687);
   }
 
   .comment-next-replies-more-loading {
@@ -806,8 +921,8 @@ async function loadReplies({
     }
 
     .comment-next-replies {
-      --comment-next-reply-indent: 0.625rem;
-      --comment-next-reply-avatar-size: 1.625rem;
+      --comment-next-reply-indent: 0.5rem;
+      --comment-next-reply-avatar-size: 1.5rem;
     }
   }
 

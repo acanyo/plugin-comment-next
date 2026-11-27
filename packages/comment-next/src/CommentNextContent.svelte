@@ -26,6 +26,7 @@ const {
 } = $props();
 
 let lightboxImage = $state<CommentNextLightboxImage | undefined>();
+// biome-ignore lint/style/useConst: Svelte assigns the element through bind:this.
 let contentElement = $state<HTMLDivElement | undefined>();
 
 const safeContent = $derived(
@@ -146,7 +147,14 @@ function openLightbox(image: CommentNextLightboxImage) {
   }
 
   .comment-next-comment-content :global(.comment-next-image) {
-    --at-apply: inline-block max-w-full align-middle object-contain;
+    --at-apply: my-2 block max-w-full rounded-[0.625rem] border border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] object-contain transition-[border-color,box-shadow] duration-140 ease-in-out;
+    max-height: 20rem;
+    background: var(--comment-next-surface-subtle-bg-color, rgb(15 23 42 / 0.02));
+  }
+
+  .comment-next-comment-content :global(.comment-next-image:hover) {
+    border-color: color-mix(in srgb, var(--comment-next-primary-color, #2563eb) 32%, var(--comment-next-border-subtle-color, #dfe5ec));
+    box-shadow: 0 4px 14px rgb(15 23 42 / 0.08);
   }
 
   .comment-next-comment-content :global(halo-lottie) {

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { onDestroy } from 'svelte';
 import { resolveCommentBadges } from './badges/resolve';
 import CommentNextAvatar from './CommentNextAvatar.svelte';
 import CommentNextBadge from './CommentNextBadge.svelte';
@@ -66,6 +67,8 @@ const {
 let previousReplyId = $state('');
 let upvoted = $state(false);
 let upvotes = $state(0);
+let linkCopied = $state(false);
+let linkCopyTimer: number | undefined;
 
 const badges = $derived(resolveCommentBadges(reply, { config: badgeConfig }));
 const useHipAuthor = $derived(hasAuthorIdentity(reply.author));
@@ -86,8 +89,48 @@ $effect(() => {
       rememberedUpvoteCount(COMMENT_NEXT_UPVOTED_REPLIES_KEY, reply.id) ??
         (rememberedUpvote ? 1 : 0)
     );
+    linkCopied = false;
   }
 });
+
+onDestroy(() => {
+  if (linkCopyTimer !== undefined) {
+    window.clearTimeout(linkCopyTimer);
+  }
+});
+
+async function handleAnchorClick(event: MouseEvent) {
+  if (
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey ||
+    event.button !== 0 ||
+    typeof window === 'undefined' ||
+    !navigator.clipboard?.writeText
+  ) {
+    return;
+  }
+
+  const href = getCommentAnchorHref('reply', reply.id);
+  event.preventDefault();
+  try {
+    window.history.replaceState(null, '', href);
+    await navigator.clipboard.writeText(
+      new URL(href, window.location.href).href
+    );
+    linkCopied = true;
+    if (linkCopyTimer !== undefined) {
+      window.clearTimeout(linkCopyTimer);
+    }
+    linkCopyTimer = window.setTimeout(() => {
+      linkCopied = false;
+      linkCopyTimer = undefined;
+    }, 1800);
+  } catch {
+    window.location.hash = href;
+  }
+}
 
 async function handleUpvote() {
   if (upvoted) {
@@ -232,12 +275,14 @@ async function handleUpvote() {
       />
       <a
         class="comment-next-reply-anchor"
+        class:comment-next-reply-anchor-copied={linkCopied}
         href={getCommentAnchorHref('reply', reply.id)}
-        aria-label="跳转到此回复"
-        title="回复链接"
+        aria-label={linkCopied ? '已复制回复链接' : '复制并定位到此回复'}
+        title={linkCopied ? '已复制链接' : '复制回复链接'}
+        onclick={handleAnchorClick}
       >
-        <CommentNextIcon name="link" size={13} />
-        链接
+        <CommentNextIcon name={linkCopied ? 'check' : 'link'} size={13} />
+        {linkCopied ? '已复制' : '链接'}
       </a>
     </div>
   </div>
@@ -267,11 +312,11 @@ async function handleUpvote() {
     content: '';
     position: absolute;
     inset-block-end: calc(var(--reply-avatar-size) / 2);
-    inset-inline-start: calc(-1px - var(--reply-indent));
+    inset-inline-start: calc(-1.5px - var(--reply-indent));
     inline-size: calc(var(--reply-indent) - 0.125rem);
     block-size: 0.375rem;
-    border-inline-start: 1px dashed var(--comment-next-thread-line-color, var(--comment-next-reply-guide-color, #c8d8ee));
-    border-block-end: 1px dashed var(--comment-next-thread-line-color, var(--comment-next-reply-guide-color, #c8d8ee));
+    border-inline-start: 1.5px solid var(--comment-next-thread-line-color, var(--comment-next-reply-guide-color, #c8d8ee));
+    border-block-end: 1.5px solid var(--comment-next-thread-line-color, var(--comment-next-reply-guide-color, #c8d8ee));
     border-end-start-radius: 0.375rem;
     pointer-events: none;
   }
@@ -327,14 +372,17 @@ async function handleUpvote() {
     --at-apply: bg-[var(--comment-next-featured-pill-bg-color,rgb(204_251_241))] text-[var(--comment-next-featured-text-color,rgb(15_118_110))];
   }
 
-  .comment-next-reply-to,
-  .comment-next-reply-state {
-    --at-apply: text-xs text-[var(--comment-next-muted-color,#6b7687)];
-  }
-
   .comment-next-reply-to {
+    --at-apply: text-xs text-[var(--comment-next-muted-color,#6b7687)];
     min-width: 0;
     overflow-wrap: anywhere;
+  }
+
+  .comment-next-reply-state {
+    --at-apply: inline-flex h-5 items-center rounded-md border border-solid px-1.5 text-[0.6875rem] font-[600] leading-none;
+    border-color: color-mix(in srgb, #d97706 28%, transparent);
+    background: color-mix(in srgb, #f59e0b 12%, transparent);
+    color: #b45309;
   }
 
   .comment-next-reply-to strong {
@@ -361,6 +409,27 @@ async function handleUpvote() {
     font-size: 0.75rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+    transition: background-color 140ms ease, color 140ms ease, opacity 140ms ease;
+  }
+
+  .comment-next-reply-anchor-copied,
+  .comment-next-reply-anchor-copied:hover {
+    color: var(--comment-next-primary-color, #3b82f6);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .comment-next-reply-anchor,
+    .comment-next-reply-actions :global(.comment-next-report-button) {
+      opacity: 0.45;
+    }
+
+    .comment-next-reply-item:hover .comment-next-reply-anchor,
+    .comment-next-reply-item:hover .comment-next-reply-actions :global(.comment-next-report-button),
+    .comment-next-reply-item:focus-within .comment-next-reply-anchor,
+    .comment-next-reply-item:focus-within .comment-next-reply-actions :global(.comment-next-report-button),
+    .comment-next-reply-anchor-copied {
+      opacity: 1;
+    }
   }
 
   .comment-next-reply-actions > button,
@@ -404,6 +473,11 @@ async function handleUpvote() {
   @container comment-next-thread (max-width: 36rem) {
     .comment-next-reply-item {
       --reply-action-height: 2rem;
+      column-gap: 0.4375rem;
+    }
+
+    .comment-next-reply-meta {
+      gap: 0.1875rem 0.3rem;
     }
   }
 </style>

@@ -3,8 +3,116 @@ import type { ResourceMetadata } from './metadata.ts';
 
 export const EMOTE_GROUPS_ENDPOINT =
   '/apis/api.commentnext.xhhao.com/v1alpha1/emotegroups';
-export const DEFAULT_EMOTE_SOURCE_URL =
+export const EMOTE_CONSOLE_ENDPOINT =
+  '/apis/console.api.commentnext.xhhao.com/v1alpha1/emotes';
+export const DEFAULT_CHINA_EMOTE_SOURCE_URL =
+  'https://owo.twouu.com/OwO.min.json';
+export const DEFAULT_GITHUB_EMOTE_SOURCE_URL =
   'https://raw.githubusercontent.com/SwaggyMacro/OwO_Stickers/main/OwO.min.json';
+export const DEFAULT_EMOTE_SOURCE_URL = DEFAULT_GITHUB_EMOTE_SOURCE_URL;
+
+export interface EmoteSourcePreset {
+  id: 'china' | 'github';
+  label: string;
+  description: string;
+  url: string;
+}
+
+export const EMOTE_SOURCE_PRESETS: readonly EmoteSourcePreset[] = [
+  {
+    id: 'github',
+    label: '官方源（GitHub）',
+    description: 'SwaggyMacro/OwO_Stickers 默认上游源',
+    url: DEFAULT_GITHUB_EMOTE_SOURCE_URL,
+  },
+  {
+    id: 'china',
+    label: '国内源（EdgeOne Pages）',
+    description: '国内加速镜像源，可按需一键切换',
+    url: DEFAULT_CHINA_EMOTE_SOURCE_URL,
+  },
+];
+
+export function isPresetEmoteSourceUrl(url: string): boolean {
+  const normalized = url.trim();
+  return EMOTE_SOURCE_PRESETS.some((preset) => preset.url === normalized);
+}
+
+export type EmoteLocalizationState =
+  | 'IDLE'
+  | 'RUNNING'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'FAILED';
+
+export interface EmotePolicyOption {
+  name: string;
+  displayName: string;
+}
+
+export interface EmoteAttachmentGroupOption {
+  name: string;
+  displayName: string;
+}
+
+export interface EmoteLocalizationOptions {
+  policies: EmotePolicyOption[];
+  attachmentGroups: EmoteAttachmentGroupOption[];
+  defaultPolicyName: string;
+  defaultAttachmentGroupName: string;
+  externalBaseUrl: string;
+  externalUrlConfigured: boolean;
+}
+
+export interface EmoteLocalizationFailure {
+  groupName: string;
+  groupDisplayName: string;
+  itemText: string;
+  sourceUrl: string;
+  reason: string;
+}
+
+export interface EmoteLocalizationProgress {
+  state: EmoteLocalizationState;
+  targetGroupNames: string[];
+  policyName: string;
+  attachmentGroupName: string;
+  useAbsoluteUrl: boolean;
+  totalGroups: number;
+  completedGroups: number;
+  currentGroupName: string;
+  currentGroupDisplayName: string;
+  totalItems: number;
+  processedItems: number;
+  localizedItems: number;
+  reusedItems: number;
+  skippedItems: number;
+  failedItems: number;
+  failures: EmoteLocalizationFailure[];
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  errorMessage?: string | null;
+}
+
+export interface StartEmoteLocalizationRequest {
+  groupNames: string[];
+  policyName: string;
+  attachmentGroupName?: string;
+  useAbsoluteUrl: boolean;
+}
+
+export type EmoteGroupLocalizationStatus =
+  | 'NONE'
+  | 'LOCALIZED'
+  | 'PARTIAL'
+  | 'EXTERNAL';
+
+export interface EmoteGroupLocalizationSummary {
+  totalImages: number;
+  externalImages: number;
+  localImages: number;
+  status: EmoteGroupLocalizationStatus;
+}
 
 export type EmoteProvider = 'OWO' | 'LOTTIE';
 export type EmoteGroupType = 'emoticon' | 'image' | 'lottie';
@@ -150,6 +258,26 @@ export async function deleteEmoteGroup(name: string): Promise<void> {
 export async function fetchEmotePacksFromUrl(
   sourceUrl = DEFAULT_EMOTE_SOURCE_URL
 ): Promise<RawEmotePacks> {
+  try {
+    const { data } = await axiosInstance.post<RawEmotePacks | string>(
+      `${EMOTE_CONSOLE_ENDPOINT}/source-fetch`,
+      { url: sourceUrl }
+    );
+    if (typeof data === 'string') {
+      return parseRawEmotePacks(data);
+    }
+    if (!data || Array.isArray(data) || typeof data !== 'object') {
+      throw new Error('表情 JSON 必须是对象格式');
+    }
+    return data;
+  } catch (error) {
+    const status = (error as { response?: { status?: number } })?.response
+      ?.status;
+    if (status && status !== 404 && status !== 405) {
+      throw error;
+    }
+  }
+
   const response = await fetch(sourceUrl, {
     headers: {
       Accept: 'application/json',
@@ -161,6 +289,37 @@ export async function fetchEmotePacksFromUrl(
   }
 
   return parseRawEmotePacks(await response.text());
+}
+
+export async function getEmoteLocalizationOptions(): Promise<EmoteLocalizationOptions> {
+  const { data } = await axiosInstance.get<EmoteLocalizationOptions>(
+    `${EMOTE_CONSOLE_ENDPOINT}/localization-options`
+  );
+  return data;
+}
+
+export async function getEmoteLocalizationStatus(): Promise<EmoteLocalizationProgress> {
+  const { data } = await axiosInstance.get<EmoteLocalizationProgress>(
+    `${EMOTE_CONSOLE_ENDPOINT}/localization`
+  );
+  return data;
+}
+
+export async function startEmoteLocalization(
+  payload: StartEmoteLocalizationRequest
+): Promise<EmoteLocalizationProgress> {
+  const { data } = await axiosInstance.post<EmoteLocalizationProgress>(
+    `${EMOTE_CONSOLE_ENDPOINT}/localization`,
+    payload
+  );
+  return data;
+}
+
+export async function cancelEmoteLocalization(): Promise<EmoteLocalizationProgress> {
+  const { data } = await axiosInstance.delete<EmoteLocalizationProgress>(
+    `${EMOTE_CONSOLE_ENDPOINT}/localization`
+  );
+  return data;
 }
 
 export async function fetchDefaultEmotePacks(): Promise<RawEmotePacks> {
@@ -248,9 +407,12 @@ export function sortEmoteGroupsByPriority(groups: EmoteGroup[]): EmoteGroup[] {
 
 export function normalizeEmoteGroup(group: EmoteGroup): EmoteGroup {
   const provider = group.spec?.provider === 'LOTTIE' ? 'LOTTIE' : 'OWO';
-  const type = provider === 'LOTTIE'
-    ? 'lottie'
-    : normalizeEmoteGroupType(group.spec?.type === 'lottie' ? 'emoticon' : group.spec?.type);
+  const type =
+    provider === 'LOTTIE'
+      ? 'lottie'
+      : normalizeEmoteGroupType(
+          group.spec?.type === 'lottie' ? 'emoticon' : group.spec?.type
+        );
 
   return {
     apiVersion: API_VERSION,
@@ -295,8 +457,8 @@ export function normalizeEmoteItems(value: unknown): EmoteItem[] {
   }
 
   return value
-      .map((item) => normalizeEmoteItem(item))
-      .filter((item): item is EmoteItem => Boolean(item));
+    .map((item) => normalizeEmoteItem(item))
+    .filter((item): item is EmoteItem => Boolean(item));
 }
 
 export function normalizeLottieItems(value: unknown): EmoteItem[] {
@@ -317,6 +479,106 @@ export function emoteItemPreviewUrl(item: EmoteItem): string {
 export function emoteItemOriginUrl(item: EmoteItem): string {
   const source = extractImageAttribute(item.icon || '', 'origin');
   return normalizeUrl(source);
+}
+
+export function emoteItemPreferredUrl(item: EmoteItem): string {
+  const origin = emoteItemOriginUrl(item);
+  if (origin) {
+    return origin;
+  }
+  const preview = emoteItemPreviewUrl(item);
+  if (preview) {
+    return preview;
+  }
+  const raw = (item.icon || '').trim();
+  if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('/')) {
+    return normalizeUrl(raw);
+  }
+  return '';
+}
+
+export function isExternalEmoteImageUrl(
+  rawUrl: string,
+  siteOrigin?: string
+): boolean {
+  const normalized = normalizeUrl((rawUrl || '').trim());
+  if (!normalized || !/^https?:\/\//i.test(normalized)) {
+    return false;
+  }
+
+  const effectiveOrigin =
+    resolveOrigin(siteOrigin) ||
+    (typeof window !== 'undefined'
+      ? resolveOrigin(window.location.origin)
+      : '');
+  if (!effectiveOrigin) {
+    return true;
+  }
+
+  try {
+    const candidate = new URL(normalized);
+    const site = new URL(effectiveOrigin);
+    return candidate.host.toLowerCase() !== site.host.toLowerCase();
+  } catch {
+    return true;
+  }
+}
+
+export function summarizeGroupLocalization(
+  group: EmoteGroup,
+  siteOrigin?: string
+): EmoteGroupLocalizationSummary {
+  if (group.spec?.provider === 'LOTTIE' || group.spec?.type !== 'image') {
+    return {
+      totalImages: 0,
+      externalImages: 0,
+      localImages: 0,
+      status: 'NONE',
+    };
+  }
+
+  const items = group.spec.items ?? [];
+  let totalImages = 0;
+  let externalImages = 0;
+
+  for (const item of items) {
+    const url = emoteItemPreferredUrl(item);
+    if (!url) {
+      continue;
+    }
+    totalImages += 1;
+    if (isExternalEmoteImageUrl(url, siteOrigin)) {
+      externalImages += 1;
+    }
+  }
+
+  const localImages = Math.max(0, totalImages - externalImages);
+  const status: EmoteGroupLocalizationStatus =
+    totalImages === 0
+      ? 'NONE'
+      : externalImages === 0
+        ? 'LOCALIZED'
+        : localImages === 0
+          ? 'EXTERNAL'
+          : 'PARTIAL';
+
+  return {
+    totalImages,
+    externalImages,
+    localImages,
+    status,
+  };
+}
+
+function resolveOrigin(value?: string): string {
+  if (!value) {
+    return '';
+  }
+  try {
+    return new URL(value).origin;
+  } catch {
+    return '';
+  }
 }
 
 function normalizeEmoteItem(value: unknown): EmoteItem | undefined {
@@ -348,12 +610,10 @@ function normalizeLottieItem(value: unknown): EmoteItem | undefined {
   }
 
   const item = value as Partial<EmoteItem>;
-  const animationName = typeof item.animationName === 'string'
-    ? item.animationName.trim()
-    : '';
-  const contentUrl = typeof item.contentUrl === 'string'
-    ? item.contentUrl.trim()
-    : '';
+  const animationName =
+    typeof item.animationName === 'string' ? item.animationName.trim() : '';
+  const contentUrl =
+    typeof item.contentUrl === 'string' ? item.contentUrl.trim() : '';
 
   if (!animationName || !contentUrl) {
     return undefined;
@@ -364,17 +624,19 @@ function normalizeLottieItem(value: unknown): EmoteItem | undefined {
     text: typeof item.text === 'string' ? item.text.trim() : '',
     animationName,
     contentUrl,
-    format: typeof item.format === 'string' && item.format.trim()
-      ? item.format.trim().toLowerCase()
-      : 'json',
+    format:
+      typeof item.format === 'string' && item.format.trim()
+        ? item.format.trim().toLowerCase()
+        : 'json',
     defaults: normalizeLottieDefaults(item.defaults),
   };
 }
 
 export function normalizeLottieDefaults(value: unknown): EmoteLottieDefaults {
-  const defaults = value && typeof value === 'object'
-    ? (value as Partial<EmoteLottieDefaults>)
-    : {};
+  const defaults =
+    value && typeof value === 'object'
+      ? (value as Partial<EmoteLottieDefaults>)
+      : {};
   const positiveNumber = (candidate: unknown, fallback: number) => {
     const number = Number(candidate);
     return Number.isFinite(number) && number > 0 ? number : fallback;
@@ -388,18 +650,19 @@ export function normalizeLottieDefaults(value: unknown): EmoteLottieDefaults {
     autoplay: booleanValue(defaults.autoplay, true),
     loop: booleanValue(defaults.loop, true),
     speed: Math.min(10, positiveNumber(defaults.speed, 1)),
-    fit: typeof defaults.fit === 'string' && defaults.fit.trim()
-      ? defaults.fit.trim()
-      : 'contain',
-    align: typeof defaults.align === 'string' && defaults.align.trim()
-      ? defaults.align.trim()
-      : 'center',
+    fit:
+      typeof defaults.fit === 'string' && defaults.fit.trim()
+        ? defaults.fit.trim()
+        : 'contain',
+    align:
+      typeof defaults.align === 'string' && defaults.align.trim()
+        ? defaults.align.trim()
+        : 'center',
     controls: booleanValue(defaults.controls, false),
     hoverPlay: booleanValue(defaults.hoverPlay, false),
     freezeOnOffscreen: booleanValue(defaults.freezeOnOffscreen, true),
-    ariaLabel: typeof defaults.ariaLabel === 'string'
-      ? defaults.ariaLabel.trim()
-      : '',
+    ariaLabel:
+      typeof defaults.ariaLabel === 'string' ? defaults.ariaLabel.trim() : '',
   };
 }
 

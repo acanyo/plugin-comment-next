@@ -14,6 +14,28 @@ describe('CommentNextCommentItem reply pagination', () => {
 
     expect(body).toContain('展开剩余 2 条回复');
   });
+
+  it('shows a collapse action when more than three replies are all loaded', () => {
+    const { body } = render(CommentNextCommentItem, {
+      props: {
+        comment: {
+          ...commentWithFiveOfSevenReplies(),
+          stats: { replies: 5 },
+          replyPage: {
+            page: 1,
+            size: 5,
+            total: 5,
+            totalPages: 1,
+            hasNext: false,
+            hasPrevious: false,
+          },
+        },
+        replySize: 5,
+      },
+    });
+
+    expect(body).toContain('收起回复');
+  });
 });
 
 it('shows saved locations on comments and replies that have no timestamp', () => {

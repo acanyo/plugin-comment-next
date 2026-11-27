@@ -53,7 +53,7 @@ function loadAllowedLottieHosts(): Promise<AllowedLottieHost[]> {
   <div class="comment-next-console-comment-content">
     <comment-next-content
       :content="content"
-      :allowImages="false"
+      :allowImages="true"
       :allowedLottieHosts="allowedLottieHosts"
     ></comment-next-content>
   </div>

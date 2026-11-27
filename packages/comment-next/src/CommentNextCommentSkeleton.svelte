@@ -18,6 +18,11 @@ const widths = ['68%', '52%', '78%'];
 <style>
   .comment-next-comment-skeleton {
     --at-apply: grid gap-3.5 pt-4;
+    grid-template-columns: minmax(0, 1fr);
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .comment-next-comment-skeleton-row {

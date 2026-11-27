@@ -14,14 +14,21 @@ import {
   VSpace,
 } from '@halo-dev/components';
 import { utils } from '@halo-dev/ui-shared';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
+  cancelEmoteLocalization,
   createEmoteGroup,
   DEFAULT_EMOTE_SOURCE_URL,
   deleteEmoteGroup,
+  EMOTE_SOURCE_PRESETS,
   type EmoteGroup,
   type EmoteGroupFilter,
+  type EmoteLocalizationOptions,
+  type EmoteLocalizationProgress,
   fetchEmotePacksFromUrl,
+  getEmoteLocalizationOptions,
+  getEmoteLocalizationStatus,
+  isPresetEmoteSourceUrl,
   listAllEmoteGroups,
   listEmoteGroups,
   normalizeEmoteGroup,
@@ -29,6 +36,8 @@ import {
   type RawEmotePacks,
   rawPacksToGroups,
   sortEmoteGroupsByPriority,
+  startEmoteLocalization,
+  summarizeGroupLocalization,
   updateEmoteGroup,
 } from '../api/emotes';
 import {
@@ -38,6 +47,9 @@ import {
 } from '../api/lottie';
 import EmoteGroupListItem from '../components/EmoteGroupListItem.vue';
 import EmoteGroupSortModal from '../components/EmoteGroupSortModal.vue';
+import EmoteLocalizationFields from '../components/EmoteLocalizationFields.vue';
+import EmoteLocalizationProgressBanner from '../components/EmoteLocalizationProgressBanner.vue';
+import EmoteLocalizeModal from '../components/EmoteLocalizeModal.vue';
 import { useDeletionRefresh } from '../composables/use-deletion-refresh';
 import { hasDeletingResources, isDeletingResource } from '../utils/deletion';
 
@@ -72,6 +84,23 @@ const sortGroups = ref<EmoteGroup[]>([]);
 const filter = ref<EmoteGroupFilter>('ALL');
 const managePermissions = ['plugin:comment-next:emotes:manage'];
 
+const localizationOptions = ref<EmoteLocalizationOptions>();
+const localizationOptionsLoading = ref(false);
+const localizationProgress = ref<EmoteLocalizationProgress>();
+const localizationBannerDismissed = ref(false);
+const localizationStarting = ref(false);
+const localizationCancelling = ref(false);
+const scanningExternalGroups = ref(false);
+const localizeModalVisible = ref(false);
+const localizeModalGroups = ref<EmoteGroup[]>([]);
+const localizeOnDefaultImport = ref(false);
+const localizeOnCustomImport = ref(false);
+const selectedPolicyName = ref('');
+const selectedAttachmentGroupName = ref('');
+const useAbsoluteLocalizedUrl = ref(true);
+let localizationPollTimer: number | undefined;
+let localizationPollSeq = 0;
+
 const filterItems: Array<{ label: string; value: EmoteGroupFilter }> = [
   { label: '全部', value: 'ALL' },
   { label: '颜文字', value: 'emoticon' },
@@ -93,16 +122,16 @@ const selectedVisibleGroups = computed(() => {
   const selectedNames = new Set(selectedGroupNames.value);
   return groups.value.filter(
     (group) =>
-      !isDeletingResource(group)
-      && selectedNames.has(group.metadata.name)
+      !isDeletingResource(group) && selectedNames.has(group.metadata.name)
   );
 });
 const importedDisplayNames = computed(
-  () => new Set(
-    importKnownGroups.value
-      .filter((group) => group.spec.provider !== 'LOTTIE')
-      .map((group) => group.spec.displayName)
-  )
+  () =>
+    new Set(
+      importKnownGroups.value
+        .filter((group) => group.spec.provider !== 'LOTTIE')
+        .map((group) => group.spec.displayName)
+    )
 );
 const defaultPackSummaries = computed(() =>
   summarizePacks(defaultSourcePacks.value)
@@ -111,15 +140,53 @@ const normalizedDefaultSourceUrl = computed(
   () => defaultSourceUrl.value.trim() || DEFAULT_EMOTE_SOURCE_URL
 );
 const defaultImportSourceType = computed(() =>
-  normalizedDefaultSourceUrl.value === DEFAULT_EMOTE_SOURCE_URL
+  isPresetEmoteSourceUrl(normalizedDefaultSourceUrl.value)
     ? 'DEFAULT'
     : 'CUSTOM'
 );
 const customPackSummaries = computed(() => summarizePacks(customPacks.value));
 const hasDeletingGroups = computed(() => hasDeletingResources(groups.value));
+const localizationSiteOrigin = computed(
+  () => localizationOptions.value?.externalBaseUrl || ''
+);
+const localizationRunning = computed(
+  () => localizationProgress.value?.state === 'RUNNING'
+);
+const showLocalizationBanner = computed(
+  () =>
+    Boolean(localizationProgress.value) &&
+    localizationProgress.value?.state !== 'IDLE' &&
+    (localizationRunning.value || !localizationBannerDismissed.value)
+);
+const selectedLocalizableGroups = computed(() =>
+  selectedVisibleGroups.value.filter(
+    (group) =>
+      summarizeGroupLocalization(group, localizationSiteOrigin.value)
+        .externalImages > 0
+  )
+);
+const selectedDefaultHasImages = computed(() =>
+  selectedDefaultNames.value.some(
+    (name) => defaultSourcePacks.value[name]?.type === 'image'
+  )
+);
+const selectedCustomHasImages = computed(() =>
+  selectedCustomNames.value.some(
+    (name) => customPacks.value[name]?.type === 'image'
+  )
+);
 
 onMounted(() => {
   loadGroups({ initial: true });
+  if (canManage.value) {
+    void loadLocalizationOptions();
+    void pollLocalizationStatus({ silent: true });
+  }
+});
+
+onBeforeUnmount(() => {
+  clearLocalizationPollTimer();
+  localizationPollSeq += 1;
 });
 
 watch([filter, keyword], () => {
@@ -215,6 +282,7 @@ function syncCheckAll() {
 function openDefaultSource() {
   defaultSourceVisible.value = true;
   refreshKnownGroupsForImport();
+  void loadLocalizationOptions();
   if (!Object.keys(defaultSourcePacks.value).length) {
     loadDefaultSource();
   }
@@ -241,15 +309,23 @@ async function loadDefaultSource() {
   }
 }
 
-function resetDefaultSourceUrl() {
-  defaultSourceUrl.value = DEFAULT_EMOTE_SOURCE_URL;
+function selectPresetSourceUrl(url: string) {
+  if (
+    defaultSourceUrl.value === url &&
+    Object.keys(defaultSourcePacks.value).length
+  ) {
+    return;
+  }
+  defaultSourceUrl.value = url;
   defaultSourcePacks.value = {};
   selectedDefaultNames.value = [];
+  void loadDefaultSource();
 }
 
 function openCustomImport() {
   customVisible.value = true;
   refreshKnownGroupsForImport();
+  void loadLocalizationOptions();
 }
 
 function parseCustomJson() {
@@ -315,22 +391,56 @@ function nextFrame() {
 }
 
 async function importDefaultGroups() {
-  await importGroups({
+  const shouldLocalize =
+    localizeOnDefaultImport.value && selectedDefaultHasImages.value;
+  if (shouldLocalize && !ensureLocalizationPolicyReady()) {
+    return;
+  }
+
+  const imported = await importGroups({
     rawPacks: defaultSourcePacks.value,
     names: selectedDefaultNames.value,
     sourceType: defaultImportSourceType.value,
     sourceUrl: normalizedDefaultSourceUrl.value,
   });
+  if (!imported) {
+    return;
+  }
   defaultSourceVisible.value = false;
+  if (shouldLocalize) {
+    const imageGroupNames = imported
+      .filter((group) => group.spec.type === 'image')
+      .map((group) => group.metadata.name);
+    if (imageGroupNames.length) {
+      await triggerLocalization(imageGroupNames);
+    }
+  }
 }
 
 async function importCustomGroups() {
-  await importGroups({
+  const shouldLocalize =
+    localizeOnCustomImport.value && selectedCustomHasImages.value;
+  if (shouldLocalize && !ensureLocalizationPolicyReady()) {
+    return;
+  }
+
+  const imported = await importGroups({
     rawPacks: customPacks.value,
     names: selectedCustomNames.value,
     sourceType: 'CUSTOM',
   });
+  if (!imported) {
+    return;
+  }
   customVisible.value = false;
+  if (shouldLocalize) {
+    const imageGroupNames = imported
+      .filter((group) => group.spec.type === 'image')
+      .map((group) => group.metadata.name);
+    if (imageGroupNames.length) {
+      await triggerLocalization(imageGroupNames);
+    }
+  }
 }
 
 async function importGroups({
@@ -343,10 +453,10 @@ async function importGroups({
   names: string[];
   sourceType: 'DEFAULT' | 'CUSTOM';
   sourceUrl?: string;
-}) {
+}): Promise<EmoteGroup[] | null> {
   if (!names.length) {
     Toast.error('请先选择要导入的表情分类');
-    return;
+    return null;
   }
 
   importing.value = true;
@@ -366,7 +476,7 @@ async function importGroups({
         .map((group) => group.spec.displayName)
     );
 
-    await Promise.all(
+    const savedGroups = await Promise.all(
       payloads.map((group) =>
         existingNames.has(group.spec.displayName)
           ? updateEmoteGroup(group)
@@ -376,11 +486,244 @@ async function importGroups({
     Toast.success(`已导入 ${payloads.length} 个表情分类`);
     await loadGroups();
     await refreshKnownGroupsForImport();
+    return savedGroups;
   } catch (error) {
     console.error(error);
     Toast.error('表情分类导入失败');
+    return null;
   } finally {
     importing.value = false;
+  }
+}
+
+async function loadLocalizationOptions(force = false) {
+  if (!canManage.value) {
+    return;
+  }
+  if (
+    !force &&
+    (localizationOptions.value || localizationOptionsLoading.value)
+  ) {
+    return;
+  }
+
+  localizationOptionsLoading.value = true;
+  try {
+    const options = await getEmoteLocalizationOptions();
+    localizationOptions.value = options;
+    if (!selectedPolicyName.value && options.defaultPolicyName) {
+      selectedPolicyName.value = options.defaultPolicyName;
+    }
+    if (
+      !selectedAttachmentGroupName.value &&
+      options.defaultAttachmentGroupName
+    ) {
+      selectedAttachmentGroupName.value = options.defaultAttachmentGroupName;
+    }
+  } catch (error) {
+    console.error(error);
+  } finally {
+    localizationOptionsLoading.value = false;
+  }
+}
+
+function ensureLocalizationPolicyReady(): boolean {
+  if (localizationRunning.value) {
+    Toast.warning('当前已有表情本地化任务正在运行，请等待完成或先停止');
+    return false;
+  }
+  if (!selectedPolicyName.value.trim()) {
+    Toast.error('请先选择 Halo 附件存储策略');
+    return false;
+  }
+  return true;
+}
+
+function openLocalizeModal(targetGroups: EmoteGroup[]) {
+  const imageGroups = targetGroups.filter(
+    (group) =>
+      group.spec.provider !== 'LOTTIE' &&
+      group.spec.type === 'image' &&
+      summarizeGroupLocalization(group, localizationSiteOrigin.value)
+        .externalImages > 0
+  );
+  if (!imageGroups.length) {
+    Toast.info('所选分类没有需要本地化的外链图片');
+    return;
+  }
+  if (localizationRunning.value) {
+    Toast.warning('当前已有表情本地化任务正在运行');
+    return;
+  }
+
+  localizeModalGroups.value = imageGroups;
+  localizeModalVisible.value = true;
+  void loadLocalizationOptions();
+}
+
+async function openLocalizeAllExternalModal() {
+  if (scanningExternalGroups.value || localizationRunning.value) {
+    return;
+  }
+
+  scanningExternalGroups.value = true;
+  try {
+    const imageGroups = await listAllEmoteGroups({ type: 'image' });
+    openLocalizeModal(imageGroups);
+  } catch (error) {
+    console.error(error);
+    Toast.error('扫描外链表情分类失败');
+  } finally {
+    scanningExternalGroups.value = false;
+  }
+}
+
+async function confirmLocalizeModal() {
+  if (!ensureLocalizationPolicyReady()) {
+    return;
+  }
+  const groupNames = localizeModalGroups.value
+    .map((group) => group.metadata.name)
+    .filter(Boolean);
+  if (!groupNames.length) {
+    return;
+  }
+
+  const started = await triggerLocalization(groupNames);
+  if (started) {
+    localizeModalVisible.value = false;
+    selectedGroupNames.value = [];
+  }
+}
+
+async function triggerLocalization(groupNames: string[]): Promise<boolean> {
+  if (!groupNames.length || !ensureLocalizationPolicyReady()) {
+    return false;
+  }
+
+  localizationStarting.value = true;
+  try {
+    const progress = await startEmoteLocalization({
+      groupNames,
+      policyName: selectedPolicyName.value.trim(),
+      attachmentGroupName:
+        selectedAttachmentGroupName.value.trim() || undefined,
+      useAbsoluteUrl: useAbsoluteLocalizedUrl.value,
+    });
+    localizationProgress.value = progress;
+    localizationBannerDismissed.value = false;
+    Toast.success('已启动后台本地化任务');
+    scheduleLocalizationPoll(1200);
+    return true;
+  } catch (error) {
+    console.error(error);
+    const message =
+      (error as { response?: { data?: { detail?: string; message?: string } } })
+        ?.response?.data?.detail ||
+      (error as { response?: { data?: { detail?: string; message?: string } } })
+        ?.response?.data?.message ||
+      '启动表情本地化任务失败';
+    Toast.error(message);
+    return false;
+  } finally {
+    localizationStarting.value = false;
+  }
+}
+
+async function handleCancelLocalization() {
+  if (localizationCancelling.value) {
+    return;
+  }
+  localizationCancelling.value = true;
+  try {
+    const progress = await cancelEmoteLocalization();
+    clearLocalizationPollTimer();
+    localizationProgress.value = progress;
+    Toast.info('已停止本地化任务');
+    await loadGroups();
+  } catch (error) {
+    console.error(error);
+    Toast.error('停止本地化任务失败');
+  } finally {
+    localizationCancelling.value = false;
+  }
+}
+
+async function handleRetryFailedGroups(groupNames: string[]) {
+  if (!groupNames.length) {
+    return;
+  }
+  try {
+    const allGroups = await listAllEmoteGroups({ type: 'image' });
+    const targetSet = new Set(groupNames);
+    const matched = allGroups.filter((group) =>
+      targetSet.has(group.metadata.name)
+    );
+    if (!matched.length) {
+      Toast.info('未找到可重试的表情分类');
+      return;
+    }
+    openLocalizeModal(matched);
+  } catch (error) {
+    console.error(error);
+    Toast.error('加载重试分类失败');
+  }
+}
+
+function dismissLocalizationBanner() {
+  localizationBannerDismissed.value = true;
+}
+
+function clearLocalizationPollTimer() {
+  if (localizationPollTimer !== undefined) {
+    window.clearTimeout(localizationPollTimer);
+    localizationPollTimer = undefined;
+  }
+}
+
+function scheduleLocalizationPoll(delayMs = 1500) {
+  clearLocalizationPollTimer();
+  localizationPollTimer = window.setTimeout(() => {
+    void pollLocalizationStatus({ silent: true });
+  }, delayMs);
+}
+
+async function pollLocalizationStatus(options: { silent?: boolean } = {}) {
+  const seq = ++localizationPollSeq;
+  try {
+    const previousState = localizationProgress.value?.state;
+    const current = await getEmoteLocalizationStatus();
+    if (seq !== localizationPollSeq) {
+      return;
+    }
+    localizationProgress.value = current;
+
+    if (current.state === 'RUNNING') {
+      localizationBannerDismissed.value = false;
+      scheduleLocalizationPoll(1500);
+      return;
+    }
+
+    clearLocalizationPollTimer();
+    if (previousState === 'RUNNING') {
+      await loadGroups();
+      if (current.state === 'COMPLETED') {
+        if (current.failedItems > 0) {
+          Toast.warning(
+            `表情本地化完成，成功 ${current.localizedItems + current.reusedItems} 张，失败 ${current.failedItems} 张`
+          );
+        } else {
+          Toast.success('表情图片已全部本地化到 Halo 附件库');
+        }
+      } else if (current.state === 'FAILED') {
+        Toast.error(current.errorMessage || '表情本地化任务异常中断');
+      }
+    }
+  } catch (error) {
+    if (!options.silent) {
+      console.error(error);
+    }
+    clearLocalizationPollTimer();
   }
 }
 
@@ -492,7 +835,9 @@ async function syncLottieGroups() {
       listAllEmoteGroups(),
     ]);
     const { upserts, stale } = buildLottieEmoteGroups(catalog, existingGroups);
-    const existingNames = new Set(existingGroups.map((group) => group.metadata.name));
+    const existingNames = new Set(
+      existingGroups.map((group) => group.metadata.name)
+    );
 
     await Promise.all(
       upserts.map((group) =>
@@ -721,6 +1066,15 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
                 >
                   停用
                 </VButton>
+                <VButton
+                  v-if="selectedLocalizableGroups.length"
+                  type="secondary"
+                  size="sm"
+                  :disabled="localizationRunning"
+                  @click="openLocalizeModal(selectedLocalizableGroups)"
+                >
+                  本地化到附件库
+                </VButton>
                 <VButton type="danger" size="sm" @click="removeSelectedGroups">
                   删除
                 </VButton>
@@ -731,6 +1085,16 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
               <span class=":uno: text-sm text-gray-500">
                 共 {{ total }} 个分类
               </span>
+              <VButton
+                v-if="canManage && total > 0"
+                size="sm"
+                type="default"
+                :loading="scanningExternalGroups"
+                :disabled="localizationRunning"
+                @click="openLocalizeAllExternalModal"
+              >
+                本地化外链
+              </VButton>
               <FilterCleanButton v-if="hasFilters" @click="clearFilters" />
               <FilterDropdown v-model="filter" label="类型" :items="filterItems" />
               <div class=":uno: flex flex-row gap-2">
@@ -749,6 +1113,16 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
           </div>
         </div>
       </template>
+
+      <EmoteLocalizationProgressBanner
+        v-if="showLocalizationBanner && localizationProgress"
+        :progress="localizationProgress"
+        :cancelling="localizationCancelling"
+        :can-manage="canManage"
+        @cancel="handleCancelLocalization"
+        @dismiss="dismissLocalizationBanner"
+        @retry-failed="handleRetryFailedGroups"
+      />
 
       <VLoading v-if="loading" />
 
@@ -777,7 +1151,10 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
             :group="group"
             :can-manage="canManage"
             :is-selected="selectedGroupNames.includes(group.metadata.name)"
+            :site-origin="localizationSiteOrigin"
+            :localization-running="localizationRunning"
             @toggle="toggleGroup"
+            @localize="openLocalizeModal([$event])"
             @remove="removeGroup"
           >
             <template #checkbox>
@@ -815,21 +1192,40 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
   >
     <div class=":uno: space-y-4">
       <div class=":uno: rounded-lg border border-solid border-gray-200 bg-gray-50 p-3">
-        <label class=":uno: text-xs font-medium text-gray-700">
-          表情源地址
-        </label>
-        <div class=":uno: mt-2 flex flex-col gap-2 sm:flex-row">
+        <div class=":uno: flex flex-wrap items-center justify-between gap-2">
+          <label class=":uno: text-xs font-medium text-gray-700">
+            表情源地址
+          </label>
+          <div class=":uno: flex flex-wrap items-center gap-1.5">
+            <button
+              v-for="preset in EMOTE_SOURCE_PRESETS"
+              :key="preset.id"
+              type="button"
+              :title="preset.description"
+              :disabled="defaultSourceLoading"
+              class=":uno: cursor-pointer rounded-full border border-solid px-2.5 py-0.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-60"
+              :class="
+                normalizedDefaultSourceUrl === preset.url
+                  ? ':uno: border-blue-500 bg-blue-50 font-medium text-blue-700'
+                  : ':uno: border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-600'
+              "
+              @click="selectPresetSourceUrl(preset.url)"
+            >
+              {{ preset.label }}
+            </button>
+          </div>
+        </div>
+        <div class=":uno: mt-2 flex items-center gap-2">
           <input
             v-model="defaultSourceUrl"
-            class=":uno: min-w-0 flex-1 rounded-lg border border-solid border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            placeholder="https://example.com/OwO.min.json"
+            class=":uno: min-w-0 flex-1 rounded-lg border border-solid border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            placeholder="https://owo.twouu.com/OwO.min.json"
             type="url"
           />
-          <VButton type="secondary" @click="resetDefaultSourceUrl">
-            恢复默认
-          </VButton>
           <VButton
-            type="secondary"
+            type="default"
+            size="sm"
+            class=":uno: shrink-0"
             :loading="defaultSourceLoading"
             @click="loadDefaultSource"
           >
@@ -837,25 +1233,28 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
           </VButton>
         </div>
         <div class=":uno: mt-2 text-xs leading-5 text-gray-500">
-          支持 OwO JSON 格式；默认地址仍是官方 GitHub 源，也可以换成自己的 CDN、对象存储或站内文件地址。
+          支持 OwO JSON 格式；默认优先使用 EdgeOne Pages 国内源，也可一键切换官方 GitHub 源或填入自己的 CDN / 站内文件地址。
         </div>
       </div>
 
-      <div class=":uno: flex items-center justify-between gap-3">
+      <div class=":uno: flex flex-wrap items-center justify-between gap-2">
         <span class=":uno: text-sm text-gray-600">
           已加载 {{ defaultPackSummaries.length }} 个分类
+          <template v-if="selectedDefaultNames.length">
+            · 已选 <strong class=":uno: text-gray-900">{{ selectedDefaultNames.length }}</strong> 个
+          </template>
         </span>
         <VSpace>
-          <VButton type="secondary" size="sm" @click="selectAllDefaultPacks">
+          <VButton type="default" size="sm" @click="selectAllDefaultPacks">
             全选
           </VButton>
-          <VButton type="secondary" size="sm" @click="selectNewDefaultPacks">
+          <VButton type="default" size="sm" @click="selectNewDefaultPacks">
             仅选未导入
           </VButton>
-          <VButton type="secondary" size="sm" @click="clearDefaultSelection">
+          <VButton type="default" size="sm" @click="clearDefaultSelection">
             清空
           </VButton>
-          <VButton type="secondary" size="sm" :loading="defaultSourceLoading" @click="loadDefaultSource">
+          <VButton type="default" size="sm" :loading="defaultSourceLoading" @click="loadDefaultSource">
             重新加载
           </VButton>
         </VSpace>
@@ -883,15 +1282,39 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
           </span>
         </label>
       </div>
+
+      <div
+        v-if="selectedDefaultHasImages"
+        class=":uno: space-y-2.5 rounded-lg border border-solid border-gray-200 bg-gray-50 p-3"
+      >
+        <label class=":uno: flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-800">
+          <input
+            v-model="localizeOnDefaultImport"
+            :disabled="importing || localizationRunning"
+            type="checkbox"
+          />
+          <span>导入后自动将图片表情本地化到 Halo 附件库</span>
+        </label>
+        <EmoteLocalizationFields
+          v-if="localizeOnDefaultImport"
+          :options="localizationOptions"
+          :loading="localizationOptionsLoading"
+          :disabled="importing || localizationRunning"
+          v-model:policy-name="selectedPolicyName"
+          v-model:attachment-group-name="selectedAttachmentGroupName"
+          v-model:use-absolute-url="useAbsoluteLocalizedUrl"
+          @refresh-options="loadLocalizationOptions(true)"
+        />
+      </div>
     </div>
 
     <template #footer>
       <VSpace>
-        <VButton type="secondary" :disabled="importing" @click="defaultSourceVisible = false">
+        <VButton type="default" :disabled="importing" @click="defaultSourceVisible = false">
           取消
         </VButton>
-        <VButton type="primary" :disabled="importing" @click="importDefaultGroups">
-          {{ importing ? "导入中" : "导入选中分类" }}
+        <VButton type="primary" :disabled="importing || localizationStarting" @click="importDefaultGroups">
+          {{ importing ? "导入中" : localizeOnDefaultImport && selectedDefaultHasImages ? "导入并本地化" : "导入选中分类" }}
         </VButton>
       </VSpace>
     </template>
@@ -947,14 +1370,14 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
         class=":uno: h-36 w-full resize-y rounded-lg border border-solid border-gray-200 bg-white p-3 font-mono text-xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
         placeholder='{"颜文字":{"type":"emoticon","container":[{"icon":"OωO","text":"Author"}]}}'
       ></textarea>
-      <div class=":uno: flex items-center justify-between">
+      <div class=":uno: flex flex-wrap items-center justify-between gap-2">
         <span class=":uno: text-sm text-gray-500">
           小片段可以粘贴后解析，格式与 OwO JSON 一致。
         </span>
         <VSpace>
           <VButton
             v-if="customPackSummaries.length"
-            type="secondary"
+            type="default"
             size="sm"
             @click="selectAllCustomPacks"
           >
@@ -962,7 +1385,7 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
           </VButton>
           <VButton
             v-if="customPackSummaries.length"
-            type="secondary"
+            type="default"
             size="sm"
             @click="selectNewCustomPacks"
           >
@@ -970,7 +1393,7 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
           </VButton>
           <VButton
             v-if="customPackSummaries.length"
-            type="secondary"
+            type="default"
             size="sm"
             @click="clearCustomSelection"
           >
@@ -978,14 +1401,14 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
           </VButton>
           <VButton
             v-if="customPackSummaries.length"
-            type="secondary"
+            type="default"
             size="sm"
             @click="clearCustomParsedPacks"
           >
             清空解析结果
           </VButton>
           <VButton
-            type="secondary"
+            type="default"
             size="sm"
             :disabled="customJsonParsing"
             @click="parseCustomJson"
@@ -1018,12 +1441,36 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
           </span>
         </label>
       </div>
+
+      <div
+        v-if="selectedCustomHasImages"
+        class=":uno: space-y-2.5 rounded-lg border border-solid border-gray-200 bg-gray-50 p-3"
+      >
+        <label class=":uno: flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-800">
+          <input
+            v-model="localizeOnCustomImport"
+            :disabled="importing || customJsonParsing || localizationRunning"
+            type="checkbox"
+          />
+          <span>导入后自动将图片表情本地化到 Halo 附件库</span>
+        </label>
+        <EmoteLocalizationFields
+          v-if="localizeOnCustomImport"
+          :options="localizationOptions"
+          :loading="localizationOptionsLoading"
+          :disabled="importing || customJsonParsing || localizationRunning"
+          v-model:policy-name="selectedPolicyName"
+          v-model:attachment-group-name="selectedAttachmentGroupName"
+          v-model:use-absolute-url="useAbsoluteLocalizedUrl"
+          @refresh-options="loadLocalizationOptions(true)"
+        />
+      </div>
     </div>
 
     <template #footer>
       <VSpace>
         <VButton
-          type="secondary"
+          type="default"
           :disabled="importing || customJsonParsing"
           @click="customVisible = false"
         >
@@ -1031,14 +1478,28 @@ async function saveEmoteGroupOrder(sortedGroups: EmoteGroup[]) {
         </VButton>
         <VButton
           type="primary"
-          :disabled="importing || customJsonParsing"
+          :disabled="importing || customJsonParsing || localizationStarting"
           @click="importCustomGroups"
         >
-          {{ importing ? "导入中" : "导入选中分类" }}
+          {{ importing ? "导入中" : localizeOnCustomImport && selectedCustomHasImages ? "导入并本地化" : "导入选中分类" }}
         </VButton>
       </VSpace>
     </template>
   </VModal>
+
+  <EmoteLocalizeModal
+    v-model:visible="localizeModalVisible"
+    :groups="localizeModalGroups"
+    :options="localizationOptions"
+    :options-loading="localizationOptionsLoading"
+    :submitting="localizationStarting"
+    :site-origin="localizationSiteOrigin"
+    v-model:policy-name="selectedPolicyName"
+    v-model:attachment-group-name="selectedAttachmentGroupName"
+    v-model:use-absolute-url="useAbsoluteLocalizedUrl"
+    @refresh-options="loadLocalizationOptions(true)"
+    @confirm="confirmLocalizeModal"
+  />
 
   <EmoteGroupSortModal
     v-model:visible="sortVisible"

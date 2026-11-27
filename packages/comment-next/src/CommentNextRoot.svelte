@@ -117,6 +117,7 @@ let configLoaded = $state(false);
 let configFailed = $state(false);
 let globalInfoLoaded = $state(false);
 let globalInfoFailed = $state(false);
+// biome-ignore lint/style/useConst: Svelte assigns the element through bind:this.
 let rootElement = $state<HTMLDivElement>();
 let commentsActivated = $state(false);
 // biome-ignore lint/style/useConst: Svelte assigns this through bind:this.
@@ -540,10 +541,18 @@ export function cancelReply(): boolean {
 <style>
   .comment-next-root {
     --at-apply: grid w-full gap-4;
+    grid-template-columns: minmax(0, 1fr);
     container: comment-next-thread / inline-size;
     box-sizing: border-box;
+    width: 100%;
     max-width: 100%;
     min-width: 0;
+  }
+
+  .comment-next-root > :global(*) {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .comment-next-root[data-comment-density='compact'] {

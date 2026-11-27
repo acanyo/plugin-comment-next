@@ -2,14 +2,12 @@
 import CommentNextIcon from './CommentNextIcon.svelte';
 import type { CommentNextReactionConfig } from './services/config';
 import {
-  fetchReactionSummary,
-  toggleReaction,
   type CommentNextReactionItem,
   type CommentNextReactionSummary,
+  fetchReactionSummary,
+  toggleReaction,
 } from './services/reactions';
-import {
-  resolveConfiguredReactionItems,
-} from './utils/reactions';
+import { resolveConfiguredReactionItems } from './utils/reactions';
 
 const {
   baseUrl = '',
@@ -40,13 +38,19 @@ const configuredItems = $derived(
     config?.subjectItems?.length ? config.subjectItems : config?.items
   )
 );
-const enabled = $derived(Boolean(config?.enabled && config.subjectEnabled !== false && group && kind && name));
+const enabled = $derived(
+  Boolean(
+    config?.enabled && config.subjectEnabled !== false && group && kind && name
+  )
+);
 const allowAnonymous = $derived(config?.allowAnonymous !== false);
 const canReact = $derived(loggedIn || allowAnonymous);
 const prompt = $derived(
   summary?.prompt || config?.subjectPrompt || '你认为这篇文章怎么样？'
 );
-const items = $derived(summary?.items?.length ? summary.items : configuredItems);
+const items = $derived(
+  summary?.items?.length ? summary.items : configuredItems
+);
 const targetKey = $derived(`${baseUrl}|${group}|${kind}|${version}|${name}`);
 
 $effect(() => {
@@ -118,12 +122,15 @@ function applyOptimisticReaction(reaction: string) {
       items,
     } satisfies CommentNextReactionSummary);
 
-  const selectedReaction = sourceSummary.items.find((item) => item.selected)?.name;
+  const selectedReaction = sourceSummary.items.find(
+    (item) => item.selected
+  )?.name;
 
   summary = {
     ...sourceSummary,
     items: sourceSummary.items.map((item) => {
-      const selected = selectedReaction === reaction ? false : item.name === reaction;
+      const selected =
+        selectedReaction === reaction ? false : item.name === reaction;
       const selectedDelta =
         item.name === reaction && selectedReaction !== reaction
           ? 1
@@ -138,7 +145,6 @@ function applyOptimisticReaction(reaction: string) {
     }),
   };
 }
-
 </script>
 
 {#if enabled}
@@ -160,7 +166,10 @@ function applyOptimisticReaction(reaction: string) {
           aria-label={`${item.label}，${item.count} 个回应`}
           onclick={() => handleReaction(item)}
         >
-          <span class="comment-next-reaction-count">{item.count}</span>
+          <span
+            class="comment-next-reaction-count"
+            class:comment-next-reaction-count-empty={item.count === 0 && !item.selected}
+          >{item.count}</span>
           <span class="comment-next-reaction-emoji" aria-hidden="true">
             {#if item.type === 'IMAGE'}
               <img src={item.value} alt="" loading="lazy" />
@@ -183,15 +192,24 @@ function applyOptimisticReaction(reaction: string) {
 <style>
   .comment-next-reaction-bar {
     --at-apply: mx-auto flex w-full max-w-[34rem] flex-col items-center gap-2.5 px-2 pb-0 pt-1 text-center;
+    box-sizing: border-box;
+    max-width: min(34rem, 100%);
+    min-width: 0;
   }
 
   .comment-next-reaction-prompt {
     --at-apply: text-[0.9375rem] text-[var(--comment-next-text-color,#172033)] font-[780] leading-6;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 
   .comment-next-reaction-items {
-    --at-apply: flex max-w-full items-end justify-center gap-3 overflow-x-auto px-1 pb-1;
+    --at-apply: flex w-full max-w-full items-end justify-center gap-3 overflow-x-auto pb-1;
+    box-sizing: border-box;
+    min-width: 0;
+    padding-inline: 0.25rem 0.5rem;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
 
   .comment-next-reaction-items::-webkit-scrollbar {
@@ -199,7 +217,9 @@ function applyOptimisticReaction(reaction: string) {
   }
 
   .comment-next-reaction-items button {
-    --at-apply: relative inline-flex min-h-[3.1rem] min-w-[2.75rem] cursor-pointer flex-col items-center justify-end gap-0.5 border-0 rounded-lg bg-transparent px-1.5 pb-1 pt-2 font-inherit text-[var(--comment-next-muted-color,#6b7687)] transition-[color,transform,background-color] duration-160 ease-in-out;
+    --at-apply: relative inline-flex min-h-[3.25rem] min-w-[2.75rem] cursor-pointer flex-col items-center justify-end gap-0.5 border-0 rounded-lg bg-transparent px-1.5 pb-1 pt-2.5 font-inherit text-[var(--comment-next-muted-color,#6b7687)] transition-[color,transform,background-color] duration-160 ease-in-out;
+    box-sizing: border-box;
+    flex: 0 0 auto;
   }
 
   .comment-next-reaction-items button:hover:not(:disabled),
@@ -221,7 +241,14 @@ function applyOptimisticReaction(reaction: string) {
   }
 
   .comment-next-reaction-count {
-    --at-apply: absolute left-[calc(50%+0.35rem)] top-0 min-w-[1.05rem] rounded-full bg-[var(--comment-next-primary-color,rgb(59,130,246))] px-1 text-[0.625rem] text-white font-[760] leading-[1.05rem] shadow-sm;
+    --at-apply: absolute left-[calc(50%+0.45rem)] top-0.5 min-w-[1rem] rounded-full bg-[var(--comment-next-primary-color,rgb(59,130,246))] px-1 text-[0.6rem] text-white font-[760] leading-[1rem] shadow-sm transition-colors duration-160 ease-in-out;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .comment-next-reaction-count-empty {
+    background: var(--comment-next-pill-bg-color, #eef2f6);
+    color: var(--comment-next-muted-color, #6b7687);
+    box-shadow: none;
   }
 
   .comment-next-reaction-emoji {
@@ -246,7 +273,31 @@ function applyOptimisticReaction(reaction: string) {
     }
 
     .comment-next-reaction-items {
-      --at-apply: justify-start gap-2.5;
+      --at-apply: justify-start;
+      gap: 0.375rem;
+      padding-inline: 0.125rem 0.5rem;
+    }
+
+    .comment-next-reaction-items button {
+      min-width: 2.5rem;
+      padding-inline: 0.25rem;
+    }
+  }
+
+  @container comment-next-thread (max-width: 36rem) {
+    .comment-next-reaction-bar {
+      --at-apply: max-w-full items-start px-0 text-left;
+    }
+
+    .comment-next-reaction-items {
+      --at-apply: justify-start;
+      gap: 0.375rem;
+      padding-inline: 0.125rem 0.5rem;
+    }
+
+    .comment-next-reaction-items button {
+      min-width: 2.5rem;
+      padding-inline: 0.25rem;
     }
   }
 

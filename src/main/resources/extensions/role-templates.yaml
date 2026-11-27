@@ -261,6 +261,15 @@ rules:
   - apiGroups: [ "api.commentnext.xhhao.com" ]
     resources: [ "emotegroups" ]
     verbs: [ "create", "delete", "get", "list", "patch", "update" ]
+  - apiGroups: [ "console.api.commentnext.xhhao.com" ]
+    resources: [ "emotes/localization" ]
+    verbs: [ "get", "list", "create", "delete" ]
+  - apiGroups: [ "console.api.commentnext.xhhao.com" ]
+    resources: [ "emotes/localization-options" ]
+    verbs: [ "get", "list" ]
+  - apiGroups: [ "console.api.commentnext.xhhao.com" ]
+    resources: [ "emotes/source-fetch" ]
+    verbs: [ "create" ]
 ---
 apiVersion: v1alpha1
 kind: Role

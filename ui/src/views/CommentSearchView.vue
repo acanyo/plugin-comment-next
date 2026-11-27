@@ -9,6 +9,7 @@ import {
   VEmpty,
   VEntityContainer,
   VLoading,
+  VModal,
   VPageHeader,
   VPagination,
   VSpace,
@@ -424,6 +425,7 @@ function submitEmailReplacement() {
     v-model:visible="emailReplacementVisible"
     title="批量替换评论邮箱"
     :width="520"
+    :closable="!replacingEmail"
     @close="closeEmailReplacement"
   >
     <p class=":uno: mb-4 text-sm leading-6 text-gray-600">

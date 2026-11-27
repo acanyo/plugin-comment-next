@@ -1703,6 +1703,9 @@ function resolveMentionName(
     --comment-next-composer-radius: var(--comment-next-style-radius, var(--halo-cw-base-rounded, var(--halo-comment-widget-base-border-radius, 0.875rem)));
     --comment-next-composer-control-radius: min(0.5625rem, var(--comment-next-composer-radius));
     --comment-next-composer-avatar-size: clamp(1.125rem, var(--comment-next-theme-avatar-size, 1.5rem), 1.625rem);
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
     color: var(--comment-next-text-color, #172033);
     font-family: inherit;
@@ -1810,6 +1813,9 @@ function resolveMentionName(
   .comment-next-composer-surface {
     display: flow-root;
     position: relative;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
     border: 1px solid var(--comment-next-field-border-color, var(--comment-next-border-color, #d5dde7));
     border-radius: var(--comment-next-composer-radius);

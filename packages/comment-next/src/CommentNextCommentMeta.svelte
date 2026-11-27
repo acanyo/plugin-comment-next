@@ -45,11 +45,17 @@ const devices = $derived(
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.125rem 0.5625rem;
-    margin-block-end: 0.3125rem;
+    gap: 0.125rem 0.5rem;
+    margin-block: 0.125rem 0.4375rem;
     color: var(--comment-next-muted-color, #6b7687);
     font-size: 0.75rem;
     line-height: 1.4;
+    opacity: 0.86;
+    transition: opacity 140ms ease;
+  }
+
+  .comment-next-comment-submeta:hover {
+    opacity: 1;
   }
 
   .comment-next-comment-submeta time {
@@ -82,5 +88,12 @@ const devices = $derived(
     flex: none;
     width: 0.75rem;
     height: 0.75rem;
+    opacity: 0.76;
+    transition: opacity 140ms ease;
+  }
+
+  .comment-next-comment-submeta:hover .comment-next-ip-location-glyph,
+  .comment-next-comment-submeta:hover .comment-next-env-icon {
+    opacity: 1;
   }
 </style>

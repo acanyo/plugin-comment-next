@@ -2,11 +2,11 @@
 import CommentNextIcon from './CommentNextIcon.svelte';
 import type { CommentNextReactionConfig } from './services/config';
 import {
-  fetchReactionSummary,
-  toggleReaction,
   type CommentNextReactionItem,
   type CommentNextReactionSummary,
   type CommentNextReactionTargetType,
+  fetchReactionSummary,
+  toggleReaction,
 } from './services/reactions';
 import {
   getReactionTotalCount,
@@ -31,6 +31,7 @@ const {
 } = $props();
 
 let summary = $state<CommentNextReactionSummary | undefined>();
+// biome-ignore lint/style/useConst: Svelte assigns the element through bind:this.
 let rootElement = $state<HTMLElement | undefined>();
 let open = $state(false);
 let loading = $state(false);
@@ -50,12 +51,17 @@ const targetEnabled = $derived(
 const enabled = $derived(Boolean(config?.enabled && targetEnabled && name));
 const allowAnonymous = $derived(config?.allowAnonymous !== false);
 const canReact = $derived(loggedIn || allowAnonymous);
-const items = $derived(summary?.items?.length ? summary.items : configuredItems);
+const items = $derived(
+  summary?.items?.length ? summary.items : configuredItems
+);
 const selectedItem = $derived(items.find((item) => item.selected));
 const totalCount = $derived(getReactionTotalCount(items));
 const visibleSummaryItems = $derived(getVisibleReactionSummaryItems(items));
 const hiddenSummaryCount = $derived(
-  Math.max(0, items.filter((item) => item.count > 0).length - visibleSummaryItems.length)
+  Math.max(
+    0,
+    items.filter((item) => item.count > 0).length - visibleSummaryItems.length
+  )
 );
 const targetKey = $derived(`${baseUrl}|${targetType}|${name}`);
 
@@ -81,7 +87,8 @@ $effect(() => {
   };
 
   window.addEventListener('pointerdown', handlePointerDown, true);
-  return () => window.removeEventListener('pointerdown', handlePointerDown, true);
+  return () =>
+    window.removeEventListener('pointerdown', handlePointerDown, true);
 });
 
 async function loadSummary() {
@@ -145,12 +152,15 @@ function applyOptimisticReaction(reaction: string) {
       allowAnonymous,
       items,
     } satisfies CommentNextReactionSummary);
-  const selectedReaction = sourceSummary.items.find((item) => item.selected)?.name;
+  const selectedReaction = sourceSummary.items.find(
+    (item) => item.selected
+  )?.name;
 
   summary = {
     ...sourceSummary,
     items: sourceSummary.items.map((item) => {
-      const selected = selectedReaction === reaction ? false : item.name === reaction;
+      const selected =
+        selectedReaction === reaction ? false : item.name === reaction;
       const selectedDelta =
         item.name === reaction && selectedReaction !== reaction
           ? 1
@@ -298,7 +308,7 @@ function reactionLabel(item: CommentNextReactionItem) {
   }
 
   .comment-next-target-reaction-popover {
-    --at-apply: absolute left-0 top-[calc(100%+0.4rem)] z-20 inline-flex max-w-[min(16rem,calc(100vw-2rem))] items-center gap-1 rounded-full border border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-toolbar-bg-color,#ffffff)] px-1.5 py-1 shadow-[0_10px_26px_rgb(15_23_42_/_0.13)];
+    --at-apply: absolute left-0 top-[calc(100%+0.4rem)] z-20 inline-flex max-w-[min(17.5rem,calc(100vw-2.5rem))] flex-wrap items-center gap-1.5 rounded-[1.25rem] border border-solid [border-color:var(--comment-next-border-subtle-color,#dfe5ec)] bg-[var(--comment-next-toolbar-bg-color,#ffffff)] px-2 py-1.5 shadow-[0_10px_26px_rgb(15_23_42_/_0.13)];
   }
 
   .comment-next-target-reaction-popover button {
@@ -323,12 +333,7 @@ function reactionLabel(item: CommentNextReactionItem) {
   }
 
   .comment-next-target-reaction-option-count {
-    --at-apply: absolute -right-0.5 -top-0.5 min-w-[0.95rem] rounded-full bg-[var(--comment-next-primary-color,rgb(59,130,246))] px-0.5 text-[0.58rem] text-white font-[760] leading-[0.95rem];
-  }
-
-  @media (max-width: 520px) {
-    .comment-next-target-reaction-popover {
-      --at-apply: left-auto right-0;
-    }
+    --at-apply: absolute -right-1 -top-1 min-w-[0.95rem] rounded-full bg-[var(--comment-next-primary-color,rgb(59,130,246))] px-1 text-[0.58rem] text-white font-[760] leading-[0.95rem];
+    box-shadow: 0 0 0 1.5px var(--comment-next-toolbar-bg-color, #ffffff);
   }
 </style>
